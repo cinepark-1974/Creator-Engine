@@ -1,6 +1,7 @@
 """
 👖 BLUE JEANS Creative Development Engine v1.2
 아이디어 → 기획개발 패키지
+단일 페이지 · 사이드바 없음 · 2단계 Brainstorm
 """
 
 import streamlit as st
@@ -12,10 +13,10 @@ ANTHROPIC_MODEL = "claude-sonnet-4-6"
 
 # ─── Page Config ───
 st.set_page_config(
-    page_title="BLUE JEANS · Creative Development Engine",
+    page_title="BLUE JEANS · Creator Engine",
     page_icon="👖",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="collapsed"
 )
 
 # ─── Custom CSS ───
@@ -23,162 +24,140 @@ st.markdown("""
 <style>
 @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
 
-:root{
-    --y:#FFCB05;
-    --bg:#0E1117;
-    --card:#262730;
-    --t:#FAFAFA;
-    --r:#FF6B6B;
-    --g:#51CF66;
-    --dim:#8B8B8B
+:root {
+    --y: #FFCB05;
+    --bg: #0E1117;
+    --card: #262730;
+    --t: #FAFAFA;
+    --r: #FF6B6B;
+    --g: #51CF66;
+    --dim: #8B8B8B;
 }
 
-html, body, [class*="css"]{
-    font-family:'Pretendard',sans-serif
+html, body, [class*="css"] {
+    font-family: 'Pretendard', sans-serif;
 }
 
-.mt{
-    font-size:1.6rem;
-    font-weight:700;
-    color:var(--y);
-    margin-bottom:.2rem
+/* 사이드바 숨김 */
+section[data-testid="stSidebar"] {
+    display: none;
 }
 
-.st{
-    font-size:.85rem;
-    color:var(--dim);
-    margin-bottom:2rem
+.header {
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: var(--y);
+    margin-bottom: 0.1rem;
 }
 
-.callout{
-    background:var(--card);
-    border-left:3px solid var(--y);
-    padding:.8rem 1rem;
-    margin:.5rem 0;
-    border-radius:0 6px 6px 0;
-    font-size:.85rem
+.sub {
+    font-size: 0.8rem;
+    color: var(--dim);
+    margin-bottom: 1.5rem;
 }
 
-.ct{
-    color:var(--y);
-    font-weight:600;
-    font-size:.75rem;
-    margin-bottom:.3rem
+.callout {
+    background: var(--card);
+    border-left: 3px solid var(--y);
+    padding: 0.8rem 1rem;
+    margin: 0.5rem 0;
+    border-radius: 0 6px 6px 0;
+    font-size: 0.85rem;
 }
 
-.sb{
-    font-size:2.5rem;
-    font-weight:700;
-    color:var(--y);
-    text-align:center
+.cl {
+    color: var(--y);
+    font-weight: 600;
+    font-size: 0.75rem;
+    margin-bottom: 0.3rem;
 }
 
-.sl{
-    font-size:.7rem;
-    color:var(--dim);
-    text-align:center
+.card {
+    background: var(--card);
+    border: 1px solid #3a3a4a;
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 0.8rem;
 }
 
-.cc{
-    background:var(--card);
-    border:1px solid #3a3a4a;
-    border-radius:8px;
-    padding:1rem;
-    margin-bottom:.8rem
+.card:hover {
+    border-color: var(--y);
 }
 
-.cc:hover{
-    border-color:var(--y)
+.ri {
+    background: var(--card);
+    border-radius: 6px;
+    padding: 0.8rem;
+    margin-bottom: 0.5rem;
+    font-size: 0.85rem;
 }
 
-.ri{
-    background:var(--card);
-    border-radius:6px;
-    padding:.8rem;
-    margin-bottom:.5rem;
-    font-size:.85rem
+.rl {
+    color: var(--y);
+    font-weight: 600;
+    font-size: 0.7rem;
 }
 
-.rl{
-    color:var(--y);
-    font-weight:600;
-    font-size:.7rem
+.big {
+    font-size: 2.2rem;
+    font-weight: 700;
+    color: var(--y);
+    text-align: center;
 }
 
-section[data-testid="stSidebar"]{
-    background:#1a1a2e
+.sm {
+    font-size: 0.7rem;
+    color: var(--dim);
+    text-align: center;
 }
 
-.badge{
-    display:inline-block;
-    padding:.15rem .5rem;
-    border-radius:4px;
-    font-size:.7rem;
-    font-weight:600
+.badge {
+    display: inline-block;
+    padding: 0.15rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    font-weight: 600;
 }
 
-.b-done{
-    background:var(--g);
-    color:#000
-}
-
-.b-run{
-    background:var(--y);
-    color:#000
-}
-
-.b-not{
-    background:#3a3a4a;
-    color:var(--dim)
-}
-
-.b-fail{
-    background:var(--r);
-    color:#000
-}
+.b-done { background: var(--g); color: #000; }
+.b-run  { background: var(--y); color: #000; }
+.b-not  { background: #3a3a4a; color: var(--dim); }
+.b-fail { background: var(--r); color: #000; }
 </style>
 """, unsafe_allow_html=True)
 
+
 # ─── Session State ───
 defaults = {
-    "page": "home",
+    "view": "home",         # home | project
     "projects": {},
     "cur": None,
-    "tab": "brainstorm",
     "last_research_raw": "",
-    "last_brainstorm_raw": "",
-    "last_brainstorm_error": "",
+    "last_cards_raw": "",
+    "last_analysis_raw": "",
+    "last_error": "",
 }
 for k, v in defaults.items():
     if k not in st.session_state:
         st.session_state[k] = v
 
 
-def badge(status: str) -> str:
-    mapping = {
-        "DONE": "b-done",
-        "RUNNING": "b-run",
-        "NOT_RUN": "b-not",
-        "FAILED": "b-fail"
-    }
-    css_class = mapping.get(status, "b-not")
-    return f'<span class="badge {css_class}">{status.replace("_", " ")}</span>'
-
-
 # ─── JSON Helpers ───
 def extract_json_object(text: str) -> str:
+    """응답 텍스트에서 JSON 객체만 추출"""
     text = text.strip()
 
+    # 코드블록 제거
     if text.startswith("```json"):
         text = text[7:]
     elif text.startswith("```"):
         text = text[3:]
-
     if text.endswith("```"):
         text = text[:-3]
 
     text = text.strip()
 
+    # 첫 { 부터 마지막 } 까지 추출
     start = text.find("{")
     end = text.rfind("}")
 
@@ -189,15 +168,13 @@ def extract_json_object(text: str) -> str:
 
 
 def safe_json_loads(text: str):
+    """JSON 파싱 (trailing comma 자동 제거)"""
     cleaned = extract_json_object(text)
-
-    # trailing comma 제거
     cleaned = re.sub(r",\s*([}\]])", r"\1", cleaned)
-
     return json.loads(cleaned)
 
 
-# ─── API Calls ───
+# ─── API Client ───
 def get_client():
     try:
         import anthropic
@@ -207,11 +184,10 @@ def get_client():
     if "ANTHROPIC_API_KEY" not in st.secrets:
         raise RuntimeError("ANTHROPIC_API_KEY가 secrets에 설정되지 않았습니다.")
 
-    return anthropic.Anthropic(
-        api_key=st.secrets["ANTHROPIC_API_KEY"]
-    )
+    return anthropic.Anthropic(api_key=st.secrets["ANTHROPIC_API_KEY"])
 
 
+# ─── API Call: Research ───
 def call_research(idea, genre, market):
     try:
         client = get_client()
@@ -278,7 +254,9 @@ JSON 외 텍스트 금지.
             messages=[{"role": "user", "content": user_prompt}]
         )
 
-        txt = "".join(block.text for block in response.content if hasattr(block, "text")).strip()
+        txt = "".join(
+            block.text for block in response.content if hasattr(block, "text")
+        ).strip()
         st.session_state["last_research_raw"] = txt
 
         return safe_json_loads(txt)
@@ -287,16 +265,19 @@ JSON 외 텍스트 금지.
         st.error(f"리서치 실패: {e}")
         raw = st.session_state.get("last_research_raw")
         if raw:
-            st.text_area("Research Raw Response", raw, height=300)
+            with st.expander("🔧 Research Raw Response (디버그)"):
+                st.text_area("Raw", raw, height=300)
         return None
 
 
-def call_brainstorm(idea, genre, market, fmt, research=None):
+# ─── API Call: Brainstorm Cards (1단계) ───
+def call_brainstorm_cards(idea, genre, market, fmt, research=None):
+    """1단계: 아이디어 카드 10개 + Top 3 생성 (토큰 집중)"""
     try:
         client = get_client()
 
         system_prompt = """당신은 글로벌 콘텐츠 시장을 이해하는 Development Producer이자 Script Architect다.
-기획자의 아이디어를 개발 가능한 컨셉으로 정렬한다.
+기획자의 아이디어를 개발 가능한 컨셉 카드로 정렬한다.
 이야기(story)와 분위기(mood)를 구분한다.
 타겟 시장과 포맷을 반영한다.
 리서치가 있으면 참고하되 기존작을 모방하지 않는다.
@@ -335,26 +316,10 @@ def call_brainstorm(idea, genre, market, fmt, research=None):
 {{
   "idea_type": "story|mood|hybrid",
   "idea_type_diagnosis": "",
-  "market_context": {{
-    "target_market": "",
-    "market_insight": "",
-    "cultural_code": "",
-    "market_risk": "",
-    "reference_titles": []
-  }},
-  "format_context": {{
-    "selected_format": "",
-    "format_rationale": "",
-    "structure_note": ""
-  }},
-  "research_applied": {{
-    "real_events_used": [],
-    "inspiration_note": ""
-  }},
   "idea_cards": [
     {{
       "id": 1,
-      "title": "",
+      "title": "10자 이내",
       "logline_seed": "",
       "protagonist": "",
       "conflict": "",
@@ -378,9 +343,98 @@ def call_brainstorm(idea, genre, market, fmt, research=None):
       "card_id": 0,
       "reason": ""
     }}
-  ],
+  ]
+}}
+
+규칙:
+- idea_cards는 10~12개
+- top3는 3개
+- total_score는 6개 점수 평균, 소수점 1자리
+- scores 각 항목은 0.0~10.0
+- idea_type_diagnosis는 2문장 이내
+- 훅은 과장보다 선명함 우선
+"""
+
+        response = client.messages.create(
+            model=ANTHROPIC_MODEL,
+            max_tokens=3500,
+            temperature=0.35,
+            system=system_prompt,
+            messages=[{"role": "user", "content": user_prompt}]
+        )
+
+        txt = "".join(
+            block.text for block in response.content if hasattr(block, "text")
+        ).strip()
+        st.session_state["last_cards_raw"] = txt
+
+        return safe_json_loads(txt)
+
+    except Exception as e:
+        st.session_state["last_error"] = str(e)
+        st.error(f"카드 생성 실패: {e}")
+        raw = st.session_state.get("last_cards_raw")
+        if raw:
+            with st.expander("🔧 Cards Raw Response (디버그)"):
+                st.text_area("Raw", raw, height=400)
+        return None
+
+
+# ─── API Call: Brainstorm Analysis (2단계) ───
+def call_brainstorm_analysis(idea, genre, market, fmt, top3_cards, research=None):
+    """2단계: Top 3 기반 시장분석 + 차별화 + Gate A 채점"""
+    try:
+        client = get_client()
+
+        system_prompt = """당신은 Development Producer다.
+이미 생성된 Top 3 컨셉 카드를 기반으로 시장 분석, 차별화, 개발 방향, Gate A 채점을 수행한다.
+
+중요 규칙:
+- 반드시 유효한 단일 JSON 객체만 출력한다.
+- JSON 외 텍스트 금지.
+- 모든 key는 반드시 쌍따옴표를 사용한다.
+- 후행 쉼표(trailing comma) 금지.
+- 주석 금지.
+- 모든 짧은 설명은 2문장 이내로 제한한다.
+"""
+
+        research_block = ""
+        if research:
+            research_block = f"""
+[리서치 참고]
+{json.dumps(research, ensure_ascii=False)}
+"""
+
+        user_prompt = f"""[입력]
+아이디어: {idea}
+장르: {genre}
+타겟: {market}
+포맷: {fmt}
+
+[Top 3 컨셉 카드]
+{json.dumps(top3_cards, ensure_ascii=False)}
+{research_block}
+
+[JSON 스키마]
+{{
+  "market_context": {{
+    "target_market": "",
+    "market_insight": "",
+    "cultural_code": "",
+    "market_risk": "",
+    "reference_titles": []
+  }},
+  "format_context": {{
+    "selected_format": "",
+    "format_rationale": "",
+    "structure_note": ""
+  }},
+  "research_applied": {{
+    "real_events_used": [],
+    "inspiration_note": ""
+  }},
   "hook_sentence": "",
-  "differentiation": [],
+  "differentiation": ["", "", ""],
   "development_priority": {{
     "recommended_direction": "",
     "next_step": "",
@@ -397,110 +451,106 @@ def call_brainstorm(idea, genre, market, fmt, research=None):
 }}
 
 규칙:
-- idea_cards는 10~12개
-- top3는 3개
-- total_score는 6개 점수 평균
-- gate_a_scores.average는 5개 점수 평균
-- scores와 gate 점수는 0.0~10.0
-- idea_type_diagnosis, market_insight, format_rationale, structure_note, reason, risk는 2문장 이내
-- 훅은 과장보다 선명함 우선
+- gate_a_scores.average = 5개 항목의 평균, 소수점 1자리 반올림
+- 모든 점수는 0.0~10.0
+- hook_sentence는 1위 컨셉의 핵심을 기반으로 작성
+- market_insight, cultural_code, market_risk, format_rationale, structure_note는 각 2문장 이내
+- differentiation은 정확히 3개
 """
 
         response = client.messages.create(
             model=ANTHROPIC_MODEL,
-            max_tokens=4000,
-            temperature=0.35,
+            max_tokens=2000,
+            temperature=0.3,
             system=system_prompt,
             messages=[{"role": "user", "content": user_prompt}]
         )
 
-        txt = "".join(block.text for block in response.content if hasattr(block, "text")).strip()
-        st.session_state["last_brainstorm_raw"] = txt
+        txt = "".join(
+            block.text for block in response.content if hasattr(block, "text")
+        ).strip()
+        st.session_state["last_analysis_raw"] = txt
 
         return safe_json_loads(txt)
 
     except Exception as e:
-        st.session_state["last_brainstorm_error"] = str(e)
-        st.error(f"Brainstorm 실패: {e}")
-
-        raw = st.session_state.get("last_brainstorm_raw")
+        st.session_state["last_error"] = str(e)
+        st.error(f"분석 실패: {e}")
+        raw = st.session_state.get("last_analysis_raw")
         if raw:
-            st.text_area("Brainstorm Raw Response", raw, height=400)
-
+            with st.expander("🔧 Analysis Raw Response (디버그)"):
+                st.text_area("Raw", raw, height=400)
         return None
 
 
-# ─── Sidebar ───
-with st.sidebar:
-    st.markdown('<div class="mt">👖 CREATOR ENGINE</div>', unsafe_allow_html=True)
-    st.markdown('<div class="st">Creative Development Engine v1.2</div>', unsafe_allow_html=True)
-    st.markdown("---")
+# ═══════════════════════════════════════════════════
+#  UI 렌더링
+# ═══════════════════════════════════════════════════
 
-    if st.button("🏠 Home", use_container_width=True):
-        st.session_state.page = "home"
+# ─── 공통 헤더 ───
+st.markdown('<div class="header">👖 CREATOR ENGINE</div>', unsafe_allow_html=True)
+st.markdown(
+    '<div class="sub">BLUE JEANS Creative Development Engine v1.2</div>',
+    unsafe_allow_html=True
+)
+
+# ─── 뒤로가기 ───
+if st.session_state.view == "project" and st.session_state.cur:
+    if st.button("← 프로젝트 목록"):
+        st.session_state.view = "home"
         st.rerun()
 
-    if st.session_state.cur:
-        project = st.session_state.projects[st.session_state.cur]
-        st.markdown(f"**📁 {project['title']}**")
 
-        for key, label in [
-            ("brainstorm", "🧠 Brainstorm"),
-            ("core", "🎯 Core"),
-            ("structure", "🏗️ Structure"),
-            ("treatment", "📝 Treatment"),
-            ("export", "📦 Export"),
-        ]:
-            if st.button(label, use_container_width=True, key=f"n_{key}"):
-                st.session_state.page = "project"
-                st.session_state.tab = key
-                st.rerun()
+# ═══════════════════════════════════════════════════
+#  HOME
+# ═══════════════════════════════════════════════════
+if st.session_state.view == "home":
 
-        st.markdown("---")
-        for stage_name, stage_value in project["stage_status"].items():
-            st.markdown(f"{stage_name}: {badge(stage_value)}", unsafe_allow_html=True)
-
-    st.markdown("---")
-    st.markdown(
-        '<div style="font-size:.65rem;color:#555">© 2026 BLUE JEANS PICTURES</div>',
-        unsafe_allow_html=True
-    )
-
-
-# ─── HOME ───
-def home():
-    st.markdown('<div class="mt">👖 BLUE JEANS Creative Development Engine</div>', unsafe_allow_html=True)
-    st.markdown('<div class="st">From instinct to industry-standard narrative architecture</div>', unsafe_allow_html=True)
-
+    # 새 프로젝트 생성
     with st.expander("➕ 새 프로젝트", expanded=not bool(st.session_state.projects)):
         col1, col2 = st.columns([2, 1])
 
         with col1:
-            title_input = st.text_input("프로젝트 제목", placeholder="예: 인도네시아 물귀신 프로젝트")
+            title_input = st.text_input(
+                "프로젝트 제목",
+                placeholder="예: 인도네시아 물귀신 프로젝트"
+            )
             idea_input = st.text_area(
                 "💡 아이디어",
                 height=120,
-                placeholder="자유롭게 입력\n예: 인도네시아용 물귀신 이야기\n예: 은퇴한 킬러가 다시 돌아오는 이야기"
+                placeholder=(
+                    "자유롭게 입력\n"
+                    "예: 인도네시아용 물귀신 이야기\n"
+                    "예: 은퇴한 킬러가 다시 돌아오는 이야기\n"
+                    "예: 40대 여형사, 연쇄살인범이 딸의 담임교사"
+                )
             )
 
         with col2:
-            genre = st.selectbox(
+            genre_input = st.selectbox(
                 "🎬 장르",
-                ["미지정", "범죄/스릴러", "드라마", "액션", "로맨스", "코미디", "호러/공포",
-                 "SF", "판타지", "시대극/사극", "느와르", "미스터리", "전쟁", "뮤지컬", "다큐/논픽션"]
+                ["미지정", "범죄/스릴러", "드라마", "액션", "로맨스", "코미디",
+                 "호러/공포", "SF", "판타지", "시대극/사극", "느와르",
+                 "미스터리", "전쟁", "뮤지컬", "다큐/논픽션"]
             )
+
             market_type = st.selectbox(
                 "🌏 타겟 시장",
-                ["미지정", "한국", "북미/미국", "일본", "중국", "동남아", "유럽", "중동", "글로벌", "직접 입력"]
+                ["미지정", "한국", "북미/미국", "일본", "중국",
+                 "동남아", "유럽", "중동", "글로벌", "직접 입력"]
             )
 
             market_custom = ""
             if market_type == "직접 입력":
-                market_custom = st.text_input("시장 직접 입력", placeholder="예: 인도네시아+한국 공동제작")
+                market_custom = st.text_input(
+                    "시장 직접 입력",
+                    placeholder="예: 인도네시아+한국 공동제작"
+                )
 
-            fmt = st.selectbox(
+            format_input = st.selectbox(
                 "📐 포맷",
-                ["미지정", "영화", "시리즈", "미니시리즈(4~8화)", "웹툰", "웹소설", "숏폼", "다큐멘터리", "애니메이션"]
+                ["미지정", "영화", "시리즈", "미니시리즈(4~8화)",
+                 "웹툰", "웹소설", "숏폼", "다큐멘터리", "애니메이션"]
             )
 
         if st.button("🚀 프로젝트 생성", use_container_width=True, disabled=not idea_input.strip()):
@@ -511,31 +561,23 @@ def home():
                 "project_id": project_id,
                 "title": title_input or "새 프로젝트",
                 "idea_text": idea_input,
-                "genre": genre,
+                "genre": genre_input,
                 "target_market": market_final,
-                "format": fmt,
+                "format": format_input,
                 "created_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
                 "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
-                "current_stage": "brainstorm",
-                "stage_status": {
-                    "brainstorm": "NOT_RUN",
-                    "core": "NOT_RUN",
-                    "structure": "NOT_RUN",
-                    "treatment": "NOT_RUN"
-                },
                 "research": None,
-                "brainstorm": None,
-                "core": None,
-                "gate_results": {},
-                "final_score": None
+                "brainstorm_cards": None,
+                "brainstorm_analysis": None,
             }
 
             st.session_state.cur = project_id
-            st.session_state.page = "project"
-            st.session_state.tab = "brainstorm"
+            st.session_state.view = "project"
             st.rerun()
 
+    # 프로젝트 목록
     if st.session_state.projects:
+        st.markdown("---")
         st.markdown("### 📁 프로젝트")
 
         for project_id, project in sorted(
@@ -543,315 +585,378 @@ def home():
             key=lambda x: x[1]["updated_at"],
             reverse=True
         ):
-            c1, c2 = st.columns([4, 1])
+            col1, col2 = st.columns([5, 1])
 
-            with c1:
+            with col1:
+                has_cards = "✅" if project.get("brainstorm_cards") else "—"
+                has_analysis = "✅" if project.get("brainstorm_analysis") else "—"
+
                 st.markdown(
-                    f'<div class="cc"><b>{project["title"]}</b><br>'
+                    f'<div class="card">'
+                    f'<b>{project["title"]}</b><br>'
                     f'<span style="font-size:.75rem;color:var(--dim)">'
-                    f'{project["genre"]} · {project["target_market"]} · {project["format"]} · {project["updated_at"]}'
+                    f'{project["genre"]} · {project["target_market"]} · {project["format"]} · '
+                    f'{project["updated_at"]}'
+                    f'<br>카드 {has_cards} · 분석 {has_analysis}'
                     f'</span></div>',
                     unsafe_allow_html=True
                 )
 
-            with c2:
-                if st.button("열기 →", key=f"o_{project_id}"):
+            with col2:
+                if st.button("열기 →", key=f"open_{project_id}"):
                     st.session_state.cur = project_id
-                    st.session_state.page = "project"
-                    st.session_state.tab = "brainstorm"
+                    st.session_state.view = "project"
                     st.rerun()
 
 
-# ─── BRAINSTORM ───
-def brainstorm():
+# ═══════════════════════════════════════════════════
+#  PROJECT (단일 페이지 스크롤)
+# ═══════════════════════════════════════════════════
+elif st.session_state.view == "project" and st.session_state.cur:
+
     project = st.session_state.projects[st.session_state.cur]
 
-    st.markdown("### 🧠 Brainstorm")
+    # ─── 프로젝트 헤더 ───
+    st.markdown(f"## {project['title']}")
+    st.caption(f"{project['genre']} · {project['target_market']} · {project['format']}")
+
     st.markdown(
-        f'<div class="callout"><div class="ct">IDEA</div>{project["idea_text"]}</div>',
+        f'<div class="callout">'
+        f'<div class="cl">IDEA</div>'
+        f'{project["idea_text"]}'
+        f'</div>',
         unsafe_allow_html=True
     )
 
-    c1, c2, c3 = st.columns(3)
-    c1.markdown(f"**장르:** {project['genre']}")
-    c2.markdown(f"**타겟:** {project['target_market']}")
-    c3.markdown(f"**포맷:** {project['format']}")
-
     st.markdown("---")
 
-    # 리서치
-    st.markdown("#### 🔍 리서치 (선택)")
+    # ═══════════════════════════════════════
+    # STEP 1: 리서치 (선택)
+    # ═══════════════════════════════════════
+    st.markdown("### 🔍 리서치")
     st.caption("실화/뉴스 + 기존 작품 정보 검색. 건너뛰어도 됩니다.")
 
     if st.button("🔍 리서치 실행"):
         with st.spinner("리서치 정리 중..."):
-            result = call_research(project["idea_text"], project["genre"], project["target_market"])
+            result = call_research(
+                project["idea_text"],
+                project["genre"],
+                project["target_market"]
+            )
             if result:
                 project["research"] = result
                 project["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
                 st.rerun()
 
+    # 리서치 결과 표시
     if project.get("research"):
         research_data = project["research"]
         summary = research_data.get("research_summary", {})
 
         with st.expander(
-            f"📰 리서치 결과 — 실화 {summary.get('total_real_events', 0)}건 · 기존작품 {summary.get('total_existing_works', 0)}건",
+            f"📰 리서치 결과 — "
+            f"실화 {summary.get('total_real_events', 0)}건 · "
+            f"작품 {summary.get('total_existing_works', 0)}건",
             expanded=True
         ):
+            # 실화/뉴스
             if research_data.get("real_events"):
                 st.markdown("**📰 실화 / 뉴스**")
                 for event in research_data["real_events"]:
                     st.markdown(
                         f'<div class="ri">'
-                        f'<div class="rl">#{event.get("id","")} [{event.get("year","")}] {event.get("source","")}</div>'
-                        f'<b>{event.get("title","")}</b><br>'
-                        f'{event.get("summary","")}<br>'
-                        f'<span style="color:var(--y)">→ {event.get("story_potential","")}</span>'
+                        f'<div class="rl">#{event.get("id", "")} '
+                        f'[{event.get("year", "")}] {event.get("source", "")}</div>'
+                        f'<b>{event.get("title", "")}</b><br>'
+                        f'{event.get("summary", "")}<br>'
+                        f'<span style="color:var(--y)">→ {event.get("story_potential", "")}</span>'
                         f'</div>',
                         unsafe_allow_html=True
                     )
 
+            # 기존 작품
             if research_data.get("existing_works"):
                 st.markdown("**🎬 기존 작품**")
                 for work in research_data["existing_works"]:
                     st.markdown(
                         f'<div class="ri">'
-                        f'<div class="rl">#{work.get("id","")} {work.get("type","")} · {work.get("country","")} · {work.get("year","")}</div>'
-                        f'<b>{work.get("title","")}</b><br>'
-                        f'유사: {work.get("similarity","")}<br>'
-                        f'<span style="color:var(--y)">→ 차별화: {work.get("difference_opportunity","")}</span>'
+                        f'<div class="rl">#{work.get("id", "")} '
+                        f'{work.get("type", "")} · {work.get("country", "")} · '
+                        f'{work.get("year", "")}</div>'
+                        f'<b>{work.get("title", "")}</b><br>'
+                        f'유사: {work.get("similarity", "")}<br>'
+                        f'<span style="color:var(--y)">→ 차별화: '
+                        f'{work.get("difference_opportunity", "")}</span>'
                         f'</div>',
                         unsafe_allow_html=True
                     )
 
+            # 핵심 시사점
             if summary.get("key_insight"):
                 st.markdown(
-                    f'<div class="callout"><div class="ct">💡 핵심 시사점</div>{summary["key_insight"]}</div>',
+                    f'<div class="callout">'
+                    f'<div class="cl">💡 핵심 시사점</div>'
+                    f'{summary["key_insight"]}'
+                    f'</div>',
                     unsafe_allow_html=True
                 )
 
     st.markdown("---")
 
-    # 브레인스톰
-    st.markdown("#### 🧠 Brainstorm 실행")
+    # ═══════════════════════════════════════
+    # STEP 2: Brainstorm (2단계 분할 호출)
+    # ═══════════════════════════════════════
+    st.markdown("### 🧠 Brainstorm")
 
     if st.button("🧠 Brainstorm 실행", type="primary"):
-        with st.spinner("컨셉 카드 생성 중... (약 20~40초)"):
-            result = call_brainstorm(
+
+        # ── 1단계: 카드 생성 ──
+        with st.spinner("① 컨셉 카드 생성 중... (약 20~30초)"):
+            cards_result = call_brainstorm_cards(
                 project["idea_text"],
                 project["genre"],
                 project["target_market"],
                 project["format"],
                 project.get("research")
             )
-            if result:
-                project["brainstorm"] = result
-                project["stage_status"]["brainstorm"] = "DONE"
-                project["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
-                st.rerun()
 
-    if project.get("brainstorm"):
-        data = project["brainstorm"]
+        if cards_result:
+            project["brainstorm_cards"] = cards_result
+            project["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
 
+            # Top 3 카드 추출
+            all_cards = cards_result.get("idea_cards", [])
+            cards_map = {c["id"]: c for c in all_cards}
+
+            top3_data = []
+            for t in cards_result.get("top3", []):
+                card = cards_map.get(t["card_id"])
+                if card:
+                    top3_data.append(card)
+
+            # ── 2단계: 분석 + Gate A ──
+            if top3_data:
+                with st.spinner("② 시장 분석 + Gate A 채점 중... (약 10~20초)"):
+                    analysis_result = call_brainstorm_analysis(
+                        project["idea_text"],
+                        project["genre"],
+                        project["target_market"],
+                        project["format"],
+                        top3_data,
+                        project.get("research")
+                    )
+
+                if analysis_result:
+                    project["brainstorm_analysis"] = analysis_result
+                    project["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
+            else:
+                st.warning("Top 3 카드를 추출하지 못했습니다. 카드만 표시합니다.")
+
+            st.rerun()
+
+    # ═══════════════════════════════════════
+    # 결과 표시
+    # ═══════════════════════════════════════
+    if project.get("brainstorm_cards"):
+        bc = project["brainstorm_cards"]
+        ba = project.get("brainstorm_analysis", {})
+
+        # ── 아이디어 유형 ──
         st.markdown(
-            f'<div class="callout"><div class="ct">아이디어 유형: {data.get("idea_type", "").upper()}</div>{data.get("idea_type_diagnosis", "")}</div>',
-            unsafe_allow_html=True
-        )
-
-        market_context = data.get("market_context", {})
-        format_context = data.get("format_context", {})
-
-        col1, col2 = st.columns(2)
-        with col1:
-            st.markdown(
-                f'<div class="callout"><div class="ct">🌏 시장 — {market_context.get("target_market","")}</div>'
-                f'기회: {market_context.get("market_insight","")}<br>'
-                f'문화코드: {market_context.get("cultural_code","")}<br>'
-                f'리스크: {market_context.get("market_risk","")}<br>'
-                f'참고작: {", ".join(market_context.get("reference_titles", []))}'
-                f'</div>',
-                unsafe_allow_html=True
-            )
-
-        with col2:
-            st.markdown(
-                f'<div class="callout"><div class="ct">📐 포맷 — {format_context.get("selected_format","")}</div>'
-                f'적합성: {format_context.get("format_rationale","")}<br>'
-                f'구조: {format_context.get("structure_note","")}</div>',
-                unsafe_allow_html=True
-            )
-
-        st.markdown(
-            f'<div style="text-align:center;padding:1.5rem 0">'
-            f'<div style="font-size:.7rem;color:var(--y);font-weight:600">HOOK</div>'
-            f'<div style="font-size:1.2rem;font-weight:600;color:var(--t);line-height:1.5">"{data.get("hook_sentence","")}"</div>'
+            f'<div class="callout">'
+            f'<div class="cl">아이디어 유형: {bc.get("idea_type", "").upper()}</div>'
+            f'{bc.get("idea_type_diagnosis", "")}'
             f'</div>',
             unsafe_allow_html=True
         )
 
-        st.markdown("#### 🏆 Top 3")
+        # ── 시장 · 포맷 맥락 (분석 있을 때) ──
+        if ba:
+            market_ctx = ba.get("market_context", {})
+            format_ctx = ba.get("format_context", {})
 
-        cards = {card["id"]: card for card in data.get("idea_cards", [])}
+            col1, col2 = st.columns(2)
 
-        for top_item in data.get("top3", []):
-            card = cards.get(top_item["card_id"], {})
-            if card:
-                c1, c2 = st.columns([4, 1])
-
-                with c1:
-                    st.markdown(
-                        f'<div class="cc">'
-                        f'<span style="color:var(--y);font-weight:700">#{top_item["rank"]}</span> '
-                        f'<b>{card.get("title","")}</b><br>'
-                        f'<span style="color:#ccc">{card.get("logline_seed","")}</span><br>'
-                        f'<span style="font-size:.8rem;color:#999">'
-                        f'👤 {card.get("protagonist","")}<br>'
-                        f'⚔️ {card.get("conflict","")}<br>'
-                        f'✨ {card.get("hook","")}<br>'
-                        f'🎬 {card.get("visual_image","")}'
-                        f'</span><br>'
-                        f'<span style="font-size:.75rem;color:var(--dim)">이유: {top_item.get("reason","")}</span>'
-                        f'</div>',
-                        unsafe_allow_html=True
-                    )
-
-                with c2:
-                    st.markdown(
-                        f'<div class="sb">{card.get("total_score", 0.0)}</div>'
-                        f'<div class="sl">{card.get("genre","")}</div>',
-                        unsafe_allow_html=True
-                    )
-
-        differentiation = data.get("differentiation", [])
-        if differentiation:
-            st.markdown("#### 💎 차별화 포인트")
-            for idx, item in enumerate(differentiation, 1):
-                st.markdown(f"**{idx}.** {item}")
-
-        development_priority = data.get("development_priority", {})
-        st.markdown("#### 🧭 개발 우선순위")
-
-        c1, c2, c3 = st.columns(3)
-        c1.markdown(
-            f'<div class="callout"><div class="ct">추천 방향</div>{development_priority.get("recommended_direction","")}</div>',
-            unsafe_allow_html=True
-        )
-        c2.markdown(
-            f'<div class="callout"><div class="ct">Core Build 집중</div>{development_priority.get("next_step","")}</div>',
-            unsafe_allow_html=True
-        )
-        c3.markdown(
-            f'<div class="callout" style="border-left-color:var(--r)"><div class="ct" style="color:var(--r)">리스크</div>{development_priority.get("risk","")}</div>',
-            unsafe_allow_html=True
-        )
-
-        st.markdown("---")
-
-        gate = data.get("gate_a_scores", {})
-        avg = gate.get("average", 0)
-        ok = avg >= 7.0
-
-        st.markdown("#### 🚪 Gate A: Concept Gate")
-
-        c1, c2 = st.columns([1, 2])
-
-        with c1:
-            color = "var(--g)" if ok else "var(--r)"
-            label = "PASS" if ok else "FAIL"
-            st.markdown(
-                f'<div style="text-align:center">'
-                f'<div class="sb" style="color:{color}">{avg}</div>'
-                f'<div class="sl" style="color:{color};font-size:1rem;font-weight:700">{label}</div>'
-                f'</div>',
-                unsafe_allow_html=True
-            )
-
-        with c2:
-            for name, score in [
-                ("주인공", gate.get("protagonist_visible", 0)),
-                ("갈등", gate.get("conflict_one_line", 0)),
-                ("차별점", gate.get("differentiation", 0)),
-                ("포스터", gate.get("poster_image", 0)),
-                ("시장성", gate.get("market_potential", 0)),
-            ]:
-                bar_percent = score * 10
+            with col1:
+                ref_titles = ", ".join(market_ctx.get("reference_titles", []))
                 st.markdown(
-                    f'<div style="display:flex;align-items:center;margin:.2rem 0;font-size:.8rem">'
-                    f'<div style="width:60px;color:var(--dim)">{name}</div>'
-                    f'<div style="flex:1;background:#3a3a4a;border-radius:4px;height:8px;margin:0 .5rem">'
-                    f'<div style="width:{bar_percent}%;background:var(--y);height:100%;border-radius:4px"></div>'
-                    f'</div>'
-                    f'<div style="width:30px;text-align:right">{score}</div>'
+                    f'<div class="callout">'
+                    f'<div class="cl">🌏 시장 — {market_ctx.get("target_market", "")}</div>'
+                    f'기회: {market_ctx.get("market_insight", "")}<br>'
+                    f'문화코드: {market_ctx.get("cultural_code", "")}<br>'
+                    f'리스크: {market_ctx.get("market_risk", "")}<br>'
+                    f'참고작: {ref_titles}'
                     f'</div>',
                     unsafe_allow_html=True
                 )
 
-        if ok:
-            st.success("✅ Gate A 통과. Core Build 진행 가능.")
-        else:
-            st.warning(f"⚠️ Gate A 미통과 (평균 {avg}). 아이디어 보강 또는 재실행 권장.")
-            if st.button("🔓 Override"):
-                st.info("Override. Core Build 이동.")
+            with col2:
+                st.markdown(
+                    f'<div class="callout">'
+                    f'<div class="cl">📐 포맷 — {format_ctx.get("selected_format", "")}</div>'
+                    f'적합성: {format_ctx.get("format_rationale", "")}<br>'
+                    f'구조: {format_ctx.get("structure_note", "")}'
+                    f'</div>',
+                    unsafe_allow_html=True
+                )
 
-        all_cards = data.get("idea_cards", [])
-        if all_cards:
-            with st.expander(f"📋 전체 아이디어 카드 ({len(all_cards)}개)"):
-                for card in sorted(all_cards, key=lambda x: x.get("total_score", 0), reverse=True):
+            # ── 훅 문장 ──
+            hook = ba.get("hook_sentence", "")
+            if hook:
+                st.markdown(
+                    f'<div style="text-align:center;padding:1.5rem 0">'
+                    f'<div style="font-size:.7rem;color:var(--y);font-weight:600">HOOK</div>'
+                    f'<div style="font-size:1.15rem;font-weight:600;color:var(--t);line-height:1.5">'
+                    f'"{hook}"</div>'
+                    f'</div>',
+                    unsafe_allow_html=True
+                )
+
+        st.markdown("---")
+
+        # ── Top 3 컨셉 ──
+        st.markdown("#### 🏆 Top 3 컨셉")
+
+        cards_map = {c["id"]: c for c in bc.get("idea_cards", [])}
+
+        for top_item in bc.get("top3", []):
+            card = cards_map.get(top_item["card_id"], {})
+            if card:
+                col1, col2 = st.columns([5, 1])
+
+                with col1:
                     st.markdown(
-                        f"**#{card['id']} {card.get('title','')}** — {card.get('total_score', 0.0)}점 &nbsp; {card.get('logline_seed','')}"
+                        f'<div class="card">'
+                        f'<span style="color:var(--y);font-weight:700">#{top_item["rank"]}</span> '
+                        f'<b>{card.get("title", "")}</b><br>'
+                        f'<span style="color:#ccc">{card.get("logline_seed", "")}</span><br>'
+                        f'<span style="font-size:.8rem;color:#999">'
+                        f'👤 {card.get("protagonist", "")}<br>'
+                        f'⚔️ {card.get("conflict", "")}<br>'
+                        f'✨ {card.get("hook", "")}<br>'
+                        f'🎬 {card.get("visual_image", "")}'
+                        f'</span><br>'
+                        f'<span style="font-size:.75rem;color:var(--dim)">'
+                        f'이유: {top_item.get("reason", "")}</span>'
+                        f'</div>',
+                        unsafe_allow_html=True
                     )
 
+                with col2:
+                    st.markdown(
+                        f'<div class="big">{card.get("total_score", 0.0)}</div>'
+                        f'<div class="sm">{card.get("genre", "")}</div>',
+                        unsafe_allow_html=True
+                    )
 
-# ─── Placeholder Tabs ───
-def core_tab():
-    st.markdown("### 🎯 Core Build")
-    st.info("Brainstorm 완료 후 활성화됩니다.")
+        # ── 차별화 포인트 (분석 있을 때) ──
+        if ba:
+            differentiation = ba.get("differentiation", [])
+            if differentiation:
+                st.markdown("#### 💎 차별화 포인트")
+                for idx, item in enumerate(differentiation, 1):
+                    st.markdown(f"**{idx}.** {item}")
 
+            # ── 개발 우선순위 ──
+            dev_priority = ba.get("development_priority", {})
+            if dev_priority:
+                st.markdown("#### 🧭 개발 우선순위")
+                col1, col2, col3 = st.columns(3)
 
-def structure_tab():
-    st.markdown("### 🏗️ Structure Build")
-    st.info("Phase 2에서 구현됩니다.")
+                col1.markdown(
+                    f'<div class="callout">'
+                    f'<div class="cl">추천 방향</div>'
+                    f'{dev_priority.get("recommended_direction", "")}'
+                    f'</div>',
+                    unsafe_allow_html=True
+                )
+                col2.markdown(
+                    f'<div class="callout">'
+                    f'<div class="cl">Core Build 집중</div>'
+                    f'{dev_priority.get("next_step", "")}'
+                    f'</div>',
+                    unsafe_allow_html=True
+                )
+                col3.markdown(
+                    f'<div class="callout" style="border-left-color:var(--r)">'
+                    f'<div class="cl" style="color:var(--r)">리스크</div>'
+                    f'{dev_priority.get("risk", "")}'
+                    f'</div>',
+                    unsafe_allow_html=True
+                )
 
+            st.markdown("---")
 
-def treatment_tab():
-    st.markdown("### 📝 Treatment Build")
-    st.info("Phase 2에서 구현됩니다.")
+            # ── Gate A: Concept Gate ──
+            gate = ba.get("gate_a_scores", {})
+            avg = gate.get("average", 0)
+            passed = avg >= 7.0
 
+            st.markdown("#### 🚪 Gate A: Concept Gate")
 
-def export_tab():
-    st.markdown("### 📦 Export")
-    st.info("Core Build 완료 후 활성화됩니다.")
+            col1, col2 = st.columns([1, 2])
 
+            with col1:
+                gate_color = "var(--g)" if passed else "var(--r)"
+                gate_label = "PASS" if passed else "FAIL"
+                st.markdown(
+                    f'<div style="text-align:center">'
+                    f'<div class="big" style="color:{gate_color}">{avg}</div>'
+                    f'<div class="sm" style="color:{gate_color};'
+                    f'font-size:1rem;font-weight:700">{gate_label}</div>'
+                    f'</div>',
+                    unsafe_allow_html=True
+                )
 
-# ─── Router ───
-if st.session_state.page == "home":
-    home()
-elif st.session_state.page == "project" and st.session_state.cur:
-    project = st.session_state.projects[st.session_state.cur]
+            with col2:
+                gate_items = [
+                    ("주인공", gate.get("protagonist_visible", 0)),
+                    ("갈등", gate.get("conflict_one_line", 0)),
+                    ("차별점", gate.get("differentiation", 0)),
+                    ("포스터", gate.get("poster_image", 0)),
+                    ("시장성", gate.get("market_potential", 0)),
+                ]
+                for name, score in gate_items:
+                    bar_pct = score * 10
+                    st.markdown(
+                        f'<div style="display:flex;align-items:center;'
+                        f'margin:.2rem 0;font-size:.8rem">'
+                        f'<div style="width:60px;color:var(--dim)">{name}</div>'
+                        f'<div style="flex:1;background:#3a3a4a;'
+                        f'border-radius:4px;height:8px;margin:0 .5rem">'
+                        f'<div style="width:{bar_pct}%;background:var(--y);'
+                        f'height:100%;border-radius:4px"></div>'
+                        f'</div>'
+                        f'<div style="width:30px;text-align:right">{score}</div>'
+                        f'</div>',
+                        unsafe_allow_html=True
+                    )
 
-    c1, c2 = st.columns([3, 1])
-    with c1:
-        st.markdown(f'<div class="mt">{project["title"]}</div>', unsafe_allow_html=True)
-        st.markdown(
-            f'<div class="st">{project["genre"]} · {project["target_market"]} · {project["format"]}</div>',
-            unsafe_allow_html=True
-        )
-    with c2:
-        score = project.get("final_score")
-        if score:
-            st.markdown(
-                f'<div class="sb">{score}</div><div class="sl">Development Fit Score</div>',
-                unsafe_allow_html=True
-            )
+            if passed:
+                st.success("✅ Gate A 통과. Core Build 진행 가능.")
+            else:
+                st.warning(
+                    f"⚠️ Gate A 미통과 (평균 {avg}). "
+                    f"아이디어 보강 또는 재실행 권장."
+                )
+                if st.button("🔓 Override (강제 통과)"):
+                    st.info("Override 실행. Core Build로 이동합니다.")
 
-    router = {
-        "brainstorm": brainstorm,
-        "core": core_tab,
-        "structure": structure_tab,
-        "treatment": treatment_tab,
-        "export": export_tab,
-    }
-    router.get(st.session_state.tab, brainstorm)()
-else:
-    home()
+        # ── 전체 아이디어 카드 (접이식) ──
+        all_cards = bc.get("idea_cards", [])
+        if all_cards:
+            with st.expander(f"📋 전체 아이디어 카드 ({len(all_cards)}개)"):
+                for card in sorted(
+                    all_cards,
+                    key=lambda x: x.get("total_score", 0),
+                    reverse=True
+                ):
+                    st.markdown(
+                        f"**#{card['id']} {card.get('title', '')}** — "
+                        f"{card.get('total_score', 0.0)}점 &nbsp; "
+                        f"{card.get('logline_seed', '')}"
+                    )
+
+    # ─── 푸터 ───
+    st.markdown("---")
+    st.caption("© 2026 BLUE JEANS PICTURES · Creator Engine v1.2")
