@@ -290,7 +290,9 @@ def call_brainstorm_cards(idea, genre, market, fmt, research=None):
 - 주석 금지.
 - 설명 문장 금지.
 - 문자열 내부 줄바꿈 대신 공백을 사용한다.
-- 모든 짧은 설명은 2문장 이내로 제한한다.
+- 모든 텍스트 필드는 반드시 1문장, 50자 이내로 압축한다.
+- 장문 서술 절대 금지. 짧고 선명하게 핵심만 쓴다.
+- JSON이 잘리면 안 되므로 간결함이 최우선이다.
 """
 
         research_block = ""
@@ -347,21 +349,40 @@ def call_brainstorm_cards(idea, genre, market, fmt, research=None):
 }}
 
 규칙:
-- idea_cards는 10~12개
+- idea_cards는 10개 (10개 초과 금지)
 - top3는 3개
 - total_score는 6개 점수 평균, 소수점 1자리
 - scores 각 항목은 0.0~10.0
-- idea_type_diagnosis는 2문장 이내
-- 훅은 과장보다 선명함 우선
+- idea_type_diagnosis는 1문장
+- 각 카드의 logline_seed는 1문장, 50자 이내
+- protagonist는 1문장, 30자 이내
+- conflict는 1문장, 40자 이내
+- hook는 1문장, 30자 이내
+- visual_image는 1문장, 40자 이내
+- reason은 1문장, 30자 이내
+- 절대로 장문 서술하지 말 것. 짧고 강하게.
 """
 
         response = client.messages.create(
             model=ANTHROPIC_MODEL,
-            max_tokens=3500,
+            max_tokens=6000,
             temperature=0.35,
             system=system_prompt,
             messages=[{"role": "user", "content": user_prompt}]
         )
+
+        # 토큰 한계 도달 감지
+        if response.stop_reason == "max_tokens":
+            st.warning("⚠️ 응답이 토큰 한계에서 잘렸습니다. 재시도합니다...")
+            # 재시도: max_tokens 더 올리고 카드 수 줄이기
+            retry_prompt = user_prompt.replace("idea_cards는 10개", "idea_cards는 7개")
+            response = client.messages.create(
+                model=ANTHROPIC_MODEL,
+                max_tokens=8000,
+                temperature=0.35,
+                system=system_prompt,
+                messages=[{"role": "user", "content": retry_prompt}]
+            )
 
         txt = "".join(
             block.text for block in response.content if hasattr(block, "text")
