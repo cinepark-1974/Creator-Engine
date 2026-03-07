@@ -25,17 +25,21 @@ st.markdown("""
 @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
 
 :root {
+    --navy: #191970;
     --y: #FFCB05;
-    --bg: #0E1117;
-    --card: #262730;
-    --t: #FAFAFA;
-    --r: #FF6B6B;
-    --g: #51CF66;
-    --dim: #8B8B8B;
+    --bg: #FAFAFA;
+    --card: #FFFFFF;
+    --card-border: #E0E0E8;
+    --t: #1A1A2E;
+    --r: #D32F2F;
+    --g: #2EC484;
+    --dim: #888899;
+    --light-bg: #F0F2FF;
 }
 
 html, body, [class*="css"] {
     font-family: 'Pretendard', sans-serif;
+    color: var(--t);
 }
 
 /* 사이드바 숨김 */
@@ -43,49 +47,69 @@ section[data-testid="stSidebar"] {
     display: none;
 }
 
+/* 배경색별 텍스트 강제 */
+[style*="background:#FFCB05"] { color: var(--navy) !important; }
+[style*="background:#FFCB05"] * { color: var(--navy) !important; }
+[style*="background:#2EC484"] { color: #FFFFFF !important; }
+[style*="background:#2EC484"] * { color: #FFFFFF !important; }
+
 .header {
-    font-size: 1.4rem;
+    font-size: 1.1rem;
     font-weight: 700;
     color: var(--y);
-    margin-bottom: 0.1rem;
+    letter-spacing: 0.05em;
+    margin-bottom: 0rem;
+}
+
+.brand-title {
+    font-size: 2.2rem;
+    font-weight: 900;
+    color: var(--navy);
+    font-family: 'Georgia', serif;
+    letter-spacing: -0.02em;
+    margin-bottom: 0.2rem;
 }
 
 .sub {
     font-size: 0.8rem;
     color: var(--dim);
+    letter-spacing: 0.1em;
     margin-bottom: 1.5rem;
 }
 
 .callout {
-    background: var(--card);
-    border-left: 3px solid var(--y);
+    background: var(--light-bg);
+    border-left: 3px solid var(--navy);
     padding: 0.8rem 1rem;
     margin: 0.5rem 0;
     border-radius: 0 6px 6px 0;
     font-size: 0.85rem;
+    color: var(--t);
 }
 
 .cl {
-    color: var(--y);
-    font-weight: 600;
+    color: var(--navy);
+    font-weight: 700;
     font-size: 0.75rem;
     margin-bottom: 0.3rem;
 }
 
 .card {
     background: var(--card);
-    border: 1px solid #3a3a4a;
+    border: 1px solid var(--card-border);
     border-radius: 8px;
     padding: 1rem;
     margin-bottom: 0.8rem;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
 }
 
 .card:hover {
-    border-color: var(--y);
+    border-color: var(--navy);
+    box-shadow: 0 2px 8px rgba(25,25,112,0.08);
 }
 
 .ri {
-    background: var(--card);
+    background: var(--light-bg);
     border-radius: 6px;
     padding: 0.8rem;
     margin-bottom: 0.5rem;
@@ -93,15 +117,15 @@ section[data-testid="stSidebar"] {
 }
 
 .rl {
-    color: var(--y);
-    font-weight: 600;
+    color: var(--navy);
+    font-weight: 700;
     font-size: 0.7rem;
 }
 
 .big {
-    font-size: 2.2rem;
-    font-weight: 700;
-    color: var(--y);
+    font-size: 2.5rem;
+    font-weight: 900;
+    color: var(--navy);
     text-align: center;
 }
 
@@ -119,17 +143,17 @@ section[data-testid="stSidebar"] {
     font-weight: 600;
 }
 
-.b-done { background: var(--g); color: #000; }
-.b-run  { background: var(--y); color: #000; }
-.b-not  { background: #3a3a4a; color: var(--dim); }
-.b-fail { background: var(--r); color: #000; }
+.b-done { background: var(--g); color: #fff; }
+.b-run  { background: var(--y); color: var(--navy); }
+.b-not  { background: #E0E0E8; color: var(--dim); }
+.b-fail { background: var(--r); color: #fff; }
 
-/* ── Stepper ── */
+/* ── Stepper (Rewrite Engine 스타일) ── */
 .stepper {
     display: flex;
     align-items: center;
     justify-content: center;
-    margin: 1rem 0 1.5rem 0;
+    margin: 1.5rem 0 2rem 0;
     gap: 0;
 }
 .step {
@@ -138,45 +162,50 @@ section[data-testid="stSidebar"] {
     gap: 0;
 }
 .step-circle {
-    width: 28px;
-    height: 28px;
+    width: 32px;
+    height: 32px;
     border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 0.75rem;
+    font-size: 0.8rem;
     font-weight: 700;
     flex-shrink: 0;
+    border: 2px solid transparent;
 }
 .step-circle.active {
     background: var(--y);
-    color: #000;
+    color: var(--navy);
+    border-color: var(--y);
+    box-shadow: 0 0 0 3px rgba(255,203,5,0.25);
 }
 .step-circle.done {
     background: var(--g);
-    color: #000;
+    color: #fff;
+    border-color: var(--g);
 }
 .step-circle.upcoming {
-    background: #3a3a4a;
+    background: #E8E8F0;
     color: var(--dim);
+    border-color: #D0D0DD;
 }
 .step-label {
     font-size: 0.6rem;
-    margin-top: 0.2rem;
+    margin-top: 0.3rem;
     text-align: center;
     width: 55px;
 }
-.step-label.active { color: var(--y); font-weight: 600; }
-.step-label.done { color: var(--g); }
+.step-label.active { color: var(--navy); font-weight: 700; }
+.step-label.done { color: var(--g); font-weight: 600; }
 .step-label.upcoming { color: var(--dim); }
 .step-line {
-    width: 25px;
+    width: 30px;
     height: 2px;
-    margin: 0 1px;
+    margin: 0 2px;
     flex-shrink: 0;
 }
 .step-line.done { background: var(--g); }
-.step-line.upcoming { background: #3a3a4a; }
+.step-line.upcoming { background: #D0D0DD; }
 .step-wrap {
     display: flex;
     flex-direction: column;
@@ -1567,9 +1596,12 @@ def generate_docx(project):
 # ═══════════════════════════════════════════════════
 
 # ─── 공통 헤더 ───
-st.markdown('<div class="header">👖 CREATOR ENGINE</div>', unsafe_allow_html=True)
 st.markdown(
-    '<div class="sub">BLUE JEANS Creative Development Engine v1.2</div>',
+    '<div style="text-align:center;padding:1rem 0 0 0">'
+    '<div class="header">B L U E &nbsp; J E A N S &nbsp; P I C T U R E S</div>'
+    '<div class="brand-title">CREATOR ENGINE</div>'
+    '<div class="sub">Y O U N G &nbsp; · &nbsp; V I N T A G E &nbsp; · &nbsp; F R E E &nbsp; · &nbsp; I N N O V A T I V E</div>'
+    '</div>',
     unsafe_allow_html=True
 )
 
@@ -1802,7 +1834,7 @@ elif st.session_state.view == "project" and st.session_state.cur:
                         f'[{event.get("year", "")}] {event.get("source", "")}</div>'
                         f'<b>{event.get("title", "")}</b><br>'
                         f'{event.get("summary", "")}<br>'
-                        f'<span style="color:var(--y)">→ {event.get("story_potential", "")}</span>'
+                        f'<span style="color:var(--navy)">→ {event.get("story_potential", "")}</span>'
                         f'</div>',
                         unsafe_allow_html=True
                     )
@@ -1818,7 +1850,7 @@ elif st.session_state.view == "project" and st.session_state.cur:
                         f'{work.get("year", "")}</div>'
                         f'<b>{work.get("title", "")}</b><br>'
                         f'유사: {work.get("similarity", "")}<br>'
-                        f'<span style="color:var(--y)">→ 차별화: '
+                        f'<span style="color:var(--navy)">→ 차별화: '
                         f'{work.get("difference_opportunity", "")}</span>'
                         f'</div>',
                         unsafe_allow_html=True
@@ -1960,10 +1992,10 @@ elif st.session_state.view == "project" and st.session_state.cur:
                 with col1:
                     st.markdown(
                         f'<div class="card">'
-                        f'<span style="color:var(--y);font-weight:700">#{top_item["rank"]}</span> '
+                        f'<span style="color:var(--navy);font-weight:700">#{top_item["rank"]}</span> '
                         f'<b>{card.get("title", "")}</b><br>'
-                        f'<span style="color:#ccc">{card.get("logline_seed", "")}</span><br>'
-                        f'<span style="font-size:.8rem;color:#999">'
+                        f'<span style="color:#444">{card.get("logline_seed", "")}</span><br>'
+                        f'<span style="font-size:.8rem;color:#666">'
                         f'👤 {card.get("protagonist", "")}<br>'
                         f'⚔️ {card.get("conflict", "")}<br>'
                         f'✨ {card.get("hook", "")}<br>'
@@ -2282,7 +2314,7 @@ elif st.session_state.view == "core" and st.session_state.cur:
             st.markdown(
                 f'<div class="card"><div class="cl">{role}: {ch.get("name","")}</div>'
                 f'{ch.get("description","")}<br>'
-                f'<span style="font-size:.8rem;color:#999">'
+                f'<span style="font-size:.8rem;color:#666">'
                 f'🎯 {ch.get("goal","")}<br>💔 {ch.get("need",ch.get("flaw",""))}<br>'
                 f'⚡ {ch.get("strategy","")}<br>🗣️ {ch.get("dialogue_tone","")}</span></div>',
                 unsafe_allow_html=True
@@ -2313,7 +2345,7 @@ elif st.session_state.view == "core" and st.session_state.cur:
                 st.markdown(f'<div style="text-align:center"><div class="big" style="color:{cl}">{gb_avg}</div><div class="sm" style="color:{cl};font-size:1rem;font-weight:700">{lb}</div></div>', unsafe_allow_html=True)
             with c2:
                 for nm, sc in [("Goal 선명도",gb.get("goal_clarity",0)),("Need 자연스러움",gb.get("need_from_loss",0)),("Strategy 창의성",gb.get("strategy_creative",0)),("실패 대가",gb.get("failure_cost",0))]:
-                    st.markdown(f'<div style="display:flex;align-items:center;margin:.2rem 0;font-size:.8rem"><div style="width:110px;color:var(--dim)">{nm}</div><div style="flex:1;background:#3a3a4a;border-radius:4px;height:8px;margin:0 .5rem"><div style="width:{sc*10}%;background:var(--y);height:100%;border-radius:4px"></div></div><div style="width:30px;text-align:right">{sc}</div></div>', unsafe_allow_html=True)
+                    st.markdown(f'<div style="display:flex;align-items:center;margin:.2rem 0;font-size:.8rem"><div style="width:110px;color:var(--dim)">{nm}</div><div style="flex:1;background:#E0E0E8;border-radius:4px;height:8px;margin:0 .5rem"><div style="width:{sc*10}%;background:var(--y);height:100%;border-radius:4px"></div></div><div style="width:30px;text-align:right">{sc}</div></div>', unsafe_allow_html=True)
             if gb.get("feedback"):
                 st.caption(gb["feedback"])
 
@@ -2326,7 +2358,7 @@ elif st.session_state.view == "core" and st.session_state.cur:
                 st.markdown(f'<div style="text-align:center"><div class="big" style="color:{cl}">{gc_avg}</div><div class="sm" style="color:{cl};font-size:1rem;font-weight:700">{lb}</div></div>', unsafe_allow_html=True)
             with c2:
                 for nm, sc in [("주인공/적대자 논리",gc.get("protagonist_antagonist_logic",0)),("조연 입체성",gc.get("supporting_not_functional",0)),("관계축 갈등",gc.get("relationship_produces_conflict",0))]:
-                    st.markdown(f'<div style="display:flex;align-items:center;margin:.2rem 0;font-size:.8rem"><div style="width:110px;color:var(--dim)">{nm}</div><div style="flex:1;background:#3a3a4a;border-radius:4px;height:8px;margin:0 .5rem"><div style="width:{sc*10}%;background:var(--y);height:100%;border-radius:4px"></div></div><div style="width:30px;text-align:right">{sc}</div></div>', unsafe_allow_html=True)
+                    st.markdown(f'<div style="display:flex;align-items:center;margin:.2rem 0;font-size:.8rem"><div style="width:110px;color:var(--dim)">{nm}</div><div style="flex:1;background:#E0E0E8;border-radius:4px;height:8px;margin:0 .5rem"><div style="width:{sc*10}%;background:var(--y);height:100%;border-radius:4px"></div></div><div style="width:30px;text-align:right">{sc}</div></div>', unsafe_allow_html=True)
             if gc.get("feedback"):
                 st.caption(gc["feedback"])
 
@@ -2341,7 +2373,7 @@ elif st.session_state.view == "core" and st.session_state.cur:
                 st.markdown(f'<div style="text-align:center"><div class="big">{final}</div><div class="sm" style="color:{vc};font-size:1rem;font-weight:700">{verdict}</div></div>', unsafe_allow_html=True)
             with c2:
                 for nm, sc in [("Goal",fa.get("goal",0)),("Need",fa.get("need",0)),("Strategy",fa.get("strategy",0)),("Structure",fa.get("structure",0)),("Character/Concept",fa.get("character_concept",0))]:
-                    st.markdown(f'<div style="display:flex;align-items:center;margin:.2rem 0;font-size:.8rem"><div style="width:110px;color:var(--dim)">{nm}</div><div style="flex:1;background:#3a3a4a;border-radius:4px;height:8px;margin:0 .5rem"><div style="width:{sc*10}%;background:var(--y);height:100%;border-radius:4px"></div></div><div style="width:30px;text-align:right">{sc}</div></div>', unsafe_allow_html=True)
+                    st.markdown(f'<div style="display:flex;align-items:center;margin:.2rem 0;font-size:.8rem"><div style="width:110px;color:var(--dim)">{nm}</div><div style="flex:1;background:#E0E0E8;border-radius:4px;height:8px;margin:0 .5rem"><div style="width:{sc*10}%;background:var(--y);height:100%;border-radius:4px"></div></div><div style="width:30px;text-align:right">{sc}</div></div>', unsafe_allow_html=True)
 
             if verdict == "개발 진행":
                 st.success(f"✅ {verdict}. Structure Build로 진행할 수 있습니다.")
@@ -2446,7 +2478,7 @@ elif st.session_state.view == "structure" and st.session_state.cur:
 
         st.markdown("#### 📊 스토리라인 (시퀀스 방향)")
         for seq in story.get("storyline", []):
-            st.markdown(f'<div class="card"><div class="cl">SEQ {seq.get("seq","")} · {seq.get("label","")} ({seq.get("pages","")})</div>{seq.get("summary","")}<br><span style="font-size:.8rem;color:#999">⚔️ {seq.get("conflict","")} · 💭 {seq.get("emotion","")} · → {seq.get("hook","")}</span></div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="card"><div class="cl">SEQ {seq.get("seq","")} · {seq.get("label","")} ({seq.get("pages","")})</div>{seq.get("summary","")}<br><span style="font-size:.8rem;color:#666">⚔️ {seq.get("conflict","")} · 💭 {seq.get("emotion","")} · → {seq.get("hook","")}</span></div>', unsafe_allow_html=True)
 
     if project.get("structure_diag"):
         diag = project["structure_diag"]
@@ -2467,7 +2499,7 @@ elif st.session_state.view == "structure" and st.session_state.cur:
                 f'<div style="margin:.3rem 0;font-size:.85rem">'
                 f'<span style="color:{color};font-weight:700">[{status}]</span> '
                 f'<b>{bt.get("beat","")}</b> — '
-                f'<span style="color:#bbb">{bt.get("note","")}</span>'
+                f'<span style="color:#666">{bt.get("note","")}</span>'
                 f'</div>',
                 unsafe_allow_html=True
             )
@@ -2483,7 +2515,7 @@ elif st.session_state.view == "structure" and st.session_state.cur:
                 st.markdown(
                     f'<div class="card">'
                     f'<div class="cl">{role}: {arc.get("name","")} [{arc_type}]</div>'
-                    f'<span style="font-size:.8rem;color:#999">'
+                    f'<span style="font-size:.8rem;color:#666">'
                     f'1막: {arc.get("act1_state","")}<br>'
                     f'전환: {arc.get("turning_point","")}<br>'
                     f'3막: {arc.get("act3_state","")}'
@@ -2499,7 +2531,7 @@ elif st.session_state.view == "structure" and st.session_state.cur:
                 st.markdown(
                     f'<div class="card">'
                     f'<div class="cl">{rel.get("pair","")}</div>'
-                    f'<span style="font-size:.8rem;color:#999">'
+                    f'<span style="font-size:.8rem;color:#666">'
                     f'1막: {rel.get("act1","")} → '
                     f'미드: {rel.get("midpoint","")} → '
                     f'3막: {rel.get("act3","")}'
@@ -2527,7 +2559,7 @@ elif st.session_state.view == "structure" and st.session_state.cur:
             st.markdown(f'<div style="text-align:center"><div class="big" style="color:{cl}">{gd_avg}</div><div class="sm" style="color:{cl};font-size:1rem;font-weight:700">{"PASS" if gd_ok else "FAIL"}</div></div>', unsafe_allow_html=True)
         with c2:
             for nm, sc in [("전환점",gd.get("turning_points_valid",0)),("Midpoint",gd.get("midpoint_redirects",0)),("All Is Lost",gd.get("all_is_lost_works",0)),("결말",gd.get("ending_inevitable_surprising",0))]:
-                st.markdown(f'<div style="display:flex;align-items:center;margin:.2rem 0;font-size:.8rem"><div style="width:80px;color:var(--dim)">{nm}</div><div style="flex:1;background:#3a3a4a;border-radius:4px;height:8px;margin:0 .5rem"><div style="width:{sc*10}%;background:var(--y);height:100%;border-radius:4px"></div></div><div style="width:30px;text-align:right">{sc}</div></div>', unsafe_allow_html=True)
+                st.markdown(f'<div style="display:flex;align-items:center;margin:.2rem 0;font-size:.8rem"><div style="width:80px;color:var(--dim)">{nm}</div><div style="flex:1;background:#E0E0E8;border-radius:4px;height:8px;margin:0 .5rem"><div style="width:{sc*10}%;background:var(--y);height:100%;border-radius:4px"></div></div><div style="width:30px;text-align:right">{sc}</div></div>', unsafe_allow_html=True)
         if gd.get("feedback"):
             st.caption(gd["feedback"])
 
@@ -2549,16 +2581,24 @@ elif st.session_state.view == "structure" and st.session_state.cur:
                         project[k] = None
                     st.rerun()
 
-        # DOCX 다운로드 (Structure 완료 시점부터 가능)
+        # DOCX 1차 다운로드
         st.markdown("---")
-        st.markdown("#### 📥 기획개발보고서 다운로드")
-        st.caption("현재까지 완성된 내용으로 DOCX 보고서를 생성합니다.")
+        st.markdown("#### 📥 기획개발보고서 [1차] 다운로드")
+        st.caption("Core Build + Structure Build까지의 기획서입니다. 다운로드 후 직접 수정/보강하세요.")
+        st.markdown(
+            '<div class="callout">'
+            '<div class="cl">💡 1차 기획서 활용법</div>'
+            '다운로드한 기획서를 검토하고, 추가하고 싶은 요소(예: 사이렌, 특정 장치, 캐릭터 보강 등)를 '
+            '직접 수정하세요. 수정이 끝나면 Scene Design → Treatment로 진행하여 최종 기획서를 완성합니다.'
+            '</div>',
+            unsafe_allow_html=True
+        )
         title_safe = project.get("title", "프로젝트").replace(" ", "_")
         docx_buffer = generate_docx(project)
         st.download_button(
-            label="📥 기획개발보고서 다운로드 (.docx)",
+            label="📥 기획개발보고서 [1차] 다운로드 (.docx)",
             data=docx_buffer,
-            file_name=f"기획개발보고서_{title_safe}_Blue.docx",
+            file_name=f"기획개발보고서_{title_safe}_1차_Blue.docx",
             mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             use_container_width=True
         )
@@ -2630,7 +2670,7 @@ elif st.session_state.view == "scene_design" and st.session_state.cur:
             di = sc.get("dramatic_irony", "")
             di_html = f'<br>👁️ <b>아이러니:</b> <i>{di}</i>' if di else ""
             kl = sc.get("key_line", "")
-            kl_html = f'<br><span style="color:var(--y);font-weight:600">💬 "{kl}"</span>' if kl else ""
+            kl_html = f'<br><span style="color:var(--navy);font-weight:600">💬 "{kl}"</span>' if kl else ""
             st.markdown(
                 f'<div class="card">'
                 f'<div class="cl">S#{sc.get("scene_no","")} · {sc.get("sequence","")} · {sc.get("location","")}</div>'
@@ -2656,19 +2696,6 @@ elif st.session_state.view == "scene_design" and st.session_state.cur:
         if st.button("📝 Treatment Build 진행 →", type="primary", use_container_width=True):
             st.session_state.view = "treatment"
             st.rerun()
-
-        # DOCX 다운로드
-        st.markdown("---")
-        st.markdown("#### 📥 기획개발보고서 다운로드")
-        title_safe = project.get("title", "프로젝트").replace(" ", "_")
-        docx_buffer = generate_docx(project)
-        st.download_button(
-            label="📥 기획개발보고서 다운로드 (.docx)",
-            data=docx_buffer,
-            file_name=f"기획개발보고서_{title_safe}_Blue.docx",
-            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            use_container_width=True
-        )
 
     else:
         st.markdown(
@@ -2748,16 +2775,18 @@ elif st.session_state.view == "treatment" and st.session_state.cur:
                 x=[p.get("point","") for p in ec],
                 y=[p.get("tension",0) for p in ec],
                 mode='lines+markers',
-                line=dict(color='#FFCB05', width=3),
-                marker=dict(size=8),
+                line=dict(color='#191970', width=3),
+                marker=dict(size=8, color='#FFCB05', line=dict(color='#191970', width=2)),
                 text=[p.get("emotion","") for p in ec],
                 hovertemplate='%{x}<br>텐션: %{y}<br>감정: %{text}<extra></extra>'
             ))
             fig.update_layout(
-                plot_bgcolor='#0E1117', paper_bgcolor='#0E1117',
-                font_color='#FAFAFA', yaxis_range=[0,10],
+                plot_bgcolor='#FAFAFA', paper_bgcolor='#FAFAFA',
+                font_color='#1A1A2E', yaxis_range=[0,10],
                 yaxis_title="Tension", height=300,
-                margin=dict(l=40,r=20,t=20,b=40)
+                margin=dict(l=40,r=20,t=20,b=40),
+                yaxis=dict(gridcolor='#E0E0E8'),
+                xaxis=dict(gridcolor='#E0E0E8')
             )
             st.plotly_chart(fig, use_container_width=True)
 
@@ -2789,7 +2818,7 @@ elif st.session_state.view == "treatment" and st.session_state.cur:
                 st.markdown(f'<div style="text-align:center"><div class="big" style="color:{cl}">{ge_avg}</div><div class="sm" style="color:{cl};font-size:1rem;font-weight:700">{"PASS" if ge_ok else "FAIL"}</div></div>', unsafe_allow_html=True)
             with c2:
                 for nm, sc in [("영화적 읽힘",ge.get("cinematic_reading",0)),("씬-감정 일치",ge.get("scene_emotion_match",0)),("초고 직행 가능",ge.get("screenplay_ready",0))]:
-                    st.markdown(f'<div style="display:flex;align-items:center;margin:.2rem 0;font-size:.8rem"><div style="width:100px;color:var(--dim)">{nm}</div><div style="flex:1;background:#3a3a4a;border-radius:4px;height:8px;margin:0 .5rem"><div style="width:{sc*10}%;background:var(--y);height:100%;border-radius:4px"></div></div><div style="width:30px;text-align:right">{sc}</div></div>', unsafe_allow_html=True)
+                    st.markdown(f'<div style="display:flex;align-items:center;margin:.2rem 0;font-size:.8rem"><div style="width:100px;color:var(--dim)">{nm}</div><div style="flex:1;background:#E0E0E8;border-radius:4px;height:8px;margin:0 .5rem"><div style="width:{sc*10}%;background:var(--y);height:100%;border-radius:4px"></div></div><div style="width:30px;text-align:right">{sc}</div></div>', unsafe_allow_html=True)
             if ge.get("feedback"):
                 st.caption(ge["feedback"])
 
@@ -2802,15 +2831,16 @@ elif st.session_state.view == "treatment" and st.session_state.cur:
                     project["treatment_gate"] = None
                     st.rerun()
 
-        # DOCX 다운로드 (전체 결과 포함)
+        # DOCX 2차(최종) 다운로드
         st.markdown("---")
-        st.markdown("#### 📥 기획개발보고서 최종 다운로드")
+        st.markdown("#### 📥 기획개발보고서 [최종] 다운로드")
+        st.caption("Core + Structure + Scene Design + Treatment 전체가 포함된 최종 기획서입니다.")
         title_safe = project.get("title", "프로젝트").replace(" ", "_")
         docx_buffer = generate_docx(project)
         st.download_button(
-            label="📥 기획개발보고서_최종 다운로드 (.docx)",
+            label="📥 기획개발보고서 [최종] 다운로드 (.docx)",
             data=docx_buffer,
-            file_name=f"기획개발보고서_{title_safe}_Blue.docx",
+            file_name=f"기획개발보고서_{title_safe}_최종_Blue.docx",
             mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             use_container_width=True
         )
