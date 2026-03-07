@@ -229,7 +229,9 @@ defaults = {
     "last_structure_diag_raw": "",
     "last_structure_gate_raw": "",
     "last_scene_design_raw": "",
-    "last_treatment_raw": "",
+    "last_treatment_act1_raw": "",
+    "last_treatment_act2_raw": "",
+    "last_treatment_act3_raw": "",
     "last_error": "",
 }
 for k, v in defaults.items():
@@ -1275,8 +1277,8 @@ Goal: {gns.get("goal","")} / Need: {gns.get("need","")} / Strategy: {gns.get("st
 
 
 # ─── API Call: Treatment Build ───
-def call_treatment_build(core_data, story_data, diag_data, genre, fmt):
-    """Treatment Build: 시퀀스별 트리트먼트 서술"""
+def call_treatment_act(core_data, story_data, diag_data, scene_data, genre, fmt, act_number, act_label):
+    """Treatment Build: 막별 분리 호출 (1막/2막/3막)"""
     try:
         client = get_client()
         gns = core_data.get("goal_need_strategy", {})
@@ -1285,79 +1287,143 @@ def call_treatment_build(core_data, story_data, diag_data, genre, fmt):
         syn = story_data.get("synopsis_1p", {})
         storyline = story_data.get("storyline", [])
 
-        system_prompt = """당신은 헐리우드 최고 수준의 시나리오 작가이자 Treatment Specialist다.
-Structure Build 결과를 기반으로 트리트먼트를 작성한다.
-인물의 선택이 사건을 일으켜야 한다.
-장면 전환의 에너지가 살아있어야 한다.
-읽는 맛이 있어야 한다.
+        # Scene Design에서 해당 막의 장면 추출
+        key_scenes = []
+        if scene_data:
+            sms = scene_data.get("scene_map_summary", {})
+            act_scene_ids = sms.get(f"act{act_number}_scenes", "")
+            if act_number == 2:
+                act_scene_ids = sms.get("act2a_scenes", "") + ", " + sms.get("act2b_scenes", "")
+            all_scenes = scene_data.get("key_scenes", [])
+            key_scenes = all_scenes  # 전체 전달, 프롬프트에서 막 지정
+
+        chars_simple = json.dumps(
+            [{"name": c.get("name",""), "role": c.get("role",""), "goal": c.get("goal","")} for c in chars],
+            ensure_ascii=False
+        )
+
+        act_synopsis = {
+            1: {"focus": syn.get("opening","") + " " + syn.get("catalyst",""), "pages": "약 25~30페이지"},
+            2: {"focus": syn.get("development","") + " " + syn.get("midpoint","") + " " + syn.get("collapse",""), "pages": "약 50~60페이지"},
+            3: {"focus": syn.get("climax","") + " " + syn.get("ending",""), "pages": "약 20~25페이지"},
+        }
+        focus = act_synopsis.get(act_number, {})
+
+        system_prompt = f"""당신은 헐리우드 최고 수준의 시나리오 작가이자 Treatment Specialist다.
+지금 {act_label}의 트리트먼트를 작성한다.
+
+트리트먼트는 시나리오의 설계도다.
+- 인물의 '선택'이 사건을 일으켜야 한다.
+- 장면과 장면 사이의 전환 에너지가 살아있어야 한다.
+- 읽는 사람이 영화를 보듯 읽혀야 한다.
+- 서술체, 현재형으로 작성한다.
+- 대사는 핵심 대사만 삽입한다.
+- 각 장면(scene)은 장소/인물/행동/감정을 포함해야 한다.
 
 중요 규칙:
 - 유효한 단일 JSON만 출력. JSON 외 텍스트 금지.
 - 후행 쉼표 금지.
 - 한국어 작성. 전문용어 한글(English) 병기.
-- 서술체로 작성. 시나리오 형식이 아닌 트리트먼트 형식.
 """
 
-        user_prompt = f"""[Core]
+        user_prompt = f"""[작품 정보]
 로그라인: {lp.get("washed","")}
+장르: {genre} / 포맷: {fmt}
 Goal: {gns.get("goal","")} / Need: {gns.get("need","")} / Strategy: {gns.get("strategy","")}
-캐릭터: {json.dumps([{"name":c.get("name",""),"role":c.get("role","")} for c in chars], ensure_ascii=False)}
+캐릭터: {chars_simple}
 
-[Synopsis]
-{json.dumps(syn, ensure_ascii=False)}
+[{act_label} 시놉시스 초점]
+{focus.get("focus","")}
 
-[Storyline]
+[스토리라인]
 {json.dumps(storyline, ensure_ascii=False)}
+
+[Scene Design 참고]
+{json.dumps(key_scenes, ensure_ascii=False)}
 
 [JSON 스키마]
 {{
-  "treatment_sequences": [
+  "act": {act_number},
+  "act_title": "{act_label} 제목",
+  "scenes": [
     {{
-      "seq": 1,
-      "title": "시퀀스 제목",
-      "narrative": "이 시퀀스의 트리트먼트 서술 (150~200자)"
+      "scene_no": 1,
+      "title": "장면 제목",
+      "location": "장소",
+      "characters": "등장인물",
+      "narrative": "이 장면의 트리트먼트 서술 (400~600자). 인물의 행동, 감정, 대화 요약, 시각적 묘사를 포함한다. 장면 안에서 무엇이 변하는지 명확히 서술한다."
     }}
   ],
-  "emotion_curve": [
-    {{
-      "point": "Opening",
-      "tension": 3,
-      "emotion": "감정 키워드"
-    }}
-  ],
-  "director_notes": ["감독용 포인트 3개"],
-  "investor_summary": "투자자용 요약 3문장"
+  "act_summary": "{act_label} 요약 3문장"
 }}
 
 규칙:
-- treatment_sequences는 스토리라인 시퀀스 수만큼 (6~8개)
-- 각 narrative는 서술체, 현재형, 150~200자
-- 인물의 선택 → 사건 → 감정 변화가 드러나야 함
-- emotion_curve는 8~10개 포인트, tension은 1~10 정수
-- director_notes 정확히 3개, 각 1문장
-- investor_summary 3문장
+- {act_label}에 해당하는 장면만 작성한다.
+- 1막은 5~7개 장면, 2막은 10~14개 장면, 3막은 5~7개 장면.
+- 각 narrative는 반드시 400~600자. 짧으면 안 된다.
+- 서술체, 현재형. 영화를 보듯 써야 한다.
+- 인물의 행동 묘사 → 감정 변화 → 핵심 대사(있을 경우) → 장면 전환 순서.
+- act_summary는 이 막의 핵심을 3문장으로 압축.
 """
 
         response = client.messages.create(
-            model=ANTHROPIC_MODEL, max_tokens=6000, temperature=0.35,
+            model=ANTHROPIC_MODEL, max_tokens=8000, temperature=0.4,
             system=system_prompt,
             messages=[{"role": "user", "content": user_prompt}]
         )
         if response.stop_reason == "max_tokens":
+            # 장면 수 줄여서 재시도
+            reduced = user_prompt.replace("10~14개 장면", "8~10개 장면").replace("5~7개 장면", "4~5개 장면")
             response = client.messages.create(
-                model=ANTHROPIC_MODEL, max_tokens=8000, temperature=0.35,
+                model=ANTHROPIC_MODEL, max_tokens=8000, temperature=0.4,
                 system=system_prompt,
-                messages=[{"role": "user", "content": user_prompt}]
+                messages=[{"role": "user", "content": reduced}]
             )
         txt = "".join(b.text for b in response.content if hasattr(b, "text")).strip()
-        st.session_state["last_treatment_raw"] = txt
+        st.session_state[f"last_treatment_act{act_number}_raw"] = txt
         return safe_json_loads(txt)
     except Exception as e:
-        st.error(f"Treatment 생성 실패: {e}")
-        raw = st.session_state.get("last_treatment_raw", "")
+        st.error(f"Treatment {act_label} 실패: {e}")
+        raw = st.session_state.get(f"last_treatment_act{act_number}_raw", "")
         if raw:
-            with st.expander("🔧 Treatment Raw (디버그)"):
+            with st.expander(f"🔧 Treatment {act_label} Raw (디버그)"):
                 st.text_area("Raw", raw, height=400)
+        return None
+
+
+def call_treatment_meta(act1, act2, act3, core_data):
+    """Treatment 감정곡선 + 감독포인트 + 투자자요약 (3막 결과 기반)"""
+    try:
+        client = get_client()
+        # 각 막의 장면 제목만 추출
+        all_titles = []
+        for act_data in [act1, act2, act3]:
+            if act_data:
+                for sc in act_data.get("scenes", []):
+                    all_titles.append(f"Act{act_data.get('act','')} S#{sc.get('scene_no','')} {sc.get('title','')}")
+
+        response = client.messages.create(
+            model=ANTHROPIC_MODEL, max_tokens=2000, temperature=0.3,
+            system="당신은 Development Producer다. 유효한 단일 JSON만 출력. 후행 쉼표 금지.",
+            messages=[{"role": "user", "content": f"""[트리트먼트 장면 목록]
+{json.dumps(all_titles, ensure_ascii=False)}
+
+[로그라인] {core_data.get("logline_pack",{}).get("washed","")}
+
+[JSON 스키마]
+{{
+  "emotion_curve": [
+    {{"point": "장면 라벨", "tension": 0, "emotion": "감정"}}
+  ],
+  "director_notes": ["감독용 포인트 1", "감독용 포인트 2", "감독용 포인트 3"],
+  "investor_summary": "투자자용 요약 3~4문장"
+}}
+규칙: emotion_curve 12~15개 포인트. tension 1~10 정수. director_notes 정확히 3개."""}]
+        )
+        txt = "".join(b.text for b in response.content if hasattr(b, "text")).strip()
+        return safe_json_loads(txt)
+    except Exception as e:
+        st.error(f"Treatment 메타 생성 실패: {e}")
         return None
 
 
@@ -1556,17 +1622,34 @@ def generate_docx(project):
 
     doc.add_page_break()
 
-    # ── Treatment ──
+    # ── Treatment (3막 분리) ──
     treatment = project.get("treatment", {})
     if treatment:
         add_heading("Treatment", 1)
-        for seq in treatment.get("treatment_sequences", []):
-            add_heading(f"SEQ {seq.get('seq','')} · {seq.get('title','')}", 2)
-            add_body(seq.get("narrative", ""))
 
-        if treatment.get("investor_summary"):
+        act_labels = {1: "1막 — 설정 (Set-up)", 2: "2막 — 대결 (Confrontation)", 3: "3막 — 해결 (Resolution)"}
+        for act_num in [1, 2, 3]:
+            act_data = treatment.get(f"act{act_num}")
+            if act_data:
+                act_title = act_data.get("act_title", act_labels[act_num])
+                add_heading(act_title, 2)
+
+                for sc in act_data.get("scenes", []):
+                    add_heading(f"S#{sc.get('scene_no','')} {sc.get('title','')}", 3)
+                    add_labeled("장소", sc.get("location", ""))
+                    add_labeled("인물", sc.get("characters", ""))
+                    add_body(sc.get("narrative", ""))
+
+                summary = act_data.get("act_summary", "")
+                if summary:
+                    add_labeled(f"{act_labels[act_num]} 요약", summary)
+
+                doc.add_paragraph("")
+
+        meta = treatment.get("meta", {})
+        if meta.get("investor_summary"):
             add_heading("투자자용 요약", 2)
-            add_body(treatment["investor_summary"])
+            add_body(meta["investor_summary"])
 
     # ── 점수 ──
     add_heading("Development Fit Score", 1)
@@ -2732,41 +2815,83 @@ elif st.session_state.view == "treatment" and st.session_state.cur:
 
     st.markdown("---")
     st.markdown("### 📝 Treatment Build 실행")
-    st.caption("시퀀스별 트리트먼트 서술 · 감정 곡선 · 감독용 포인트 · 투자자 요약")
+    st.caption("1막 · 2막 · 3막 각각의 트리트먼트를 장면 단위로 서술합니다. (약 40~55페이지 분량)")
+
+    scene_data = project.get("scene_design", {})
 
     if st.button("📝 Treatment Build 실행", type="primary"):
         if not story:
             st.error("Structure Build가 없습니다.")
         else:
-            with st.spinner("① Treatment 생성 중... (약 30~40초)"):
-                treat = call_treatment_build(core, story, diag, project["genre"], project["format"])
-            if treat:
-                project["treatment"] = treat
+            # 1막
+            with st.spinner("① 1막 Treatment 생성 중... (약 30~40초)"):
+                act1 = call_treatment_act(core, story, diag, scene_data, project["genre"], project["format"], 1, "1막 (설정)")
+            # 2막
+            with st.spinner("② 2막 Treatment 생성 중... (약 40~50초)"):
+                act2 = call_treatment_act(core, story, diag, scene_data, project["genre"], project["format"], 2, "2막 (대결)")
+            # 3막
+            with st.spinner("③ 3막 Treatment 생성 중... (약 30~40초)"):
+                act3 = call_treatment_act(core, story, diag, scene_data, project["genre"], project["format"], 3, "3막 (해결)")
+
+            if act1 or act2 or act3:
+                project["treatment"] = {"act1": act1, "act2": act2, "act3": act3}
                 project["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
-                with st.spinner("② Gate E 채점 중... (약 10초)"):
-                    gate_e = call_treatment_gate(treat)
+
+                # 메타 (감정곡선 + 감독포인트 + 투자자요약)
+                with st.spinner("④ 감정 곡선 + 감독 포인트 생성 중... (약 10초)"):
+                    meta = call_treatment_meta(act1, act2, act3, core)
+                if meta:
+                    project["treatment"]["meta"] = meta
+
+                # Gate E
+                with st.spinner("⑤ Gate E 채점 중... (약 10초)"):
+                    gate_e = call_treatment_gate(project["treatment"])
                 if gate_e:
                     project["treatment_gate"] = gate_e
-                    project["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
+
+                project["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
                 st.rerun()
 
     # ── Treatment 결과 표시 ──
     if project.get("treatment"):
         treat = project["treatment"]
 
-        # 시퀀스별 트리트먼트
-        st.markdown("#### 📖 Treatment")
-        for seq in treat.get("treatment_sequences", []):
-            st.markdown(
-                f'<div class="card">'
-                f'<div class="cl">SEQ {seq.get("seq","")} · {seq.get("title","")}</div>'
-                f'<div style="line-height:1.7;font-size:.9rem">{seq.get("narrative","")}</div>'
-                f'</div>',
-                unsafe_allow_html=True
-            )
+        # 3막 순서대로 표시
+        act_labels = {1: "1막 — 설정 (Set-up)", 2: "2막 — 대결 (Confrontation)", 3: "3막 — 해결 (Resolution)"}
+
+        for act_num in [1, 2, 3]:
+            act_key = f"act{act_num}"
+            act_data = treat.get(act_key)
+            if act_data:
+                act_title = act_data.get("act_title", act_labels[act_num])
+                scenes = act_data.get("scenes", [])
+                summary = act_data.get("act_summary", "")
+
+                st.markdown(f"#### 📖 {act_labels[act_num]}")
+                if act_title:
+                    st.markdown(f"**{act_title}**")
+
+                for sc in scenes:
+                    st.markdown(
+                        f'<div class="card">'
+                        f'<div class="cl">S#{sc.get("scene_no","")} · {sc.get("location","")} · {sc.get("characters","")}</div>'
+                        f'<b>{sc.get("title","")}</b>'
+                        f'<div style="line-height:1.8;font-size:.9rem;margin-top:.5rem">'
+                        f'{sc.get("narrative","")}'
+                        f'</div></div>',
+                        unsafe_allow_html=True
+                    )
+
+                if summary:
+                    st.markdown(
+                        f'<div class="callout"><div class="cl">{act_labels[act_num]} 요약</div>{summary}</div>',
+                        unsafe_allow_html=True
+                    )
+                st.markdown("")
 
         # 감정 곡선
-        ec = treat.get("emotion_curve", [])
+        meta = treat.get("meta", {})
+        ec = meta.get("emotion_curve", [])
         if ec:
             st.markdown("#### 📈 감정 곡선")
             import plotly.graph_objects as go
@@ -2791,14 +2916,14 @@ elif st.session_state.view == "treatment" and st.session_state.cur:
             st.plotly_chart(fig, use_container_width=True)
 
         # 감독용 포인트
-        notes = treat.get("director_notes", [])
+        notes = meta.get("director_notes", [])
         if notes:
             st.markdown("#### 🎬 감독용 포인트")
             for i, n in enumerate(notes, 1):
                 st.markdown(f"**{i}.** {n}")
 
         # 투자자 요약
-        inv = treat.get("investor_summary", "")
+        inv = meta.get("investor_summary", "")
         if inv:
             st.markdown(f'<div class="callout"><div class="cl">💰 투자자용 요약</div>{inv}</div>', unsafe_allow_html=True)
 
