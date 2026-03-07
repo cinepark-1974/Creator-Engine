@@ -123,13 +123,72 @@ section[data-testid="stSidebar"] {
 .b-run  { background: var(--y); color: #000; }
 .b-not  { background: #3a3a4a; color: var(--dim); }
 .b-fail { background: var(--r); color: #000; }
+
+/* ── Stepper ── */
+.stepper {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 1rem 0 1.5rem 0;
+    gap: 0;
+}
+.step {
+    display: flex;
+    align-items: center;
+    gap: 0;
+}
+.step-circle {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75rem;
+    font-weight: 700;
+    flex-shrink: 0;
+}
+.step-circle.active {
+    background: var(--y);
+    color: #000;
+}
+.step-circle.done {
+    background: var(--g);
+    color: #000;
+}
+.step-circle.upcoming {
+    background: #3a3a4a;
+    color: var(--dim);
+}
+.step-label {
+    font-size: 0.65rem;
+    margin-top: 0.2rem;
+    text-align: center;
+    width: 70px;
+}
+.step-label.active { color: var(--y); font-weight: 600; }
+.step-label.done { color: var(--g); }
+.step-label.upcoming { color: var(--dim); }
+.step-line {
+    width: 40px;
+    height: 2px;
+    margin: 0 2px;
+    flex-shrink: 0;
+}
+.step-line.done { background: var(--g); }
+.step-line.upcoming { background: #3a3a4a; }
+.step-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
 </style>
 """, unsafe_allow_html=True)
 
 
 # ─── Session State ───
 defaults = {
-    "view": "home",         # home | project
+    "view": "home",         # home | project | core | structure | treatment | export
     "projects": {},
     "cur": None,
     "last_research_raw": "",
@@ -140,6 +199,70 @@ defaults = {
 for k, v in defaults.items():
     if k not in st.session_state:
         st.session_state[k] = v
+
+
+# ─── Stepper ───
+STEPS = [
+    ("project", "아이디어"),
+    ("project", "Brainstorm"),
+    ("core", "Core"),
+    ("structure", "Structure"),
+    ("treatment", "Treatment"),
+    ("export", "Export"),
+]
+
+def render_stepper(current_view, project_data=None):
+    """상단 단계 표시 바"""
+    # 현재 단계 인덱스 결정
+    view_to_step = {
+        "project": 1 if project_data and project_data.get("brainstorm_cards") else 0,
+        "core": 2,
+        "structure": 3,
+        "treatment": 4,
+        "export": 5,
+    }
+    current_idx = view_to_step.get(current_view, 0)
+
+    # 완료된 단계 결정
+    done_idx = -1
+    if project_data:
+        if project_data.get("brainstorm_cards"):
+            done_idx = 1
+        if project_data.get("brainstorm_analysis"):
+            ga = project_data["brainstorm_analysis"].get("gate_a_scores", {})
+            if ga.get("average", 0) >= 7.0:
+                done_idx = 1  # Gate A 통과
+        if project_data.get("core"):
+            done_idx = 2
+        # structure, treatment, export는 Phase 2
+
+    html_parts = []
+    for i, (view_key, label) in enumerate(STEPS):
+        # 상태 결정
+        if i < current_idx and i <= done_idx:
+            state = "done"
+        elif i == current_idx:
+            state = "active"
+        else:
+            state = "upcoming"
+
+        # 클릭 가능 여부 (done 단계만)
+        circle_content = "✓" if state == "done" else str(i + 1)
+
+        html_parts.append(
+            f'<div class="step-wrap">'
+            f'<div class="step-circle {state}">{circle_content}</div>'
+            f'<div class="step-label {state}">{label}</div>'
+            f'</div>'
+        )
+
+        # 마지막이 아니면 연결선
+        if i < len(STEPS) - 1:
+            line_state = "done" if i < current_idx and i <= done_idx else "upcoming"
+            html_parts.append(f'<div class="step-line {line_state}"></div>')
+
+    stepper_html = '<div class="stepper">' + ''.join(html_parts) + '</div>'
+    st.markdown(stepper_html, unsafe_allow_html=True)
 
 
 # ─── JSON Helpers ───
@@ -516,10 +639,21 @@ st.markdown(
 )
 
 # ─── 뒤로가기 ───
-if st.session_state.view == "project" and st.session_state.cur:
-    if st.button("← 프로젝트 목록"):
-        st.session_state.view = "home"
-        st.rerun()
+if st.session_state.view in ("project", "core") and st.session_state.cur:
+    if st.session_state.view == "core":
+        col_nav1, col_nav2 = st.columns(2)
+        with col_nav1:
+            if st.button("← 프로젝트 목록"):
+                st.session_state.view = "home"
+                st.rerun()
+        with col_nav2:
+            if st.button("← Brainstorm"):
+                st.session_state.view = "project"
+                st.rerun()
+    else:
+        if st.button("← 프로젝트 목록"):
+            st.session_state.view = "home"
+            st.rerun()
 
 
 # ═══════════════════════════════════════════════════
@@ -640,6 +774,9 @@ elif st.session_state.view == "project" and st.session_state.cur:
     # ─── 프로젝트 헤더 ───
     st.markdown(f"## {project['title']}")
     st.caption(f"{project['genre']} · {project['target_market']} · {project['format']}")
+
+    # ─── 단계 표시 ───
+    render_stepper("project", project)
 
     st.markdown(
         f'<div class="callout">'
@@ -955,13 +1092,26 @@ elif st.session_state.view == "project" and st.session_state.cur:
 
             if passed:
                 st.success("✅ Gate A 통과. Core Build 진행 가능.")
+                if st.button("🎯 Core Build 진행 →", type="primary", use_container_width=True):
+                    project["stage"] = "core"
+                    st.session_state.view = "core"
+                    st.rerun()
             else:
                 st.warning(
                     f"⚠️ Gate A 미통과 (평균 {avg}). "
                     f"아이디어 보강 또는 재실행 권장."
                 )
-                if st.button("🔓 Override (강제 통과)"):
-                    st.info("Override 실행. Core Build로 이동합니다.")
+                col_o1, col_o2 = st.columns(2)
+                with col_o1:
+                    if st.button("🔓 Override (강제 통과)"):
+                        project["stage"] = "core"
+                        st.session_state.view = "core"
+                        st.rerun()
+                with col_o2:
+                    if st.button("🔄 Brainstorm 재실행"):
+                        project["brainstorm_cards"] = None
+                        project["brainstorm_analysis"] = None
+                        st.rerun()
 
         # ── 전체 아이디어 카드 (접이식) ──
         all_cards = bc.get("idea_cards", [])
@@ -979,5 +1129,74 @@ elif st.session_state.view == "project" and st.session_state.cur:
                     )
 
     # ─── 푸터 ───
+    st.markdown("---")
+    st.caption("© 2026 BLUE JEANS PICTURES · Creator Engine v1.2")
+
+
+# ═══════════════════════════════════════════════════
+#  CORE BUILD
+# ═══════════════════════════════════════════════════
+elif st.session_state.view == "core" and st.session_state.cur:
+
+    project = st.session_state.projects[st.session_state.cur]
+    bc = project.get("brainstorm_cards", {})
+    ba = project.get("brainstorm_analysis", {})
+
+    st.markdown(f"## {project['title']} — Core Build")
+    st.caption(f"{project['genre']} · {project['target_market']} · {project['format']}")
+
+    # ─── 단계 표시 ───
+    render_stepper("core", project)
+
+    # Brainstorm에서 인계받은 정보 표시
+    if bc:
+        cards_map = {c["id"]: c for c in bc.get("idea_cards", [])}
+        top3 = bc.get("top3", [])
+
+        if top3:
+            top1 = cards_map.get(top3[0].get("card_id"), {})
+            if top1:
+                st.markdown(
+                    f'<div class="callout">'
+                    f'<div class="cl">🏆 선정 컨셉: {top1.get("title", "")}</div>'
+                    f'{top1.get("logline_seed", "")}'
+                    f'</div>',
+                    unsafe_allow_html=True
+                )
+
+    if ba:
+        hook = ba.get("hook_sentence", "")
+        dp = ba.get("development_priority", {})
+        if dp.get("next_step"):
+            st.markdown(
+                f'<div class="callout">'
+                f'<div class="cl">Core Build 집중 포인트</div>'
+                f'{dp["next_step"]}'
+                f'</div>',
+                unsafe_allow_html=True
+            )
+
+    st.markdown("---")
+
+    st.markdown("### 🎯 Core Build 실행")
+    st.caption("로그라인 · 기획의도 · 세계관 · 캐릭터 · Goal/Need/Strategy를 고정합니다.")
+
+    if st.button("🎯 Core Build 실행", type="primary"):
+        st.info("Core Build Prompt는 다음 단계에서 구현됩니다.")
+        # TODO: call_core_build() 구현 후 연결
+
+    # Core Build 결과 표시 영역 (구현 예정)
+    if project.get("core"):
+        st.markdown("#### Core Build 결과")
+        st.json(project["core"])
+    else:
+        st.markdown(
+            '<div style="text-align:center;padding:3rem 0;color:var(--dim)">'
+            '🎯 Core Build를 실행하면 여기에 결과가 표시됩니다.<br>'
+            'Logline Pack · Project Intent · World Build · Character Build'
+            '</div>',
+            unsafe_allow_html=True
+        )
+
     st.markdown("---")
     st.caption("© 2026 BLUE JEANS PICTURES · Creator Engine v1.2")
