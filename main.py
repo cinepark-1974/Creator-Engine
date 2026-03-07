@@ -42,6 +42,28 @@ html, body, [class*="css"] {
     color: var(--t);
 }
 
+/* 라이트모드 강제 적용 */
+.stApp, [data-testid="stAppViewContainer"], [data-testid="stMain"] {
+    background-color: var(--bg) !important;
+    color: var(--t) !important;
+}
+[data-testid="stHeader"] {
+    background-color: var(--bg) !important;
+}
+[data-testid="stMainBlockContainer"] {
+    background-color: var(--bg) !important;
+}
+.stMarkdown, .stText, .stTextArea textarea, .stTextInput input, .stSelectbox, .stRadio {
+    color: var(--t) !important;
+}
+h1, h2, h3, h4, h5, h6, p, span, label, div {
+    color: inherit;
+}
+.stExpander {
+    background-color: var(--card) !important;
+    border-color: var(--card-border) !important;
+}
+
 /* 사이드바 숨김 */
 section[data-testid="stSidebar"] {
     display: none;
@@ -56,7 +78,7 @@ section[data-testid="stSidebar"] {
 .header {
     font-size: 1.1rem;
     font-weight: 700;
-    color: var(--y);
+    color: var(--navy);
     letter-spacing: 0.05em;
     margin-bottom: 0rem;
 }
@@ -68,6 +90,10 @@ section[data-testid="stSidebar"] {
     font-family: 'Georgia', serif;
     letter-spacing: -0.02em;
     margin-bottom: 0.2rem;
+    text-decoration: underline;
+    text-decoration-color: var(--y);
+    text-underline-offset: 4px;
+    text-decoration-thickness: 3px;
 }
 
 .sub {
@@ -334,10 +360,77 @@ def extract_json_object(text: str) -> str:
 
 
 def safe_json_loads(text: str):
-    """JSON 파싱 (trailing comma 자동 제거)"""
+    """JSON 파싱 (강화된 복구 로직)"""
     cleaned = extract_json_object(text)
     cleaned = re.sub(r",\s*([}\]])", r"\1", cleaned)
-    return json.loads(cleaned)
+
+    # 1차 시도: 그대로 파싱
+    try:
+        return json.loads(cleaned)
+    except json.JSONDecodeError:
+        pass
+
+    # 2차 시도: narrative 안의 이스케이프 안 된 쌍따옴표를 작은따옴표로 치환
+    try:
+        # "narrative": "..." 패턴에서 내용 안의 쌍따옴표 수정
+        # beat_name, narrative 등 긴 텍스트 필드 대상
+        fixed = cleaned
+        for field in ["narrative", "prose", "summary", "act_summary", "investor_summary"]:
+            pattern = rf'("{field}"\s*:\s*")(.*?)("\s*[,\}}])'
+            def fix_quotes(m):
+                prefix = m.group(1)
+                content = m.group(2)
+                suffix = m.group(3)
+                # 내용 안의 쌍따옴표를 작은따옴표로
+                content = content.replace('\\"', "'").replace('"', "'")
+                return prefix + content + suffix
+            fixed = re.sub(pattern, fix_quotes, fixed, flags=re.DOTALL)
+        return json.loads(fixed)
+    except json.JSONDecodeError:
+        pass
+
+    # 3차 시도: 모든 문자열 값에서 이스케이프 안 된 쌍따옴표 수정
+    try:
+        # JSON 키-값 구조를 파싱하면서 문자열 내부 쌍따옴표 이스케이프
+        result = []
+        in_string = False
+        escape_next = False
+        string_start = -1
+
+        for i, ch in enumerate(cleaned):
+            if escape_next:
+                result.append(ch)
+                escape_next = False
+                continue
+            if ch == '\\':
+                result.append(ch)
+                escape_next = True
+                continue
+            if ch == '"':
+                if not in_string:
+                    in_string = True
+                    string_start = i
+                    result.append(ch)
+                else:
+                    # 이 쌍따옴표가 문자열 종료인지 내부 문자인지 판단
+                    # 다음 문자가 :, ,, }, ] 또는 공백+이들이면 문자열 종료
+                    rest = cleaned[i+1:i+20].lstrip()
+                    if rest and rest[0] in ':,}]':
+                        in_string = False
+                        result.append(ch)
+                    elif not rest:
+                        in_string = False
+                        result.append(ch)
+                    else:
+                        # 내부 쌍따옴표 → 작은따옴표로 치환
+                        result.append("'")
+            else:
+                result.append(ch)
+
+        fixed2 = ''.join(result)
+        return json.loads(fixed2)
+    except json.JSONDecodeError as e:
+        raise e
 
 
 # ─── API Client ───
@@ -1336,7 +1429,7 @@ def call_treatment_beats(core_data, story_data, scene_data, genre, fmt, act_numb
 
 [트리트먼트 작성 규칙]
 1. 서술체, 현재형으로 쓴다.
-2. 대사는 쌍따옴표 안에 직접 삽입한다. 핵심 대사만 넣는다.
+2. 대사는 작은따옴표('') 안에 삽입한다. 예: '여기서 나가!' 절대 쌍따옴표를 쓰지 않는다.
 3. 인물 첫 등장 시 이름(나이) 형식으로 소개한다.
 4. 장소 전환은 서술 안에 자연스럽게 녹인다.
 5. 행동 → 감정 → 대사 → 전환 순서로 흐른다.
@@ -1347,6 +1440,8 @@ def call_treatment_beats(core_data, story_data, scene_data, genre, fmt, act_numb
 [출력 규칙]
 - 유효한 단일 JSON만 출력. JSON 외 텍스트 금지.
 - 후행 쉼표 금지. 한국어 작성.
+- narrative 문자열 안에 쌍따옴표(") 사용 절대 금지. 대사는 반드시 작은따옴표('')만 사용.
+- 문자열 안에 역슬래시(\\) 사용 금지.
 """
 
         user_prompt = f"""[작품 정보]
@@ -2190,7 +2285,7 @@ elif st.session_state.view == "project" and st.session_state.cur:
                         f'<div style="display:flex;align-items:center;'
                         f'margin:.2rem 0;font-size:.8rem">'
                         f'<div style="width:60px;color:var(--dim)">{name}</div>'
-                        f'<div style="flex:1;background:#3a3a4a;'
+                        f'<div style="flex:1;background:#E0E0E8;'
                         f'border-radius:4px;height:8px;margin:0 .5rem">'
                         f'<div style="width:{bar_pct}%;background:var(--y);'
                         f'height:100%;border-radius:4px"></div>'
