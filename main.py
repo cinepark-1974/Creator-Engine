@@ -519,17 +519,17 @@ def extract_json_object(text: str) -> str:
 
 
 def safe_json_loads(text: str):
-    """JSON 파싱 (강화된 복구 로직)"""
+    """JSON 파싱 (강화된 복구 로직 — 4단계)"""
     cleaned = extract_json_object(text)
     cleaned = re.sub(r",\s*([}\]])", r"\1", cleaned)
 
-    # 1차 시도: 그대로 파싱
+    # 1차: 그대로 파싱
     try:
         return json.loads(cleaned)
     except json.JSONDecodeError:
         pass
 
-    # 2차 시도: 모든 문자열 값 내부의 이스케이프 안 된 쌍따옴표 수정
+    # 2차: 문자열 내부 줄바꿈 이스케이프 + 쌍따옴표 → 작은따옴표
     try:
         result = []
         i = 0
@@ -537,80 +537,115 @@ def safe_json_loads(text: str):
         while i < n:
             ch = cleaned[i]
             if ch == '"':
-                # 문자열 시작 — 끝을 찾아서 내부 쌍따옴표 치환
                 result.append(ch)
                 i += 1
                 str_chars = []
                 while i < n:
                     c = cleaned[i]
                     if c == '\\' and i + 1 < n:
-                        # 이스케이프 시퀀스
                         next_c = cleaned[i + 1]
                         if next_c == '"':
-                            str_chars.append("'")  # \" → '
+                            str_chars.append("'")
                             i += 2
-                        elif next_c in ('n', 'r', 't', '\\', '/'):
+                        elif next_c in ('n', 'r', 't', '\\', '/', 'b', 'f', 'u'):
                             str_chars.append(c)
                             str_chars.append(next_c)
                             i += 2
                         else:
-                            str_chars.append(c)
-                            i += 1
+                            str_chars.append(next_c)
+                            i += 2
                     elif c == '"':
-                        # 문자열 종료인지 내부인지 판단
-                        after = cleaned[i + 1:i + 30].lstrip() if i + 1 < n else ""
-                        if not after or after[0] in ':,}]\n\r':
-                            # 문자열 종료
+                        # 문자열 종료인지 판단 — 다음 비공백 문자 확인
+                        rest = cleaned[i + 1:] if i + 1 < n else ""
+                        rest_stripped = rest.lstrip()
+                        if not rest_stripped:
+                            break  # EOF
+                        nc = rest_stripped[0]
+                        if nc == ':':
+                            break  # key-value 구분자 → 문자열 종료
+                        elif nc == ',':
+                            # 쉼표 뒤를 확인: " 또는 } 또는 ] → JSON 구조
+                            after_comma = rest_stripped[1:].lstrip()
+                            if not after_comma or after_comma[0] in '"{}[]0123456789tfn':
+                                break  # 문자열 종료
+                            else:
+                                str_chars.append("'")
+                                i += 1
+                        elif nc in '}]':
+                            break  # 객체/배열 종료
+                        elif nc == '"':
+                            # 다음이 곧바로 " → 이건 빈 문자열이 아니라 키 시작
                             break
                         else:
-                            # 내부 쌍따옴표 → 작은따옴표
                             str_chars.append("'")
                             i += 1
-                    elif c == '\n':
-                        str_chars.append('\\n')
-                        i += 1
-                    elif c == '\r':
-                        str_chars.append('\\r')
+                    elif c in '\n\r':
+                        str_chars.append(' ')
                         i += 1
                     elif c == '\t':
-                        str_chars.append('\\t')
+                        str_chars.append(' ')
                         i += 1
                     else:
                         str_chars.append(c)
                         i += 1
                 result.append(''.join(str_chars))
-                result.append('"')  # closing quote
-                i += 1  # skip closing "
+                result.append('"')
+                i += 1
             else:
                 result.append(ch)
                 i += 1
 
         fixed = ''.join(result)
-        # trailing comma 다시 제거
         fixed = re.sub(r",\s*([}\]])", r"\1", fixed)
         return json.loads(fixed)
     except (json.JSONDecodeError, IndexError):
         pass
 
-    # 3차 시도: 강제 치환 (모든 " 안의 " → ')
-    try:
-        # 모든 문자열 필드를 regex로 찾아서 내부 쌍따옴표 치환
-        fixed = cleaned
-        # key: "value" 패턴 — value 안의 쌍따옴표만 치환
-        pattern = r'("(?:[^"\\]|\\.)*?"\s*:\s*")(.*?)("\s*[,}\]\n])'
-        def fix_all(m):
-            prefix = m.group(1)
-            content = m.group(2)
-            suffix = m.group(3)
-            content = content.replace('\\"', "'").replace('"', "'")
-            return prefix + content + suffix
-        for _ in range(5):  # 반복 적용 (중첩 대응)
-            prev = fixed
-            fixed = re.sub(pattern, fix_all, fixed, flags=re.DOTALL)
-            if fixed == prev:
+    # 3차: 에러 위치 기반 반복 수정 (최대 30회)
+    current = cleaned
+    for _ in range(30):
+        try:
+            return json.loads(current)
+        except json.JSONDecodeError as e:
+            pos = e.pos
+            if pos is None or pos <= 0:
                 break
-        fixed = re.sub(r",\s*([}\]])", r"\1", fixed)
-        return json.loads(fixed)
+            # 에러 위치 주변에서 문제가 되는 " 찾아서 ' 로 교체
+            found = False
+            for j in range(pos, max(0, pos - 100), -1):
+                if j < len(current) and current[j] == '"':
+                    before = current[j - 1] if j > 0 else ''
+                    after_c = current[j + 1] if j + 1 < len(current) else ''
+                    # 구조적 위치가 아닌 " → 내부 따옴표로 판단
+                    if before not in ('{', '[', ',', ':', '\\') and after_c not in (':', ',', '}', ']'):
+                        current = current[:j] + "'" + current[j + 1:]
+                        found = True
+                        break
+                    elif before == '\\':
+                        # \" → ' (이스케이프 제거)
+                        current = current[:j - 1] + "'" + current[j + 1:]
+                        found = True
+                        break
+            if not found:
+                # 에러 위치 근처의 줄바꿈을 공백으로
+                for j in range(max(0, pos - 5), min(len(current), pos + 5)):
+                    if current[j] in '\n\r\t':
+                        current = current[:j] + ' ' + current[j + 1:]
+                        found = True
+                        break
+            if not found:
+                break
+
+    # 4차: 최후 수단 — 모든 문자열 값 내부 " → '
+    try:
+        aggressive = re.sub(
+            r'(?<=: ")(.*?)(?="\s*[,}\]])',
+            lambda m: m.group(0).replace('"', "'"),
+            cleaned,
+            flags=re.DOTALL
+        )
+        aggressive = re.sub(r",\s*([}\]])", r"\1", aggressive)
+        return json.loads(aggressive)
     except json.JSONDecodeError as e:
         raise e
 
