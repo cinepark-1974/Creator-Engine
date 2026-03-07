@@ -76,40 +76,53 @@ def call_brainstorm(idea, genre, market, fmt, research=None):
         sys = """당신은 글로벌 콘텐츠 시장을 이해하는 Development Producer이자 Script Architect다.
 기획자의 아이디어를 개발 가능한 컨셉으로 정렬한다. 이야기와 분위기를 구분한다.
 타겟 시장/포맷 인식하여 반영한다. 리서치가 있으면 참고하되, 기존작 때문에 제한하지 않는다.
-반드시 유효한 JSON만 출력. 점수 0.0~10.0. 한국어 작성, 전문용어 한글(English) 병기."""
+반드시 유효한 JSON만 출력. JSON 외 텍스트 금지.
+모든 key는 반드시 쌍따옴표를 사용한다.
+후행 쉼표(trailing comma) 금지.
+주석 금지.
+설명 문장 금지.
+단일 JSON 객체만 출력."""
         rb = ""
         if research:
-            rb = f"\n[리서치 참고]\n{json.dumps(research,ensure_ascii=False)}\n실화에서 소재 참고 가능. 기존작은 차별화 참고만."
+            rb = f"\n[리서치 참고]\n{json.dumps(research, ensure_ascii=False)}\n실화에서 소재 참고 가능. 기존작은 차별화 참고만."
         user = f"""[입력] 아이디어: {idea} / 장르: {genre} / 타겟: {market} / 포맷: {fmt}{rb}
 [JSON 스키마]
 {{"idea_type":"story|mood|hybrid","idea_type_diagnosis":"","market_context":{{"target_market":"","market_insight":"","cultural_code":"","market_risk":"","reference_titles":[]}},"format_context":{{"selected_format":"","format_rationale":"","structure_note":""}},"research_applied":{{"real_events_used":[],"inspiration_note":""}},"idea_cards":[{{"id":1,"title":"","logline_seed":"","protagonist":"","conflict":"","hook":"","visual_image":"","genre":"","scores":{{"active_hero":0.0,"conflict_clarity":0.0,"visual_power":0.0,"genre_immediacy":0.0,"originality":0.0,"market_fit":0.0}},"total_score":0.0}}],"top3":[{{"rank":1,"card_id":0,"reason":""}}],"hook_sentence":"","differentiation":[],"development_priority":{{"recommended_direction":"","next_step":"","risk":""}},"gate_a_scores":{{"protagonist_visible":0.0,"conflict_one_line":0.0,"differentiation":0.0,"poster_image":0.0,"market_potential":0.0,"average":0.0}}}}
 idea_cards 10~15개. total_score=6축평균. gate_a average=5항목평균. 텍스트 2문장 이내."""
-        r = client.messages.create(model="claude-sonnet-4-6",max_tokens=4000,temperature=0.7,system=sys,messages=[{"role":"user","content":user}])
-        txt = r.content[0].text.strip()
-        if txt.startswith("```"): txt = txt.split("\n",1)[1].rsplit("```",1)[0]
+        r = client.messages.create(
+            model=ANTHROPIC_MODEL,
+            max_tokens=4000,
+            temperature=0.4,
+            system=sys,
+            messages=[{"role": "user", "content": user}]
+        )
+
+        txt = "".join(block.text for block in r.content if hasattr(block, "text")).strip()
+
+        if txt.startswith("```json"):
+            txt = txt[7:]
+        elif txt.startswith("```"):
+            txt = txt[3:]
+        if txt.endswith("```"):
+            txt = txt[:-3]
+
+        txt = txt.strip()
+
+        # 디버그용
+        st.session_state["last_brainstorm_raw"] = txt
+
         return json.loads(txt)
+
     except Exception as e:
+        st.session_state["last_brainstorm_error"] = str(e)
         st.error(f"Brainstorm 실패: {e}")
+
+        raw = st.session_state.get("last_brainstorm_raw")
+        if raw:
+            st.text_area("Brainstorm Raw Response", raw, height=400)
+
         return None
 
-# ─── Sidebar ───
-with st.sidebar:
-    st.markdown('<div class="mt">👖 CREATOR ENGINE</div>',unsafe_allow_html=True)
-    st.markdown('<div class="st">Creative Development Engine v1.2</div>',unsafe_allow_html=True)
-    st.markdown("---")
-    if st.button("🏠 Home",use_container_width=True):
-        st.session_state.page="home"; st.rerun()
-    if st.session_state.cur:
-        p=st.session_state.projects[st.session_state.cur]
-        st.markdown(f"**📁 {p['title']}**")
-        for k,lb in [("brainstorm","🧠 Brainstorm"),("core","🎯 Core"),("structure","🏗️ Structure"),("treatment","📝 Treatment"),("export","📦 Export")]:
-            if st.button(lb,use_container_width=True,key=f"n_{k}"):
-                st.session_state.page="project";st.session_state.tab=k;st.rerun()
-        st.markdown("---")
-        for s,v in p["stage_status"].items():
-            st.markdown(f"{s}: {badge(v)}",unsafe_allow_html=True)
-    st.markdown("---")
-    st.markdown('<div style="font-size:.65rem;color:#555">© 2026 BLUE JEANS PICTURES</div>',unsafe_allow_html=True)
 
 # ─── HOME ───
 def home():
