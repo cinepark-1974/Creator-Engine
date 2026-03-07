@@ -529,65 +529,88 @@ def safe_json_loads(text: str):
     except json.JSONDecodeError:
         pass
 
-    # 2차 시도: narrative 안의 이스케이프 안 된 쌍따옴표를 작은따옴표로 치환
+    # 2차 시도: 모든 문자열 값 내부의 이스케이프 안 된 쌍따옴표 수정
     try:
-        # "narrative": "..." 패턴에서 내용 안의 쌍따옴표 수정
-        # beat_name, narrative 등 긴 텍스트 필드 대상
-        fixed = cleaned
-        for field in ["narrative", "prose", "summary", "act_summary", "investor_summary"]:
-            pattern = rf'("{field}"\s*:\s*")(.*?)("\s*[,\}}])'
-            def fix_quotes(m):
-                prefix = m.group(1)
-                content = m.group(2)
-                suffix = m.group(3)
-                # 내용 안의 쌍따옴표를 작은따옴표로
-                content = content.replace('\\"', "'").replace('"', "'")
-                return prefix + content + suffix
-            fixed = re.sub(pattern, fix_quotes, fixed, flags=re.DOTALL)
-        return json.loads(fixed)
-    except json.JSONDecodeError:
-        pass
-
-    # 3차 시도: 모든 문자열 값에서 이스케이프 안 된 쌍따옴표 수정
-    try:
-        # JSON 키-값 구조를 파싱하면서 문자열 내부 쌍따옴표 이스케이프
         result = []
-        in_string = False
-        escape_next = False
-        string_start = -1
-
-        for i, ch in enumerate(cleaned):
-            if escape_next:
-                result.append(ch)
-                escape_next = False
-                continue
-            if ch == '\\':
-                result.append(ch)
-                escape_next = True
-                continue
+        i = 0
+        n = len(cleaned)
+        while i < n:
+            ch = cleaned[i]
             if ch == '"':
-                if not in_string:
-                    in_string = True
-                    string_start = i
-                    result.append(ch)
-                else:
-                    # 이 쌍따옴표가 문자열 종료인지 내부 문자인지 판단
-                    # 다음 문자가 :, ,, }, ] 또는 공백+이들이면 문자열 종료
-                    rest = cleaned[i+1:i+20].lstrip()
-                    if rest and rest[0] in ':,}]':
-                        in_string = False
-                        result.append(ch)
-                    elif not rest:
-                        in_string = False
-                        result.append(ch)
+                # 문자열 시작 — 끝을 찾아서 내부 쌍따옴표 치환
+                result.append(ch)
+                i += 1
+                str_chars = []
+                while i < n:
+                    c = cleaned[i]
+                    if c == '\\' and i + 1 < n:
+                        # 이스케이프 시퀀스
+                        next_c = cleaned[i + 1]
+                        if next_c == '"':
+                            str_chars.append("'")  # \" → '
+                            i += 2
+                        elif next_c in ('n', 'r', 't', '\\', '/'):
+                            str_chars.append(c)
+                            str_chars.append(next_c)
+                            i += 2
+                        else:
+                            str_chars.append(c)
+                            i += 1
+                    elif c == '"':
+                        # 문자열 종료인지 내부인지 판단
+                        after = cleaned[i + 1:i + 30].lstrip() if i + 1 < n else ""
+                        if not after or after[0] in ':,}]\n\r':
+                            # 문자열 종료
+                            break
+                        else:
+                            # 내부 쌍따옴표 → 작은따옴표
+                            str_chars.append("'")
+                            i += 1
+                    elif c == '\n':
+                        str_chars.append('\\n')
+                        i += 1
+                    elif c == '\r':
+                        str_chars.append('\\r')
+                        i += 1
+                    elif c == '\t':
+                        str_chars.append('\\t')
+                        i += 1
                     else:
-                        # 내부 쌍따옴표 → 작은따옴표로 치환
-                        result.append("'")
+                        str_chars.append(c)
+                        i += 1
+                result.append(''.join(str_chars))
+                result.append('"')  # closing quote
+                i += 1  # skip closing "
             else:
                 result.append(ch)
+                i += 1
 
-        fixed2 = ''.join(result)
-        return json.loads(fixed2)
+        fixed = ''.join(result)
+        # trailing comma 다시 제거
+        fixed = re.sub(r",\s*([}\]])", r"\1", fixed)
+        return json.loads(fixed)
+    except (json.JSONDecodeError, IndexError):
+        pass
+
+    # 3차 시도: 강제 치환 (모든 " 안의 " → ')
+    try:
+        # 모든 문자열 필드를 regex로 찾아서 내부 쌍따옴표 치환
+        fixed = cleaned
+        # key: "value" 패턴 — value 안의 쌍따옴표만 치환
+        pattern = r'("(?:[^"\\]|\\.)*?"\s*:\s*")(.*?)("\s*[,}\]\n])'
+        def fix_all(m):
+            prefix = m.group(1)
+            content = m.group(2)
+            suffix = m.group(3)
+            content = content.replace('\\"', "'").replace('"', "'")
+            return prefix + content + suffix
+        for _ in range(5):  # 반복 적용 (중첩 대응)
+            prev = fixed
+            fixed = re.sub(pattern, fix_all, fixed, flags=re.DOTALL)
+            if fixed == prev:
+                break
+        fixed = re.sub(r",\s*([}\]])", r"\1", fixed)
+        return json.loads(fixed)
     except json.JSONDecodeError as e:
         raise e
 
