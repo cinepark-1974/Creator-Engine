@@ -92,7 +92,7 @@ idea_cards 10~15개. total_score=6축평균. gate_a average=5항목평균. 텍�
 
 # ─── Sidebar ───
 with st.sidebar:
-    st.markdown('<div class="mt">👖 BJCDE</div>',unsafe_allow_html=True)
+    st.markdown('<div class="mt">👖 CREATOR ENGINE</div>',unsafe_allow_html=True)
     st.markdown('<div class="st">Creative Development Engine v1.2</div>',unsafe_allow_html=True)
     st.markdown("---")
     if st.button("🏠 Home",use_container_width=True):
