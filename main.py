@@ -194,6 +194,8 @@ defaults = {
     "last_research_raw": "",
     "last_cards_raw": "",
     "last_analysis_raw": "",
+    "last_core_raw": "",
+    "last_gate_raw": "",
     "last_error": "",
 }
 for k, v in defaults.items():
@@ -623,6 +625,241 @@ def call_brainstorm_analysis(idea, genre, market, fmt, top3_cards, research=None
         raw = st.session_state.get("last_analysis_raw")
         if raw:
             with st.expander("🔧 Analysis Raw Response (디버그)"):
+                st.text_area("Raw", raw, height=400)
+        return None
+
+
+# ─── API Call: Core Build Main (1단계) ───
+def call_core_build_main(idea, genre, market, fmt, selected_concept, research=None):
+    """Core Build 1단계: Logline + Intent + World + Character + Goal/Need/Strategy"""
+    try:
+        client = get_client()
+
+        system_prompt = """당신은 헐리우드 메이저 스튜디오의 Development Producer이자 Script Architect다.
+Brainstorm에서 선정된 컨셉을 기반으로 Core Build를 수행한다.
+로그라인을 고정하고, 기획의도와 주제를 정리하고, 세계관과 캐릭터를 설계하고,
+주인공의 Goal / Need / Strategy를 확정한다.
+
+중요 규칙:
+- 반드시 유효한 단일 JSON 객체만 출력한다.
+- JSON 외 텍스트 금지.
+- 후행 쉼표(trailing comma) 금지.
+- 문자열 내부 줄바꿈 대신 공백을 사용한다.
+- 한국어로 작성하되 전문 용어는 한글용어(English Term)로 병기한다.
+- 작가의 고유한 아이디어를 훼손하지 않는다.
+- 모든 텍스트 필드는 1~2문장, 50자 이내로 압축한다.
+- 캐릭터는 주인공, 적대자, 조력자, 거울 캐릭터 4인으로 제한한다.
+"""
+
+        research_block = ""
+        if research:
+            research_block = f"\n[리서치 참고]\n{json.dumps(research, ensure_ascii=False)}"
+
+        user_prompt = f"""[입력]
+아이디어: {idea}
+장르: {genre}
+타겟: {market}
+포맷: {fmt}
+
+[선정 컨셉]
+{json.dumps(selected_concept, ensure_ascii=False)}
+{research_block}
+
+[JSON 스키마]
+{{
+  "logline_pack": {{
+    "original": "원본 로그라인 1문장",
+    "washed": "서사 불순물 제거한 정제 로그라인 1문장",
+    "investor": "투자자용 1문장",
+    "director": "감독용 1문장",
+    "character_hook": "배우용 캐릭터 훅 1문장"
+  }},
+  "project_intent": {{
+    "three_sentence": "기획의도 3문장 버전",
+    "pitch": "엘리베이터 피치 1문장",
+    "theme": "주제 1문장",
+    "tone_manner": ["톤앤매너 키워드 3~5개"]
+  }},
+  "goal_need_strategy": {{
+    "goal": "주인공의 목적/욕망 1문장",
+    "need": "상실/결핍의 근원 1문장",
+    "strategy": "해결 전략/방법 1문장",
+    "risk": "실패 시 잃는 것 1문장",
+    "ending_payoff": "결말에서 G/N/S가 어떻게 회수되는가 1문장"
+  }},
+  "world_build": {{
+    "time": "시간 배경",
+    "space": "공간 배경",
+    "rules": "세계관 규칙 1문장",
+    "taboo": "금기 1문장",
+    "power_structure": "권력 구조 1문장",
+    "visual_keywords": ["시각 이미지 키워드 3~5개"],
+    "conflict_points": ["세계관 충돌 포인트 3개"]
+  }},
+  "characters": [
+    {{
+      "role": "protagonist",
+      "name": "",
+      "description": "인물 소개 1문장",
+      "goal": "이 인물의 욕망 1문장",
+      "need": "결핍 1문장",
+      "strategy": "행동 방식 1문장",
+      "flaw": "결점 1문장",
+      "arc": "변화 1문장",
+      "dialogue_tone": "대사 톤 키워드"
+    }},
+    {{
+      "role": "antagonist",
+      "name": "",
+      "description": "",
+      "goal": "",
+      "need": "",
+      "strategy": "",
+      "flaw": "",
+      "arc": "",
+      "dialogue_tone": ""
+    }},
+    {{
+      "role": "ally",
+      "name": "",
+      "description": "",
+      "goal": "",
+      "flaw": "",
+      "dialogue_tone": ""
+    }},
+    {{
+      "role": "mirror",
+      "name": "",
+      "description": "",
+      "goal": "",
+      "flaw": "",
+      "dialogue_tone": ""
+    }}
+  ],
+  "relationship_map": [
+    "주인공↔적대자: 관계 1문장",
+    "주인공↔조력자: 관계 1문장",
+    "주인공↔거울: 관계 1문장"
+  ]
+}}
+
+규칙:
+- logline_pack 각 버전은 관점만 다르고 같은 이야기를 가리켜야 한다.
+- goal_need_strategy는 이 작품의 서사 엔진이다. 가장 정밀하게 작성할 것.
+- characters는 정확히 4명. 각 인물의 goal이 서로 달라야 한다.
+- world_build의 conflict_points는 세계관이 만들어내는 갈등이어야 한다.
+"""
+
+        response = client.messages.create(
+            model=ANTHROPIC_MODEL,
+            max_tokens=6000,
+            temperature=0.3,
+            system=system_prompt,
+            messages=[{"role": "user", "content": user_prompt}]
+        )
+
+        if response.stop_reason == "max_tokens":
+            st.warning("⚠️ Core Build 응답 잘림. 재시도...")
+            response = client.messages.create(
+                model=ANTHROPIC_MODEL,
+                max_tokens=8000,
+                temperature=0.3,
+                system=system_prompt,
+                messages=[{"role": "user", "content": user_prompt}]
+            )
+
+        txt = "".join(
+            block.text for block in response.content if hasattr(block, "text")
+        ).strip()
+        st.session_state["last_core_raw"] = txt
+
+        return safe_json_loads(txt)
+
+    except Exception as e:
+        st.session_state["last_error"] = str(e)
+        st.error(f"Core Build 실패: {e}")
+        raw = st.session_state.get("last_core_raw", "")
+        if raw:
+            with st.expander("🔧 Core Build Raw Response (디버그)"):
+                st.text_area("Raw", raw, height=400)
+        return None
+
+
+# ─── API Call: Core Gate (2단계) ───
+def call_core_gate(core_data):
+    """Core Build 2단계: Gate B (Drive) + Gate C (Character) 채점"""
+    try:
+        client = get_client()
+
+        system_prompt = """당신은 Development Producer다.
+Core Build 결과를 기반으로 Gate B (Drive Gate)와 Gate C (Character Gate)를 채점한다.
+
+중요 규칙:
+- 유효한 단일 JSON 객체만 출력. JSON 외 텍스트 금지. 후행 쉼표 금지.
+- 모든 점수는 0.0~10.0 소수점 1자리.
+- 피드백은 1문장 이내.
+"""
+
+        user_prompt = f"""[Core Build 결과]
+{json.dumps(core_data, ensure_ascii=False)}
+
+[JSON 스키마]
+{{
+  "gate_b_drive": {{
+    "goal_clarity": 0.0,
+    "need_from_loss": 0.0,
+    "strategy_creative": 0.0,
+    "failure_cost": 0.0,
+    "average": 0.0,
+    "feedback": "Gate B 종합 피드백 1문장"
+  }},
+  "gate_c_character": {{
+    "protagonist_antagonist_logic": 0.0,
+    "supporting_not_functional": 0.0,
+    "relationship_produces_conflict": 0.0,
+    "average": 0.0,
+    "feedback": "Gate C 종합 피드백 1문장"
+  }},
+  "five_axis_scores": {{
+    "goal": 0.0,
+    "need": 0.0,
+    "strategy": 0.0,
+    "structure": 0.0,
+    "character_concept": 0.0,
+    "final_score": 0.0,
+    "verdict": "개발 진행 | 개발 보류 | 구조 재설계"
+  }}
+}}
+
+규칙:
+- gate_b average = 4항목 평균
+- gate_c average = 3항목 평균
+- five_axis: structure는 아직 Structure Build 전이므로 goal/need/strategy 기반으로 잠정 추정
+- final_score = 0.20*goal + 0.20*need + 0.20*strategy + 0.25*structure + 0.15*character_concept
+- verdict: 8.0 이상 → 개발 진행, 6.0~7.9 → 개발 보류, 5.9 이하 → 구조 재설계
+"""
+
+        response = client.messages.create(
+            model=ANTHROPIC_MODEL,
+            max_tokens=2000,
+            temperature=0.2,
+            system=system_prompt,
+            messages=[{"role": "user", "content": user_prompt}]
+        )
+
+        txt = "".join(
+            block.text for block in response.content if hasattr(block, "text")
+        ).strip()
+        st.session_state["last_gate_raw"] = txt
+
+        return safe_json_loads(txt)
+
+    except Exception as e:
+        st.session_state["last_error"] = str(e)
+        st.error(f"Gate 채점 실패: {e}")
+        raw = st.session_state.get("last_gate_raw", "")
+        if raw:
+            with st.expander("🔧 Gate Raw Response (디버그)"):
                 st.text_area("Raw", raw, height=400)
         return None
 
@@ -1177,30 +1414,29 @@ elif st.session_state.view == "core" and st.session_state.cur:
     bc = project.get("brainstorm_cards", {})
     ba = project.get("brainstorm_analysis", {})
 
-    st.markdown(f"## {project['title']} — Core Build")
+    st.markdown(f"## {project['title']}")
     st.caption(f"{project['genre']} · {project['target_market']} · {project['format']}")
 
     # ─── 단계 표시 ───
     render_stepper("core", project)
 
     # Brainstorm에서 인계받은 정보 표시
+    selected_concept = None
     if bc:
         cards_map = {c["id"]: c for c in bc.get("idea_cards", [])}
         top3 = bc.get("top3", [])
-
         if top3:
-            top1 = cards_map.get(top3[0].get("card_id"), {})
-            if top1:
+            selected_concept = cards_map.get(top3[0].get("card_id"), {})
+            if selected_concept:
                 st.markdown(
                     f'<div class="callout">'
-                    f'<div class="cl">🏆 선정 컨셉: {top1.get("title", "")}</div>'
-                    f'{top1.get("logline_seed", "")}'
+                    f'<div class="cl">🏆 선정 컨셉: {selected_concept.get("title", "")}</div>'
+                    f'{selected_concept.get("logline_seed", "")}'
                     f'</div>',
                     unsafe_allow_html=True
                 )
 
     if ba:
-        hook = ba.get("hook_sentence", "")
         dp = ba.get("development_priority", {})
         if dp.get("next_step"):
             st.markdown(
@@ -1217,13 +1453,167 @@ elif st.session_state.view == "core" and st.session_state.cur:
     st.caption("로그라인 · 기획의도 · 세계관 · 캐릭터 · Goal/Need/Strategy를 고정합니다.")
 
     if st.button("🎯 Core Build 실행", type="primary"):
-        st.info("Core Build Prompt는 다음 단계에서 구현됩니다.")
-        # TODO: call_core_build() 구현 후 연결
+        if not selected_concept:
+            st.error("선정된 컨셉이 없습니다. Brainstorm을 먼저 실행해주세요.")
+        else:
+            with st.spinner("① Core Build 생성 중... (약 30~40초)"):
+                core_result = call_core_build_main(
+                    project["idea_text"], project["genre"],
+                    project["target_market"], project["format"],
+                    selected_concept, project.get("research")
+                )
+            if core_result:
+                project["core"] = core_result
+                project["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
+                with st.spinner("② Gate B + Gate C 채점 중... (약 10~20초)"):
+                    gate_result = call_core_gate(core_result)
+                if gate_result:
+                    project["core_gate"] = gate_result
+                    project["final_score"] = gate_result.get("five_axis_scores", {}).get("final_score")
+                    project["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
+                st.rerun()
 
-    # Core Build 결과 표시 영역 (구현 예정)
+    # ── Core Build 결과 표시 ──
     if project.get("core"):
-        st.markdown("#### Core Build 결과")
-        st.json(project["core"])
+        core = project["core"]
+
+        # Logline Pack
+        st.markdown("#### 📝 Logline Pack")
+        lp = core.get("logline_pack", {})
+        for label, key in [("Original", "original"), ("Washed", "washed"),
+                           ("투자자용", "investor"), ("감독용", "director"),
+                           ("캐릭터 훅", "character_hook")]:
+            val = lp.get(key, "")
+            if val:
+                st.markdown(f'<div class="callout"><div class="cl">{label}</div>{val}</div>', unsafe_allow_html=True)
+
+        # Goal / Need / Strategy
+        st.markdown("#### 🎯 Goal / Need / Strategy")
+        gns = core.get("goal_need_strategy", {})
+        c1, c2, c3 = st.columns(3)
+        c1.markdown(f'<div class="callout"><div class="cl">GOAL</div>{gns.get("goal","")}</div>', unsafe_allow_html=True)
+        c2.markdown(f'<div class="callout"><div class="cl">NEED</div>{gns.get("need","")}</div>', unsafe_allow_html=True)
+        c3.markdown(f'<div class="callout"><div class="cl">STRATEGY</div>{gns.get("strategy","")}</div>', unsafe_allow_html=True)
+        cr, ce = st.columns(2)
+        cr.markdown(f'<div class="callout" style="border-left-color:var(--r)"><div class="cl" style="color:var(--r)">RISK</div>{gns.get("risk","")}</div>', unsafe_allow_html=True)
+        ce.markdown(f'<div class="callout" style="border-left-color:var(--g)"><div class="cl" style="color:var(--g)">ENDING PAYOFF</div>{gns.get("ending_payoff","")}</div>', unsafe_allow_html=True)
+
+        # Project Intent
+        st.markdown("#### 📋 기획의도")
+        pi = core.get("project_intent", {})
+        if pi.get("three_sentence"):
+            st.markdown(pi["three_sentence"])
+        cp1, cp2 = st.columns(2)
+        if pi.get("pitch"):
+            cp1.markdown(f'<div class="callout"><div class="cl">Pitch</div>{pi["pitch"]}</div>', unsafe_allow_html=True)
+        if pi.get("theme"):
+            cp2.markdown(f'<div class="callout"><div class="cl">Theme</div>{pi["theme"]}</div>', unsafe_allow_html=True)
+        if pi.get("tone_manner"):
+            st.markdown(f"**Tone & Manner:** {', '.join(pi['tone_manner'])}")
+
+        # World Build
+        st.markdown("#### 🌍 세계관")
+        wb = core.get("world_build", {})
+        cw1, cw2 = st.columns(2)
+        with cw1:
+            for label, key in [("시간","time"),("공간","space"),("규칙","rules"),("금기","taboo"),("권력구조","power_structure")]:
+                val = wb.get(key, "")
+                if val:
+                    st.markdown(f"**{label}:** {val}")
+        with cw2:
+            if wb.get("visual_keywords"):
+                st.markdown(f"**시각 키워드:** {', '.join(wb['visual_keywords'])}")
+            if wb.get("conflict_points"):
+                st.markdown("**충돌 포인트:**")
+                for cp in wb["conflict_points"]:
+                    st.markdown(f"- {cp}")
+
+        # Characters
+        st.markdown("#### 🎭 캐릭터")
+        role_labels = {"protagonist":"주인공","antagonist":"적대자","ally":"조력자","mirror":"거울 캐릭터"}
+        for ch in core.get("characters", []):
+            role = role_labels.get(ch.get("role",""), ch.get("role",""))
+            st.markdown(
+                f'<div class="card"><div class="cl">{role}: {ch.get("name","")}</div>'
+                f'{ch.get("description","")}<br>'
+                f'<span style="font-size:.8rem;color:#999">'
+                f'🎯 {ch.get("goal","")}<br>💔 {ch.get("need",ch.get("flaw",""))}<br>'
+                f'⚡ {ch.get("strategy","")}<br>🗣️ {ch.get("dialogue_tone","")}</span></div>',
+                unsafe_allow_html=True
+            )
+
+        # Relationship
+        rel = core.get("relationship_map", [])
+        if rel:
+            st.markdown("#### 🔗 관계도")
+            for r in rel:
+                st.markdown(f"- {r}")
+
+        st.markdown("---")
+
+        # Gate B + C
+        if project.get("core_gate"):
+            cg = project["core_gate"]
+            gb = cg.get("gate_b_drive", {})
+            gc = cg.get("gate_c_character", {})
+            fa = cg.get("five_axis_scores", {})
+
+            st.markdown("#### 🚪 Gate B: Drive Gate")
+            c1, c2 = st.columns([1, 2])
+            with c1:
+                gb_avg = gb.get("average", 0)
+                cl = "var(--g)" if gb_avg >= 7.0 else "var(--r)"
+                lb = "PASS" if gb_avg >= 7.0 else "FAIL"
+                st.markdown(f'<div style="text-align:center"><div class="big" style="color:{cl}">{gb_avg}</div><div class="sm" style="color:{cl};font-size:1rem;font-weight:700">{lb}</div></div>', unsafe_allow_html=True)
+            with c2:
+                for nm, sc in [("Goal 선명도",gb.get("goal_clarity",0)),("Need 자연스러움",gb.get("need_from_loss",0)),("Strategy 창의성",gb.get("strategy_creative",0)),("실패 대가",gb.get("failure_cost",0))]:
+                    st.markdown(f'<div style="display:flex;align-items:center;margin:.2rem 0;font-size:.8rem"><div style="width:110px;color:var(--dim)">{nm}</div><div style="flex:1;background:#3a3a4a;border-radius:4px;height:8px;margin:0 .5rem"><div style="width:{sc*10}%;background:var(--y);height:100%;border-radius:4px"></div></div><div style="width:30px;text-align:right">{sc}</div></div>', unsafe_allow_html=True)
+            if gb.get("feedback"):
+                st.caption(gb["feedback"])
+
+            st.markdown("#### 🚪 Gate C: Character Gate")
+            c1, c2 = st.columns([1, 2])
+            with c1:
+                gc_avg = gc.get("average", 0)
+                cl = "var(--g)" if gc_avg >= 7.0 else "var(--r)"
+                lb = "PASS" if gc_avg >= 7.0 else "FAIL"
+                st.markdown(f'<div style="text-align:center"><div class="big" style="color:{cl}">{gc_avg}</div><div class="sm" style="color:{cl};font-size:1rem;font-weight:700">{lb}</div></div>', unsafe_allow_html=True)
+            with c2:
+                for nm, sc in [("주인공/적대자 논리",gc.get("protagonist_antagonist_logic",0)),("조연 입체성",gc.get("supporting_not_functional",0)),("관계축 갈등",gc.get("relationship_produces_conflict",0))]:
+                    st.markdown(f'<div style="display:flex;align-items:center;margin:.2rem 0;font-size:.8rem"><div style="width:110px;color:var(--dim)">{nm}</div><div style="flex:1;background:#3a3a4a;border-radius:4px;height:8px;margin:0 .5rem"><div style="width:{sc*10}%;background:var(--y);height:100%;border-radius:4px"></div></div><div style="width:30px;text-align:right">{sc}</div></div>', unsafe_allow_html=True)
+            if gc.get("feedback"):
+                st.caption(gc["feedback"])
+
+            # 5축 스코어
+            st.markdown("---")
+            st.markdown("#### 📊 Development Fit Score")
+            final = fa.get("final_score", 0)
+            verdict = fa.get("verdict", "")
+            vc = {"개발 진행":"var(--g)","개발 보류":"var(--y)","구조 재설계":"var(--r)"}.get(verdict,"var(--dim)")
+            c1, c2 = st.columns([1, 2])
+            with c1:
+                st.markdown(f'<div style="text-align:center"><div class="big">{final}</div><div class="sm" style="color:{vc};font-size:1rem;font-weight:700">{verdict}</div></div>', unsafe_allow_html=True)
+            with c2:
+                for nm, sc in [("Goal",fa.get("goal",0)),("Need",fa.get("need",0)),("Strategy",fa.get("strategy",0)),("Structure",fa.get("structure",0)),("Character/Concept",fa.get("character_concept",0))]:
+                    st.markdown(f'<div style="display:flex;align-items:center;margin:.2rem 0;font-size:.8rem"><div style="width:110px;color:var(--dim)">{nm}</div><div style="flex:1;background:#3a3a4a;border-radius:4px;height:8px;margin:0 .5rem"><div style="width:{sc*10}%;background:var(--y);height:100%;border-radius:4px"></div></div><div style="width:30px;text-align:right">{sc}</div></div>', unsafe_allow_html=True)
+
+            if verdict == "개발 진행":
+                st.success(f"✅ {verdict}. Structure Build 진행 가능. (Phase 2)")
+            elif verdict == "개발 보류":
+                st.warning(f"⚠️ {verdict}. Core Build 보강 필요.")
+            else:
+                st.error(f"🔴 {verdict}. Brainstorm 재검토 필요.")
+
+        else:
+            st.warning("⚠️ Gate B + C 채점이 완료되지 않았습니다.")
+            if st.button("🔄 Gate 재시도"):
+                with st.spinner("Gate B + C 채점 중..."):
+                    gate_result = call_core_gate(core)
+                if gate_result:
+                    project["core_gate"] = gate_result
+                    project["final_score"] = gate_result.get("five_axis_scores", {}).get("final_score")
+                    st.rerun()
+
     else:
         st.markdown(
             '<div style="text-align:center;padding:3rem 0;color:var(--dim)">'
