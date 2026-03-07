@@ -199,6 +199,7 @@ defaults = {
     "last_structure_story_raw": "",
     "last_structure_diag_raw": "",
     "last_structure_gate_raw": "",
+    "last_treatment_raw": "",
     "last_error": "",
 }
 for k, v in defaults.items():
@@ -241,7 +242,8 @@ def render_stepper(current_view, project_data=None):
             done_idx = 2
         if project_data.get("structure_story"):
             done_idx = 3
-        # treatment, export는 Phase 2
+        if project_data.get("treatment"):
+            done_idx = 4
 
     html_parts = []
     for i, (view_key, label) in enumerate(STEPS):
@@ -1095,6 +1097,340 @@ Structure Build 결과를 기반으로 Gate D (Structure Gate)를 채점한다.
         return None
 
 
+# ─── API Call: 기승전결 1pg 줄글 ───
+def call_structure_prose(core_data, story_data):
+    """기승전결 구조의 1페이지 줄글 시놉시스"""
+    try:
+        client = get_client()
+        lp = core_data.get("logline_pack", {})
+        gns = core_data.get("goal_need_strategy", {})
+        syn = story_data.get("synopsis_1p", {})
+        storyline = story_data.get("storyline", [])
+
+        user_prompt = f"""[작품 정보]
+로그라인: {lp.get("washed", lp.get("original",""))}
+Goal: {gns.get("goal","")} / Need: {gns.get("need","")} / Strategy: {gns.get("strategy","")}
+
+[시놉시스]
+{json.dumps(syn, ensure_ascii=False)}
+
+[스토리라인]
+{json.dumps(storyline, ensure_ascii=False)}
+
+[요청]
+위 정보를 기반으로 기-승-전-결 구조의 1페이지 분량 줄글 시놉시스를 작성하라.
+
+규칙:
+- 기(起): 상황 설정과 주인공 소개
+- 승(承): 사건 전개와 갈등 심화
+- 전(轉): 반전과 위기
+- 결(結): 해결과 마무리
+- 전체 500~700자 분량
+- 줄글로 작성. 번호나 구분 기호 없이 자연스러운 서술체.
+- 한국어로 작성.
+- JSON 형식: {{"prose": "줄글 텍스트"}}
+- JSON만 출력. JSON 외 텍스트 금지."""
+
+        response = client.messages.create(
+            model=ANTHROPIC_MODEL, max_tokens=2000, temperature=0.3,
+            system="당신은 숙련된 시나리오 작가다. 유효한 단일 JSON만 출력. 후행 쉼표 금지.",
+            messages=[{"role": "user", "content": user_prompt}]
+        )
+        txt = "".join(b.text for b in response.content if hasattr(b, "text")).strip()
+        return safe_json_loads(txt)
+    except Exception as e:
+        st.error(f"줄글 시놉시스 생성 실패: {e}")
+        return None
+
+
+# ─── API Call: Treatment Build ───
+def call_treatment_build(core_data, story_data, diag_data, genre, fmt):
+    """Treatment Build: 시퀀스별 트리트먼트 서술"""
+    try:
+        client = get_client()
+        gns = core_data.get("goal_need_strategy", {})
+        lp = core_data.get("logline_pack", {})
+        chars = core_data.get("characters", [])
+        syn = story_data.get("synopsis_1p", {})
+        storyline = story_data.get("storyline", [])
+
+        system_prompt = """당신은 헐리우드 최고 수준의 시나리오 작가이자 Treatment Specialist다.
+Structure Build 결과를 기반으로 트리트먼트를 작성한다.
+인물의 선택이 사건을 일으켜야 한다.
+장면 전환의 에너지가 살아있어야 한다.
+읽는 맛이 있어야 한다.
+
+중요 규칙:
+- 유효한 단일 JSON만 출력. JSON 외 텍스트 금지.
+- 후행 쉼표 금지.
+- 한국어 작성. 전문용어 한글(English) 병기.
+- 서술체로 작성. 시나리오 형식이 아닌 트리트먼트 형식.
+"""
+
+        user_prompt = f"""[Core]
+로그라인: {lp.get("washed","")}
+Goal: {gns.get("goal","")} / Need: {gns.get("need","")} / Strategy: {gns.get("strategy","")}
+캐릭터: {json.dumps([{"name":c.get("name",""),"role":c.get("role","")} for c in chars], ensure_ascii=False)}
+
+[Synopsis]
+{json.dumps(syn, ensure_ascii=False)}
+
+[Storyline]
+{json.dumps(storyline, ensure_ascii=False)}
+
+[JSON 스키마]
+{{
+  "treatment_sequences": [
+    {{
+      "seq": 1,
+      "title": "시퀀스 제목",
+      "narrative": "이 시퀀스의 트리트먼트 서술 (150~200자)"
+    }}
+  ],
+  "emotion_curve": [
+    {{
+      "point": "Opening",
+      "tension": 3,
+      "emotion": "감정 키워드"
+    }}
+  ],
+  "director_notes": ["감독용 포인트 3개"],
+  "investor_summary": "투자자용 요약 3문장"
+}}
+
+규칙:
+- treatment_sequences는 스토리라인 시퀀스 수만큼 (6~8개)
+- 각 narrative는 서술체, 현재형, 150~200자
+- 인물의 선택 → 사건 → 감정 변화가 드러나야 함
+- emotion_curve는 8~10개 포인트, tension은 1~10 정수
+- director_notes 정확히 3개, 각 1문장
+- investor_summary 3문장
+"""
+
+        response = client.messages.create(
+            model=ANTHROPIC_MODEL, max_tokens=6000, temperature=0.35,
+            system=system_prompt,
+            messages=[{"role": "user", "content": user_prompt}]
+        )
+        if response.stop_reason == "max_tokens":
+            response = client.messages.create(
+                model=ANTHROPIC_MODEL, max_tokens=8000, temperature=0.35,
+                system=system_prompt,
+                messages=[{"role": "user", "content": user_prompt}]
+            )
+        txt = "".join(b.text for b in response.content if hasattr(b, "text")).strip()
+        st.session_state["last_treatment_raw"] = txt
+        return safe_json_loads(txt)
+    except Exception as e:
+        st.error(f"Treatment 생성 실패: {e}")
+        raw = st.session_state.get("last_treatment_raw", "")
+        if raw:
+            with st.expander("🔧 Treatment Raw (디버그)"):
+                st.text_area("Raw", raw, height=400)
+        return None
+
+
+# ─── API Call: Treatment Gate E ───
+def call_treatment_gate(treatment_data):
+    """Gate E: Treatment Gate 채점"""
+    try:
+        client = get_client()
+        response = client.messages.create(
+            model=ANTHROPIC_MODEL, max_tokens=1500, temperature=0.2,
+            system="당신은 Development Producer다. 유효한 단일 JSON만 출력. 후행 쉼표 금지. 점수 0.0~10.0.",
+            messages=[{"role": "user", "content": f"""[Treatment]
+{json.dumps(treatment_data, ensure_ascii=False)}
+
+[JSON 스키마]
+{{
+  "gate_e_treatment": {{
+    "cinematic_reading": 0.0,
+    "scene_emotion_match": 0.0,
+    "screenplay_ready": 0.0,
+    "average": 0.0,
+    "feedback": "Gate E 종합 피드백 1문장"
+  }}
+}}
+규칙: average = 3항목 평균."""}]
+        )
+        txt = "".join(b.text for b in response.content if hasattr(b, "text")).strip()
+        return safe_json_loads(txt)
+    except Exception as e:
+        st.error(f"Gate E 실패: {e}")
+        return None
+
+
+# ─── DOCX 생성 ───
+def generate_docx(project):
+    """기획개발보고서 DOCX 생성"""
+    from docx import Document
+    from docx.shared import Pt, Inches, RGBColor
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+    import io
+
+    doc = Document()
+
+    # 스타일 설정
+    style = doc.styles['Normal']
+    style.font.name = 'Pretendard'
+    style.font.size = Pt(10)
+
+    # ── Cover ──
+    doc.add_paragraph("")
+    doc.add_paragraph("")
+    title_p = doc.add_paragraph()
+    title_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    run = title_p.add_run("BLUE JEANS PICTURES")
+    run.font.size = Pt(12)
+    run.font.color.rgb = RGBColor(0xFF, 0xCB, 0x05)
+
+    title_p2 = doc.add_paragraph()
+    title_p2.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    run2 = title_p2.add_run(f"기획개발보고서")
+    run2.font.size = Pt(24)
+    run2.font.bold = True
+
+    title_p3 = doc.add_paragraph()
+    title_p3.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    run3 = title_p3.add_run(project.get("title", ""))
+    run3.font.size = Pt(18)
+    run3.font.bold = True
+
+    meta_p = doc.add_paragraph()
+    meta_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    meta_p.add_run(f"{project.get('genre','')} · {project.get('target_market','')} · {project.get('format','')}")
+
+    doc.add_page_break()
+
+    # Helper
+    def add_heading(text, level=1):
+        doc.add_heading(text, level=level)
+
+    def add_body(text):
+        if text:
+            doc.add_paragraph(text)
+
+    def add_labeled(label, text):
+        if text:
+            p = doc.add_paragraph()
+            run_l = p.add_run(f"[{label}] ")
+            run_l.bold = True
+            p.add_run(text)
+
+    # ── Core Build ──
+    core = project.get("core", {})
+    if core:
+        # Logline
+        add_heading("Logline Pack", 1)
+        lp = core.get("logline_pack", {})
+        for label, key in [("Original","original"),("Washed","washed"),("투자자용","investor"),("감독용","director"),("캐릭터 훅","character_hook")]:
+            add_labeled(label, lp.get(key, ""))
+
+        # 기획의도
+        add_heading("기획의도", 1)
+        pi = core.get("project_intent", {})
+        add_labeled("소재", pi.get("subject", ""))
+        add_labeled("장르", pi.get("genre_approach", ""))
+        add_labeled("시장", pi.get("market_rationale", ""))
+        add_labeled("Pitch", pi.get("pitch", ""))
+        add_labeled("Theme", pi.get("theme", ""))
+
+        # G/N/S
+        add_heading("Goal / Need / Strategy", 1)
+        gns = core.get("goal_need_strategy", {})
+        add_labeled("Goal", gns.get("goal", ""))
+        add_labeled("Need", gns.get("need", ""))
+        add_labeled("Strategy", gns.get("strategy", ""))
+        add_labeled("Risk", gns.get("risk", ""))
+        add_labeled("Ending Payoff", gns.get("ending_payoff", ""))
+
+        # 세계관
+        add_heading("세계관", 1)
+        wb = core.get("world_build", {})
+        for label, key in [("시간","time"),("공간","space"),("규칙","rules"),("금기","taboo"),("권력구조","power_structure")]:
+            add_labeled(label, wb.get(key, ""))
+
+        # 캐릭터
+        add_heading("캐릭터", 1)
+        role_labels = {"protagonist":"주인공","antagonist":"적대자","ally":"조력자","mirror":"거울"}
+        for ch in core.get("characters", []):
+            role = role_labels.get(ch.get("role",""), ch.get("role",""))
+            add_heading(f"{role}: {ch.get('name','')}", 2)
+            add_body(ch.get("description", ""))
+            add_labeled("욕망", ch.get("goal", ""))
+            add_labeled("결핍", ch.get("need", ch.get("flaw", "")))
+            add_labeled("대사톤", ch.get("dialogue_tone", ""))
+
+    doc.add_page_break()
+
+    # ── Structure Build ──
+    story = project.get("structure_story", {})
+    diag = project.get("structure_diag", {})
+
+    if story:
+        add_heading("Synopsis 1P", 1)
+        syn = story.get("synopsis_1p", {})
+        for label, key in [("시작","opening"),("촉발사건","catalyst"),("전개","development"),("미드포인트","midpoint"),("붕괴","collapse"),("결전","climax"),("결말","ending")]:
+            add_labeled(label, syn.get(key, ""))
+
+        # 줄글 시놉시스
+        prose = project.get("structure_prose", {})
+        if prose and prose.get("prose"):
+            add_heading("기승전결 시놉시스", 1)
+            add_body(prose["prose"])
+
+        add_heading("스토리라인", 1)
+        for seq in story.get("storyline", []):
+            add_heading(f"SEQ {seq.get('seq','')} · {seq.get('label','')}", 2)
+            add_body(seq.get("summary", ""))
+
+    if diag:
+        add_heading("3막 구조 진단", 1)
+        ta = diag.get("three_act", {})
+        for label, key in [("1막 끝","act1_end"),("미드포인트","act2_midpoint"),("All Is Lost","act2_end"),("클라이맥스","act3_climax")]:
+            add_labeled(label, ta.get(key, ""))
+
+        add_heading("15-Beat Sheet", 1)
+        for bt in diag.get("beat_sheet", []):
+            add_labeled(bt.get("beat",""), f"[{bt.get('status','')}] {bt.get('note','')}")
+
+    doc.add_page_break()
+
+    # ── Treatment ──
+    treatment = project.get("treatment", {})
+    if treatment:
+        add_heading("Treatment", 1)
+        for seq in treatment.get("treatment_sequences", []):
+            add_heading(f"SEQ {seq.get('seq','')} · {seq.get('title','')}", 2)
+            add_body(seq.get("narrative", ""))
+
+        if treatment.get("investor_summary"):
+            add_heading("투자자용 요약", 2)
+            add_body(treatment["investor_summary"])
+
+    # ── 점수 ──
+    add_heading("Development Fit Score", 1)
+    cg = project.get("core_gate", {})
+    fa = cg.get("five_axis_scores", {})
+    if fa:
+        add_labeled("Final Score", str(fa.get("final_score", "")))
+        add_labeled("Verdict", fa.get("verdict", ""))
+
+    # Footer
+    doc.add_paragraph("")
+    footer = doc.add_paragraph()
+    footer.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    run_f = footer.add_run("© 2026 BLUE JEANS PICTURES · Creator Engine v1.2")
+    run_f.font.size = Pt(8)
+    run_f.font.color.rgb = RGBColor(0x88, 0x88, 0x88)
+
+    # Save to buffer
+    buffer = io.BytesIO()
+    doc.save(buffer)
+    buffer.seek(0)
+    return buffer
+
+
 # ═══════════════════════════════════════════════════
 #  UI 렌더링
 # ═══════════════════════════════════════════════════
@@ -1107,8 +1443,18 @@ st.markdown(
 )
 
 # ─── 뒤로가기 ───
-if st.session_state.view in ("project", "core", "structure") and st.session_state.cur:
-    if st.session_state.view == "structure":
+if st.session_state.view in ("project", "core", "structure", "treatment") and st.session_state.cur:
+    if st.session_state.view == "treatment":
+        col_nav1, col_nav2 = st.columns(2)
+        with col_nav1:
+            if st.button("← 프로젝트 목록"):
+                st.session_state.view = "home"
+                st.rerun()
+        with col_nav2:
+            if st.button("← Structure"):
+                st.session_state.view = "structure"
+                st.rerun()
+    elif st.session_state.view == "structure":
         col_nav1, col_nav2 = st.columns(2)
         with col_nav1:
             if st.button("← 프로젝트 목록"):
@@ -1207,6 +1553,9 @@ if st.session_state.view == "home":
                 "structure_story": None,
                 "structure_diag": None,
                 "structure_gate": None,
+                "structure_prose": None,
+                "treatment": None,
+                "treatment_gate": None,
                 "final_score": None,
             }
 
@@ -1937,6 +2286,10 @@ elif st.session_state.view == "structure" and st.session_state.cur:
                         gate_d = call_structure_gate(story, diag)
                     if gate_d:
                         project["structure_gate"] = gate_d
+                with st.spinner("④ 기승전결 줄글 시놉시스... (10~15초)"):
+                    prose = call_structure_prose(core, story)
+                if prose:
+                    project["structure_prose"] = prose
                 project["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
                 st.rerun()
 
@@ -1968,7 +2321,14 @@ elif st.session_state.view == "structure" and st.session_state.cur:
         for bt in diag.get("beat_sheet", []):
             status = bt.get("status", "")
             color = {"있음":"var(--g)","약함":"var(--y)","없음":"var(--r)"}.get(status, "var(--dim)")
-            st.markdown(f'<span style="color:{color};font-weight:600">[{status}]</span> **{bt.get("beat","")}** — {bt.get("note","")}')
+            st.markdown(
+                f'<div style="margin:.3rem 0;font-size:.85rem">'
+                f'<span style="color:{color};font-weight:700">[{status}]</span> '
+                f'<b>{bt.get("beat","")}</b> — '
+                f'<span style="color:#bbb">{bt.get("note","")}</span>'
+                f'</div>',
+                unsafe_allow_html=True
+            )
 
         # 캐릭터 변화표
         arcs = diag.get("character_arcs", [])
@@ -2005,6 +2365,13 @@ elif st.session_state.view == "structure" and st.session_state.cur:
                     unsafe_allow_html=True
                 )
 
+    # 기승전결 줄글 시놉시스
+    if project.get("structure_prose"):
+        prose_data = project["structure_prose"]
+        if prose_data.get("prose"):
+            st.markdown("#### 📝 기승전결 시놉시스 (1P 줄글)")
+            st.markdown(f'<div class="callout" style="line-height:1.8;font-size:.9rem">{prose_data["prose"]}</div>', unsafe_allow_html=True)
+
     if project.get("structure_gate"):
         sg = project["structure_gate"]
         gd = sg.get("gate_d_structure", {})
@@ -2021,17 +2388,185 @@ elif st.session_state.view == "structure" and st.session_state.cur:
                 st.markdown(f'<div style="display:flex;align-items:center;margin:.2rem 0;font-size:.8rem"><div style="width:80px;color:var(--dim)">{nm}</div><div style="flex:1;background:#3a3a4a;border-radius:4px;height:8px;margin:0 .5rem"><div style="width:{sc*10}%;background:var(--y);height:100%;border-radius:4px"></div></div><div style="width:30px;text-align:right">{sc}</div></div>', unsafe_allow_html=True)
         if gd.get("feedback"):
             st.caption(gd["feedback"])
+
         if gd_ok:
             st.success("✅ Gate D 통과. Treatment Build 진행 가능.")
+            if st.button("📝 Treatment Build 진행 →", type="primary", use_container_width=True):
+                st.session_state.view = "treatment"
+                st.rerun()
         else:
             st.warning(f"⚠️ Gate D 미통과 (평균 {gd_avg}).")
-            if st.button("🔄 Structure 재실행"):
-                for k in ["structure_story","structure_diag","structure_gate"]:
-                    project[k] = None
-                st.rerun()
+            col_sd1, col_sd2 = st.columns(2)
+            with col_sd1:
+                if st.button("🔓 Override → Treatment Build"):
+                    st.session_state.view = "treatment"
+                    st.rerun()
+            with col_sd2:
+                if st.button("🔄 Structure 재실행"):
+                    for k in ["structure_story","structure_diag","structure_gate","structure_prose"]:
+                        project[k] = None
+                    st.rerun()
+
+        # DOCX 다운로드 (Structure 완료 시점부터 가능)
+        st.markdown("---")
+        st.markdown("#### 📥 기획개발보고서 다운로드")
+        st.caption("현재까지 완성된 내용으로 DOCX 보고서를 생성합니다.")
+        title_safe = project.get("title", "프로젝트").replace(" ", "_")
+        docx_buffer = generate_docx(project)
+        st.download_button(
+            label="📥 기획개발보고서 다운로드 (.docx)",
+            data=docx_buffer,
+            file_name=f"기획개발보고서_{title_safe}_Blue.docx",
+            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            use_container_width=True
+        )
 
     elif not project.get("structure_story"):
         st.markdown('<div style="text-align:center;padding:3rem 0;color:var(--dim)">🏗️ Structure Build를 실행하면 여기에 결과가 표시됩니다.</div>', unsafe_allow_html=True)
+
+    st.markdown("---")
+    st.caption("© 2026 BLUE JEANS PICTURES · Creator Engine v1.2")
+
+
+# ═══════════════════════════════════════════════════
+#  TREATMENT BUILD
+# ═══════════════════════════════════════════════════
+elif st.session_state.view == "treatment" and st.session_state.cur:
+
+    project = st.session_state.projects[st.session_state.cur]
+    core = project.get("core", {})
+    story = project.get("structure_story", {})
+    diag = project.get("structure_diag", {})
+
+    st.markdown(f"## {project['title']}")
+    st.caption(f"{project['genre']} · {project['target_market']} · {project['format']}")
+    render_stepper("treatment", project)
+
+    # 요약 정보
+    gns = core.get("goal_need_strategy", {})
+    lp = core.get("logline_pack", {})
+    if lp.get("washed"):
+        st.markdown(f'<div class="callout"><div class="cl">Logline</div>{lp["washed"]}</div>', unsafe_allow_html=True)
+
+    st.markdown("---")
+    st.markdown("### 📝 Treatment Build 실행")
+    st.caption("시퀀스별 트리트먼트 서술 · 감정 곡선 · 감독용 포인트 · 투자자 요약")
+
+    if st.button("📝 Treatment Build 실행", type="primary"):
+        if not story:
+            st.error("Structure Build가 없습니다.")
+        else:
+            with st.spinner("① Treatment 생성 중... (약 30~40초)"):
+                treat = call_treatment_build(core, story, diag, project["genre"], project["format"])
+            if treat:
+                project["treatment"] = treat
+                project["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
+                with st.spinner("② Gate E 채점 중... (약 10초)"):
+                    gate_e = call_treatment_gate(treat)
+                if gate_e:
+                    project["treatment_gate"] = gate_e
+                    project["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
+                st.rerun()
+
+    # ── Treatment 결과 표시 ──
+    if project.get("treatment"):
+        treat = project["treatment"]
+
+        # 시퀀스별 트리트먼트
+        st.markdown("#### 📖 Treatment")
+        for seq in treat.get("treatment_sequences", []):
+            st.markdown(
+                f'<div class="card">'
+                f'<div class="cl">SEQ {seq.get("seq","")} · {seq.get("title","")}</div>'
+                f'<div style="line-height:1.7;font-size:.9rem">{seq.get("narrative","")}</div>'
+                f'</div>',
+                unsafe_allow_html=True
+            )
+
+        # 감정 곡선
+        ec = treat.get("emotion_curve", [])
+        if ec:
+            st.markdown("#### 📈 감정 곡선")
+            import plotly.graph_objects as go
+            fig = go.Figure()
+            fig.add_trace(go.Scatter(
+                x=[p.get("point","") for p in ec],
+                y=[p.get("tension",0) for p in ec],
+                mode='lines+markers',
+                line=dict(color='#FFCB05', width=3),
+                marker=dict(size=8),
+                text=[p.get("emotion","") for p in ec],
+                hovertemplate='%{x}<br>텐션: %{y}<br>감정: %{text}<extra></extra>'
+            ))
+            fig.update_layout(
+                plot_bgcolor='#0E1117', paper_bgcolor='#0E1117',
+                font_color='#FAFAFA', yaxis_range=[0,10],
+                yaxis_title="Tension", height=300,
+                margin=dict(l=40,r=20,t=20,b=40)
+            )
+            st.plotly_chart(fig, use_container_width=True)
+
+        # 감독용 포인트
+        notes = treat.get("director_notes", [])
+        if notes:
+            st.markdown("#### 🎬 감독용 포인트")
+            for i, n in enumerate(notes, 1):
+                st.markdown(f"**{i}.** {n}")
+
+        # 투자자 요약
+        inv = treat.get("investor_summary", "")
+        if inv:
+            st.markdown(f'<div class="callout"><div class="cl">💰 투자자용 요약</div>{inv}</div>', unsafe_allow_html=True)
+
+        st.markdown("---")
+
+        # Gate E
+        if project.get("treatment_gate"):
+            tg = project["treatment_gate"]
+            ge = tg.get("gate_e_treatment", {})
+            ge_avg = ge.get("average", 0)
+            ge_ok = ge_avg >= 7.0
+
+            st.markdown("#### 🚪 Gate E: Treatment Gate")
+            c1, c2 = st.columns([1, 2])
+            with c1:
+                cl = "var(--g)" if ge_ok else "var(--r)"
+                st.markdown(f'<div style="text-align:center"><div class="big" style="color:{cl}">{ge_avg}</div><div class="sm" style="color:{cl};font-size:1rem;font-weight:700">{"PASS" if ge_ok else "FAIL"}</div></div>', unsafe_allow_html=True)
+            with c2:
+                for nm, sc in [("영화적 읽힘",ge.get("cinematic_reading",0)),("씬-감정 일치",ge.get("scene_emotion_match",0)),("초고 직행 가능",ge.get("screenplay_ready",0))]:
+                    st.markdown(f'<div style="display:flex;align-items:center;margin:.2rem 0;font-size:.8rem"><div style="width:100px;color:var(--dim)">{nm}</div><div style="flex:1;background:#3a3a4a;border-radius:4px;height:8px;margin:0 .5rem"><div style="width:{sc*10}%;background:var(--y);height:100%;border-radius:4px"></div></div><div style="width:30px;text-align:right">{sc}</div></div>', unsafe_allow_html=True)
+            if ge.get("feedback"):
+                st.caption(ge["feedback"])
+
+            if ge_ok:
+                st.success("✅ Gate E 통과. 기획개발 완료. Screenplay Writer Engine 연동 준비 완료.")
+            else:
+                st.warning(f"⚠️ Gate E 미통과 (평균 {ge_avg}). Treatment 보강 필요.")
+                if st.button("🔄 Treatment 재실행"):
+                    project["treatment"] = None
+                    project["treatment_gate"] = None
+                    st.rerun()
+
+        # DOCX 다운로드 (전체 결과 포함)
+        st.markdown("---")
+        st.markdown("#### 📥 기획개발보고서 최종 다운로드")
+        title_safe = project.get("title", "프로젝트").replace(" ", "_")
+        docx_buffer = generate_docx(project)
+        st.download_button(
+            label="📥 기획개발보고서_최종 다운로드 (.docx)",
+            data=docx_buffer,
+            file_name=f"기획개발보고서_{title_safe}_Blue.docx",
+            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            use_container_width=True
+        )
+
+    else:
+        st.markdown(
+            '<div style="text-align:center;padding:3rem 0;color:var(--dim)">'
+            '📝 Treatment Build를 실행하면 여기에 결과가 표시됩니다.'
+            '</div>',
+            unsafe_allow_html=True
+        )
 
     st.markdown("---")
     st.caption("© 2026 BLUE JEANS PICTURES · Creator Engine v1.2")
