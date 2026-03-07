@@ -6,6 +6,7 @@
 import streamlit as st
 import json
 from datetime import datetime
+import anthropic
 
 # ─── Page Config ───
 st.set_page_config(
@@ -50,7 +51,9 @@ def badge(s):
 # ─── API Calls ───
 def get_client():
     import anthropic
-    return anthropic.Anthropic(api_key=st.secrets.get("ANTHROPIC_API_KEY",""))
+    return anthropic.Anthropic(
+        api_key=st.secrets["ANTHROPIC_API_KEY"]
+    )
 
 def call_research(idea, genre, market):
     try:
@@ -60,7 +63,7 @@ def call_research(idea, genre, market):
 [JSON 스키마]
 {{"search_keywords":[],"real_events":[{{"id":1,"title":"","summary":"","source":"","year":"","relevance":"","story_potential":""}}],"existing_works":[{{"id":1,"title":"","type":"","country":"","year":"","summary":"","similarity":"","difference_opportunity":""}}],"research_summary":{{"total_real_events":0,"total_existing_works":0,"key_insight":""}}}}
 real_events 3~10개, existing_works 3~10개."""
-        r = client.messages.create(model="claude-sonnet-4-20250514",max_tokens=3000,temperature=0.3,system=sys,messages=[{"role":"user","content":user}],tools=[{"type":"web_search_20250305","name":"web_search"}])
+        r = client.messages.create(model="claude-sonnet-latest",max_tokens=3000,temperature=0.3,system=sys,messages=[{"role":"user","content":user}],tools=[{"type":"web_search_20250305","name":"web_search"}])
         txt = "".join(b.text for b in r.content if hasattr(b,"text")).strip()
         if txt.startswith("```"): txt = txt.split("\n",1)[1].rsplit("```",1)[0]
         return json.loads(txt)
@@ -82,7 +85,7 @@ def call_brainstorm(idea, genre, market, fmt, research=None):
 [JSON 스키마]
 {{"idea_type":"story|mood|hybrid","idea_type_diagnosis":"","market_context":{{"target_market":"","market_insight":"","cultural_code":"","market_risk":"","reference_titles":[]}},"format_context":{{"selected_format":"","format_rationale":"","structure_note":""}},"research_applied":{{"real_events_used":[],"inspiration_note":""}},"idea_cards":[{{"id":1,"title":"","logline_seed":"","protagonist":"","conflict":"","hook":"","visual_image":"","genre":"","scores":{{"active_hero":0.0,"conflict_clarity":0.0,"visual_power":0.0,"genre_immediacy":0.0,"originality":0.0,"market_fit":0.0}},"total_score":0.0}}],"top3":[{{"rank":1,"card_id":0,"reason":""}}],"hook_sentence":"","differentiation":[],"development_priority":{{"recommended_direction":"","next_step":"","risk":""}},"gate_a_scores":{{"protagonist_visible":0.0,"conflict_one_line":0.0,"differentiation":0.0,"poster_image":0.0,"market_potential":0.0,"average":0.0}}}}
 idea_cards 10~15개. total_score=6축평균. gate_a average=5항목평균. 텍스트 2문장 이내."""
-        r = client.messages.create(model="claude-sonnet-4-20250514",max_tokens=4000,temperature=0.7,system=sys,messages=[{"role":"user","content":user}])
+        r = client.messages.create(model="claude-sonnet-latest",max_tokens=4000,temperature=0.7,system=sys,messages=[{"role":"user","content":user}])
         txt = r.content[0].text.strip()
         if txt.startswith("```"): txt = txt.split("\n",1)[1].rsplit("```",1)[0]
         return json.loads(txt)
