@@ -1128,6 +1128,41 @@ elif st.session_state.view == "project" and st.session_state.cur:
                         f"{card.get('logline_seed', '')}"
                     )
 
+        # ── 분석 없을 때 fallback 네비게이션 ──
+        if not ba:
+            st.markdown("---")
+            st.warning("⚠️ 시장 분석 + Gate A 채점이 아직 완료되지 않았습니다.")
+
+            col_fb1, col_fb2 = st.columns(2)
+            with col_fb1:
+                if st.button("🔄 분석 재시도", use_container_width=True):
+                    # 2단계만 재실행
+                    cards_map = {c["id"]: c for c in bc.get("idea_cards", [])}
+                    top3_data = [
+                        cards_map[t["card_id"]]
+                        for t in bc.get("top3", [])
+                        if t["card_id"] in cards_map
+                    ]
+                    if top3_data:
+                        with st.spinner("② 시장 분석 + Gate A 채점 중..."):
+                            ar = call_brainstorm_analysis(
+                                project["idea_text"],
+                                project["genre"],
+                                project["target_market"],
+                                project["format"],
+                                top3_data,
+                                project.get("research")
+                            )
+                        if ar:
+                            project["brainstorm_analysis"] = ar
+                            project["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
+                            st.rerun()
+            with col_fb2:
+                if st.button("🎯 분석 건너뛰고 Core Build →", use_container_width=True):
+                    project["stage"] = "core"
+                    st.session_state.view = "core"
+                    st.rerun()
+
     # ─── 푸터 ───
     st.markdown("---")
     st.caption("© 2026 BLUE JEANS PICTURES · Creator Engine v1.2")
