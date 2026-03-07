@@ -23,158 +23,293 @@ st.set_page_config(
 st.markdown("""
 <style>
 @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
+@import url('https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@600;700;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&display=swap');
 
 :root {
     --navy: #191970;
     --y: #FFCB05;
-    --bg: #FAFAFA;
+    --bg: #F7F7F5;
     --card: #FFFFFF;
-    --card-border: #E0E0E8;
+    --card-border: #E2E2E0;
     --t: #1A1A2E;
     --r: #D32F2F;
     --g: #2EC484;
-    --dim: #888899;
-    --light-bg: #F0F2FF;
+    --dim: #8E8E99;
+    --light-bg: #EEEEF6;
+    --serif: 'Noto Serif KR', 'Georgia', serif;
+    --display: 'Playfair Display', 'Noto Serif KR', 'Georgia', serif;
+    --body: 'Pretendard', -apple-system, sans-serif;
 }
 
+/* ── 기본 타이포 ── */
 html, body, [class*="css"] {
-    font-family: 'Pretendard', sans-serif;
+    font-family: var(--body);
     color: var(--t);
+    -webkit-font-smoothing: antialiased;
 }
 
-/* 라이트모드 강제 적용 */
-.stApp, [data-testid="stAppViewContainer"], [data-testid="stMain"] {
+/* ══ 라이트모드 강제 (전역) ══ */
+.stApp, [data-testid="stAppViewContainer"], [data-testid="stMain"],
+[data-testid="stMainBlockContainer"], [data-testid="stHeader"],
+[data-testid="stBottom"] {
     background-color: var(--bg) !important;
     color: var(--t) !important;
 }
-[data-testid="stHeader"] {
-    background-color: var(--bg) !important;
-}
-[data-testid="stMainBlockContainer"] {
-    background-color: var(--bg) !important;
-}
-.stMarkdown, .stText, .stTextArea textarea, .stTextInput input, .stSelectbox, .stRadio {
+.stMarkdown, .stText, .stCode {
     color: var(--t) !important;
 }
-h1, h2, h3, h4, h5, h6, p, span, label, div {
-    color: inherit;
-}
-.stExpander {
+h1, h2, h3, h4, h5, h6 { color: var(--navy) !important; }
+p, span, label, div, li { color: inherit; }
+
+/* ── 사이드바 숨김 ── */
+section[data-testid="stSidebar"] { display: none; }
+
+/* ══ 입력 위젯 라이트 ══ */
+.stTextInput input, .stTextArea textarea,
+[data-testid="stTextInput"] input, [data-testid="stTextArea"] textarea {
     background-color: var(--card) !important;
+    color: var(--t) !important;
+    border: 1.5px solid var(--card-border) !important;
+    border-radius: 8px !important;
+    font-family: var(--body) !important;
+    font-size: 0.9rem !important;
+    padding: 0.6rem 0.8rem !important;
+    transition: border-color 0.2s;
+}
+.stTextInput input:focus, .stTextArea textarea:focus,
+[data-testid="stTextInput"] input:focus, [data-testid="stTextArea"] textarea:focus {
+    border-color: var(--navy) !important;
+    box-shadow: 0 0 0 2px rgba(25,25,112,0.08) !important;
+}
+.stTextInput input::placeholder, .stTextArea textarea::placeholder,
+[data-testid="stTextInput"] input::placeholder, [data-testid="stTextArea"] textarea::placeholder {
+    color: var(--dim) !important;
+    font-size: 0.85rem !important;
+}
+/* selectbox */
+.stSelectbox > div > div, [data-baseweb="select"] > div, [data-baseweb="select"] input {
+    background-color: var(--card) !important;
+    color: var(--t) !important;
     border-color: var(--card-border) !important;
+    border-radius: 8px !important;
+}
+[data-baseweb="popover"], [data-baseweb="menu"], [role="listbox"], [role="option"] {
+    background-color: var(--card) !important;
+    color: var(--t) !important;
+}
+[role="option"]:hover { background-color: var(--light-bg) !important; }
+/* label */
+.stTextInput label, .stTextArea label, .stSelectbox label, .stRadio label {
+    color: var(--t) !important;
+    font-weight: 600 !important;
+    font-size: 0.82rem !important;
+    margin-bottom: 0.3rem !important;
 }
 
-/* 사이드바 숨김 */
-section[data-testid="stSidebar"] {
-    display: none;
+/* ══ 버튼 ══ */
+.stButton > button {
+    color: var(--t) !important;
+    border: 1.5px solid var(--card-border) !important;
+    background-color: var(--card) !important;
+    border-radius: 8px !important;
+    font-family: var(--body) !important;
+    font-weight: 600 !important;
+    font-size: 0.85rem !important;
+    padding: 0.5rem 1.2rem !important;
+    transition: all 0.2s;
+}
+.stButton > button:hover {
+    border-color: var(--navy) !important;
+    box-shadow: 0 2px 8px rgba(25,25,112,0.08) !important;
+}
+.stButton > button[kind="primary"],
+.stButton > button[data-testid="stBaseButton-primary"] {
+    background-color: var(--y) !important;
+    color: var(--navy) !important;
+    border-color: var(--y) !important;
+    font-weight: 700 !important;
+}
+.stButton > button[kind="primary"]:hover,
+.stButton > button[data-testid="stBaseButton-primary"]:hover {
+    background-color: #E8B800 !important;
+    box-shadow: 0 2px 12px rgba(255,203,5,0.3) !important;
 }
 
-/* 배경색별 텍스트 강제 */
+/* ══ Expander ══ */
+.stExpander, details, details summary {
+    background-color: var(--card) !important;
+    color: var(--t) !important;
+    border: 1px solid var(--card-border) !important;
+    border-radius: 8px !important;
+}
+details[open] > div { background-color: var(--card) !important; }
+.stExpander summary, .stExpander summary span { color: var(--t) !important; }
+
+/* ══ Alert 박스 ══ */
+.stAlert { color: var(--t) !important; border-radius: 8px !important; }
+
+/* ══ 내부 컨테이너 투명 ══ */
+[data-testid="stVerticalBlock"], [data-testid="stHorizontalBlock"],
+[data-testid="stColumn"] { background-color: transparent !important; }
+
+/* ══ Metric ══ */
+[data-testid="stMetric"] { background-color: var(--card) !important; color: var(--t) !important; }
+[data-testid="stMetric"] label { color: var(--dim) !important; }
+.stCaption, small { color: var(--dim) !important; }
+.stCheckbox label span, .stToggle label span { color: var(--t) !important; }
+
+/* ══ 배경색별 텍스트 강제 ══ */
 [style*="background:#FFCB05"] { color: var(--navy) !important; }
 [style*="background:#FFCB05"] * { color: var(--navy) !important; }
 [style*="background:#2EC484"] { color: #FFFFFF !important; }
 [style*="background:#2EC484"] * { color: #FFFFFF !important; }
 
+/* ═══════════════════════════════════
+   브랜딩 & 커스텀 컴포넌트
+   ═══════════════════════════════════ */
+
 .header {
-    font-size: 1.1rem;
+    font-size: 0.85rem;
     font-weight: 700;
     color: var(--navy);
-    letter-spacing: 0.05em;
-    margin-bottom: 0rem;
+    letter-spacing: 0.15em;
+    margin-bottom: 0;
+    font-family: var(--body);
 }
 
 .brand-title {
-    font-size: 2.2rem;
+    font-size: 2.6rem;
     font-weight: 900;
     color: var(--navy);
-    font-family: 'Georgia', serif;
+    font-family: var(--display);
     letter-spacing: -0.02em;
-    margin-bottom: 0.2rem;
-    text-decoration: underline;
-    text-decoration-color: var(--y);
-    text-underline-offset: 4px;
-    text-decoration-thickness: 3px;
+    margin-bottom: 0.15rem;
+    position: relative;
+    display: inline-block;
+}
+.brand-title::after {
+    content: '';
+    position: absolute;
+    bottom: 2px;
+    left: 0;
+    width: 100%;
+    height: 4px;
+    background: var(--y);
+    border-radius: 2px;
 }
 
 .sub {
-    font-size: 0.8rem;
+    font-size: 0.7rem;
     color: var(--dim);
-    letter-spacing: 0.1em;
+    letter-spacing: 0.15em;
+    margin-top: 0.5rem;
     margin-bottom: 1.5rem;
 }
 
-.callout {
-    background: var(--light-bg);
-    border-left: 3px solid var(--navy);
-    padding: 0.8rem 1rem;
-    margin: 0.5rem 0;
-    border-radius: 0 6px 6px 0;
-    font-size: 0.85rem;
-    color: var(--t);
-}
-
-.cl {
-    color: var(--navy);
-    font-weight: 700;
-    font-size: 0.75rem;
-    margin-bottom: 0.3rem;
-}
-
+/* ── 카드 ── */
 .card {
     background: var(--card);
     border: 1px solid var(--card-border);
-    border-radius: 8px;
-    padding: 1rem;
+    border-radius: 10px;
+    padding: 1.2rem;
     margin-bottom: 0.8rem;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    box-shadow: 0 1px 4px rgba(0,0,0,0.03);
+    transition: all 0.2s;
 }
-
 .card:hover {
     border-color: var(--navy);
-    box-shadow: 0 2px 8px rgba(25,25,112,0.08);
+    box-shadow: 0 3px 12px rgba(25,25,112,0.07);
+    transform: translateY(-1px);
 }
 
+/* ── 콜아웃 ── */
+.callout {
+    background: var(--light-bg);
+    border-left: 4px solid var(--navy);
+    padding: 0.9rem 1.1rem;
+    margin: 0.5rem 0;
+    border-radius: 0 8px 8px 0;
+    font-size: 0.88rem;
+    color: var(--t);
+}
+
+/* ── 섹션 라벨 ── */
+.cl {
+    color: var(--navy);
+    font-weight: 700;
+    font-size: 0.72rem;
+    letter-spacing: 0.03em;
+    margin-bottom: 0.3rem;
+    text-transform: uppercase;
+}
+
+/* ── 정보 블록 ── */
 .ri {
     background: var(--light-bg);
-    border-radius: 6px;
-    padding: 0.8rem;
+    border-radius: 8px;
+    padding: 0.9rem 1rem;
     margin-bottom: 0.5rem;
-    font-size: 0.85rem;
+    font-size: 0.88rem;
+    line-height: 1.6;
 }
-
 .rl {
     color: var(--navy);
     font-weight: 700;
-    font-size: 0.7rem;
+    font-size: 0.72rem;
+    letter-spacing: 0.02em;
 }
 
+/* ── 큰 숫자 ── */
 .big {
-    font-size: 2.5rem;
+    font-size: 2.8rem;
     font-weight: 900;
     color: var(--navy);
     text-align: center;
+    font-family: var(--display);
 }
-
 .sm {
     font-size: 0.7rem;
     color: var(--dim);
     text-align: center;
 }
 
+/* ── 뱃지 ── */
 .badge {
     display: inline-block;
-    padding: 0.15rem 0.5rem;
-    border-radius: 4px;
+    padding: 0.2rem 0.6rem;
+    border-radius: 5px;
     font-size: 0.7rem;
     font-weight: 600;
 }
-
 .b-done { background: var(--g); color: #fff; }
 .b-run  { background: var(--y); color: var(--navy); }
-.b-not  { background: #E0E0E8; color: var(--dim); }
+.b-not  { background: #E8E8F0; color: var(--dim); }
 .b-fail { background: var(--r); color: #fff; }
 
-/* ── Stepper (Rewrite Engine 스타일) ── */
+/* ── 노란 섹션 헤더 (웹 UI) ── */
+.section-header {
+    background: var(--y);
+    color: var(--navy);
+    padding: 0.6rem 1rem;
+    border-radius: 6px;
+    font-weight: 800;
+    font-size: 1rem;
+    font-family: var(--serif);
+    margin: 1.5rem 0 0.8rem 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.section-header .en {
+    font-family: var(--display);
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    opacity: 0.7;
+}
+
+/* ══ Stepper ══ */
 .stepper {
     display: flex;
     align-items: center;
@@ -182,28 +317,29 @@ section[data-testid="stSidebar"] {
     margin: 1.5rem 0 2rem 0;
     gap: 0;
 }
-.step {
+.step-wrap {
     display: flex;
+    flex-direction: column;
     align-items: center;
-    gap: 0;
 }
 .step-circle {
-    width: 32px;
-    height: 32px;
+    width: 34px;
+    height: 34px;
     border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 0.8rem;
+    font-size: 0.78rem;
     font-weight: 700;
     flex-shrink: 0;
     border: 2px solid transparent;
+    transition: all 0.2s;
 }
 .step-circle.active {
     background: var(--y);
     color: var(--navy);
     border-color: var(--y);
-    box-shadow: 0 0 0 3px rgba(255,203,5,0.25);
+    box-shadow: 0 0 0 4px rgba(255,203,5,0.2);
 }
 .step-circle.done {
     background: var(--g);
@@ -211,15 +347,16 @@ section[data-testid="stSidebar"] {
     border-color: var(--g);
 }
 .step-circle.upcoming {
-    background: #E8E8F0;
+    background: #EDEDF0;
     color: var(--dim);
-    border-color: #D0D0DD;
+    border-color: #D8D8E0;
 }
 .step-label {
     font-size: 0.6rem;
-    margin-top: 0.3rem;
+    margin-top: 0.35rem;
     text-align: center;
     width: 55px;
+    font-weight: 500;
 }
 .step-label.active { color: var(--navy); font-weight: 700; }
 .step-label.done { color: var(--g); font-weight: 600; }
@@ -229,13 +366,24 @@ section[data-testid="stSidebar"] {
     height: 2px;
     margin: 0 2px;
     flex-shrink: 0;
+    border-radius: 1px;
 }
 .step-line.done { background: var(--g); }
-.step-line.upcoming { background: #D0D0DD; }
-.step-wrap {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
+.step-line.upcoming { background: #D8D8E0; }
+
+/* ══ 프로그레스 바 (공통) ══ */
+.progress-track {
+    flex: 1;
+    background: #E8E8F0;
+    border-radius: 4px;
+    height: 8px;
+    margin: 0 0.5rem;
+}
+.progress-fill {
+    height: 100%;
+    background: var(--y);
+    border-radius: 4px;
+    transition: width 0.3s;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -1577,72 +1725,206 @@ def call_treatment_gate(treatment_data):
 
 # ─── DOCX 생성 ───
 def generate_docx(project):
-    """기획개발보고서 DOCX 생성"""
+    """기획개발보고서 DOCX 생성 — BLUE JEANS 기획서 스타일"""
     from docx import Document
-    from docx.shared import Pt, Inches, RGBColor
+    from docx.shared import Pt, Inches, RGBColor, Cm, Emu
     from docx.enum.text import WD_ALIGN_PARAGRAPH
+    from docx.enum.table import WD_TABLE_ALIGNMENT
+    from docx.oxml.ns import qn, nsdecls
+    from docx.oxml import parse_xml
     import io
+
+    NAVY = RGBColor(0x19, 0x19, 0x70)
+    YELLOW = RGBColor(0xFF, 0xCB, 0x05)
+    DIM = RGBColor(0x88, 0x88, 0x99)
+    BLACK = RGBColor(0x1A, 0x1A, 0x2E)
+    WHITE = RGBColor(0xFF, 0xFF, 0xFF)
 
     doc = Document()
 
-    # 스타일 설정
+    # ── 기본 스타일 ──
     style = doc.styles['Normal']
     style.font.name = 'Pretendard'
     style.font.size = Pt(10)
+    style.font.color.rgb = BLACK
+    style.paragraph_format.line_spacing = 1.4
+    style.paragraph_format.space_after = Pt(4)
 
-    # ── Cover ──
-    doc.add_paragraph("")
-    doc.add_paragraph("")
-    title_p = doc.add_paragraph()
-    title_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    run = title_p.add_run("BLUE JEANS PICTURES")
-    run.font.size = Pt(12)
-    run.font.color.rgb = RGBColor(0xFF, 0xCB, 0x05)
+    # 페이지 여백
+    for section in doc.sections:
+        section.top_margin = Cm(2.5)
+        section.bottom_margin = Cm(2.5)
+        section.left_margin = Cm(2.8)
+        section.right_margin = Cm(2.8)
 
-    title_p2 = doc.add_paragraph()
-    title_p2.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    run2 = title_p2.add_run(f"기획개발보고서")
-    run2.font.size = Pt(24)
-    run2.font.bold = True
+    # ── 헬퍼 함수 ──
+    def add_yellow_header(kr_text, en_text=""):
+        """노란 하이라이트 섹션 헤더 (한글 + ENGLISH 병기)"""
+        p = doc.add_paragraph()
+        p.paragraph_format.space_before = Pt(18)
+        p.paragraph_format.space_after = Pt(10)
+        # 노란 배경 셰이딩
+        shading = parse_xml(f'<w:shd {nsdecls("w")} w:fill="FFCB05" w:val="clear"/>')
+        p.paragraph_format.element.get_or_add_pPr().append(shading)
+        # 한글
+        run_kr = p.add_run(f"  {kr_text}")
+        run_kr.font.size = Pt(13)
+        run_kr.font.bold = True
+        run_kr.font.color.rgb = NAVY
+        run_kr.font.name = 'Pretendard'
+        # ENGLISH
+        if en_text:
+            run_en = p.add_run(f"  {en_text}")
+            run_en.font.size = Pt(9)
+            run_en.font.bold = True
+            run_en.font.color.rgb = NAVY
+            run_en.font.name = 'Pretendard'
+        return p
 
-    title_p3 = doc.add_paragraph()
-    title_p3.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    run3 = title_p3.add_run(project.get("title", ""))
-    run3.font.size = Pt(18)
-    run3.font.bold = True
+    def add_sub_header(text):
+        """서브 헤더 (네이비 좌측 볼드)"""
+        p = doc.add_paragraph()
+        p.paragraph_format.space_before = Pt(12)
+        p.paragraph_format.space_after = Pt(6)
+        run = p.add_run(text)
+        run.font.size = Pt(11)
+        run.font.bold = True
+        run.font.color.rgb = NAVY
+        return p
 
-    meta_p = doc.add_paragraph()
-    meta_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    meta_p.add_run(f"{project.get('genre','')} · {project.get('target_market','')} · {project.get('format','')}")
+    def add_body(text, size=10):
+        """본문 텍스트"""
+        if not text:
+            return
+        p = doc.add_paragraph()
+        run = p.add_run(str(text))
+        run.font.size = Pt(size)
+        run.font.color.rgb = BLACK
+        p.paragraph_format.line_spacing = 1.5
+        return p
+
+    def add_labeled(label, text, bold_label=True):
+        """라벨 + 텍스트"""
+        if not text:
+            return
+        p = doc.add_paragraph()
+        p.paragraph_format.space_after = Pt(3)
+        run_l = p.add_run(f"[{label}]  ")
+        run_l.font.size = Pt(9)
+        run_l.font.bold = bold_label
+        run_l.font.color.rgb = NAVY
+        run_t = p.add_run(str(text))
+        run_t.font.size = Pt(10)
+        run_t.font.color.rgb = BLACK
+        return p
+
+    def add_quote(character, dialogue):
+        """캐릭터 대사 인용구"""
+        if not dialogue:
+            return
+        p = doc.add_paragraph()
+        p.paragraph_format.left_indent = Cm(1)
+        p.paragraph_format.space_before = Pt(6)
+        p.paragraph_format.space_after = Pt(6)
+        # 왼쪽 보더 효과: 인용부호로 대체
+        run = p.add_run(f'"{dialogue}"')
+        run.font.size = Pt(10)
+        run.font.italic = True
+        run.font.color.rgb = NAVY
+        if character:
+            run2 = p.add_run(f"\n— {character}")
+            run2.font.size = Pt(9)
+            run2.font.color.rgb = DIM
+
+    def add_spacer(height=6):
+        p = doc.add_paragraph()
+        p.paragraph_format.space_before = Pt(height)
+        p.paragraph_format.space_after = Pt(0)
+
+    # ═══════════════════════════════════
+    #  COVER PAGE
+    # ═══════════════════════════════════
+    add_spacer(60)
+
+    # "작품 기획안"
+    p0 = doc.add_paragraph()
+    p0.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    r0 = p0.add_run("작 품 기 획 안")
+    r0.font.size = Pt(11)
+    r0.font.color.rgb = DIM
+    r0.font.name = 'Pretendard'
+
+    add_spacer(12)
+
+    # 작품 제목 (대형)
+    title_text = project.get("title", "제목 없음")
+    p1 = doc.add_paragraph()
+    p1.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    r1 = p1.add_run(title_text)
+    r1.font.size = Pt(32)
+    r1.font.bold = True
+    r1.font.color.rgb = NAVY
+    r1.font.name = 'Pretendard'
+
+    # 장르 · 타겟 · 포맷
+    p2 = doc.add_paragraph()
+    p2.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    meta_text = f"{project.get('genre','')}  ·  {project.get('target_market','')}  ·  {project.get('format','')}"
+    r2 = p2.add_run(meta_text)
+    r2.font.size = Pt(10)
+    r2.font.color.rgb = DIM
+
+    add_spacer(40)
+
+    # 노란 구분선
+    p_line = doc.add_paragraph()
+    p_line.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    r_line = p_line.add_run("━" * 30)
+    r_line.font.size = Pt(10)
+    r_line.font.color.rgb = YELLOW
+
+    add_spacer(12)
+
+    # 로그라인 미리보기 (있으면)
+    core = project.get("core", {})
+    lp = core.get("logline_pack", {}) if core else {}
+    washed = lp.get("washed", "")
+    if washed:
+        p_log = doc.add_paragraph()
+        p_log.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        r_log = p_log.add_run(washed)
+        r_log.font.size = Pt(10)
+        r_log.font.italic = True
+        r_log.font.color.rgb = BLACK
+
+    add_spacer(50)
+
+    # 기획/제작 크레딧
+    p_credit = doc.add_paragraph()
+    p_credit.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    r_c1 = p_credit.add_run("기획 · 공동제작\n")
+    r_c1.font.size = Pt(9)
+    r_c1.font.color.rgb = DIM
+    r_c2 = p_credit.add_run("BLUE JEANS PICTURES")
+    r_c2.font.size = Pt(14)
+    r_c2.font.bold = True
+    r_c2.font.color.rgb = NAVY
+    r_c2.font.name = 'Pretendard'
 
     doc.add_page_break()
 
-    # Helper
-    def add_heading(text, level=1):
-        doc.add_heading(text, level=level)
-
-    def add_body(text):
-        if text:
-            doc.add_paragraph(text)
-
-    def add_labeled(label, text):
-        if text:
-            p = doc.add_paragraph()
-            run_l = p.add_run(f"[{label}] ")
-            run_l.bold = True
-            p.add_run(text)
-
-    # ── Core Build ──
-    core = project.get("core", {})
+    # ═══════════════════════════════════
+    #  SECTION 1: 로그라인 LOGLINE
+    # ═══════════════════════════════════
     if core:
-        # Logline
-        add_heading("Logline Pack", 1)
-        lp = core.get("logline_pack", {})
+        add_yellow_header("로그라인", "LOGLINE")
         for label, key in [("Original","original"),("Washed","washed"),("투자자용","investor"),("감독용","director"),("캐릭터 훅","character_hook")]:
-            add_labeled(label, lp.get(key, ""))
+            val = lp.get(key, "")
+            if val:
+                add_labeled(label, val)
 
-        # 기획의도
-        add_heading("기획의도", 1)
+        # ── 기획의도 KEY POINTS ──
+        add_yellow_header("기획의도", "KEY POINTS")
         pi = core.get("project_intent", {})
         add_labeled("소재", pi.get("subject", ""))
         add_labeled("장르", pi.get("genre_approach", ""))
@@ -1650,8 +1932,8 @@ def generate_docx(project):
         add_labeled("Pitch", pi.get("pitch", ""))
         add_labeled("Theme", pi.get("theme", ""))
 
-        # G/N/S
-        add_heading("Goal / Need / Strategy", 1)
+        # ── G/N/S ──
+        add_yellow_header("드라마 구조", "GOAL / NEED / STRATEGY")
         gns = core.get("goal_need_strategy", {})
         add_labeled("Goal", gns.get("goal", ""))
         add_labeled("Need", gns.get("need", ""))
@@ -1659,31 +1941,46 @@ def generate_docx(project):
         add_labeled("Risk", gns.get("risk", ""))
         add_labeled("Ending Payoff", gns.get("ending_payoff", ""))
 
-        # 세계관
-        add_heading("세계관", 1)
+        # ── 세계관 WORLD ──
+        add_yellow_header("세계관", "WORLD BUILDING")
         wb = core.get("world_build", {})
         for label, key in [("시간","time"),("공간","space"),("규칙","rules"),("금기","taboo"),("권력구조","power_structure")]:
             add_labeled(label, wb.get(key, ""))
 
-        # 캐릭터
-        add_heading("캐릭터", 1)
+        doc.add_page_break()
+
+        # ── 캐릭터 CHARACTER ──
+        add_yellow_header("캐릭터", "CHARACTER")
         role_labels = {"protagonist":"주인공","antagonist":"적대자","ally":"조력자","mirror":"거울"}
         for ch in core.get("characters", []):
             role = role_labels.get(ch.get("role",""), ch.get("role",""))
-            add_heading(f"{role}: {ch.get('name','')}", 2)
+            name = ch.get("name", "")
+
+            # 캐릭터 이름 헤더
+            add_sub_header(f"▎ {role}  ·  {name}")
+
             add_body(ch.get("description", ""))
             add_labeled("욕망", ch.get("goal", ""))
             add_labeled("결핍", ch.get("need", ch.get("flaw", "")))
             add_labeled("대사톤", ch.get("dialogue_tone", ""))
 
+            # 대사 인용구 (있으면)
+            key_dialogue = ch.get("key_dialogue", ch.get("signature_line", ""))
+            if key_dialogue:
+                add_quote(name, key_dialogue)
+
+            add_spacer(8)
+
     doc.add_page_break()
 
-    # ── Structure Build ──
+    # ═══════════════════════════════════
+    #  SECTION 2: 시놉시스 SYNOPSIS
+    # ═══════════════════════════════════
     story = project.get("structure_story", {})
     diag = project.get("structure_diag", {})
 
     if story:
-        add_heading("Synopsis 1P", 1)
+        add_yellow_header("시놉시스", "SYNOPSIS")
         syn = story.get("synopsis_1p", {})
         for label, key in [("시작","opening"),("촉발사건","catalyst"),("전개","development"),("미드포인트","midpoint"),("붕괴","collapse"),("결전","climax"),("결말","ending")]:
             add_labeled(label, syn.get(key, ""))
@@ -1691,96 +1988,234 @@ def generate_docx(project):
         # 줄글 시놉시스
         prose = project.get("structure_prose", {})
         if prose and prose.get("prose"):
-            add_heading("기승전결 시놉시스", 1)
+            add_spacer(6)
+            add_sub_header("기승전결 시놉시스")
             add_body(prose["prose"])
 
-        add_heading("스토리라인", 1)
+        doc.add_page_break()
+
+        # ── 스토리라인 STORYLINE ──
+        add_yellow_header("스토리라인", "STORYLINE")
         for seq in story.get("storyline", []):
-            add_heading(f"SEQ {seq.get('seq','')} · {seq.get('label','')}", 2)
+            seq_no = seq.get("seq", "")
+            label = seq.get("label", "")
+            add_sub_header(f"SEQ {seq_no}  ·  {label}")
             add_body(seq.get("summary", ""))
 
     if diag:
-        add_heading("3막 구조 진단", 1)
+        doc.add_page_break()
+
+        # ── 3막 구조 진단 ──
+        add_yellow_header("3막 구조 진단", "THREE-ACT STRUCTURE")
         ta = diag.get("three_act", {})
         for label, key in [("1막 끝","act1_end"),("미드포인트","act2_midpoint"),("All Is Lost","act2_end"),("클라이맥스","act3_climax")]:
             add_labeled(label, ta.get(key, ""))
 
-        add_heading("15-Beat Sheet", 1)
+        add_spacer(6)
+        add_sub_header("15-Beat Sheet")
         for bt in diag.get("beat_sheet", []):
-            add_labeled(bt.get("beat",""), f"[{bt.get('status','')}] {bt.get('note','')}")
+            beat = bt.get("beat", "")
+            status = bt.get("status", "")
+            note = bt.get("note", "")
+            status_mark = "✓" if status in ["있음","O","✓"] else "△" if status in ["약함","△"] else "✗"
+            add_labeled(beat, f"{status_mark} {note}")
 
     doc.add_page_break()
 
-    # ── Scene Design ──
+    # ═══════════════════════════════════
+    #  SECTION 3: 장면 설계 SCENE DESIGN
+    # ═══════════════════════════════════
     scene_design = project.get("scene_design", {})
     if scene_design:
-        add_heading("Scene Design (장면화)", 1)
+        add_yellow_header("장면 설계", "SCENE DESIGN")
         sms = scene_design.get("scene_map_summary", {})
         if sms.get("must_see_scenes"):
             add_labeled("Must-See 장면", sms["must_see_scenes"])
 
+        add_spacer(6)
+
         for sc in scene_design.get("key_scenes", []):
-            add_heading(f"S#{sc.get('scene_no','')} {sc.get('title','')}", 2)
+            scene_no = sc.get("scene_no", "")
+            title = sc.get("title", "")
+            add_sub_header(f"S#{scene_no}  {title}")
+
             add_labeled("장소", sc.get("location", ""))
             add_labeled("인물", sc.get("characters", ""))
             add_labeled("상황", sc.get("setup", ""))
-            add_labeled("행동(Show)", sc.get("dramatic_action", ""))
+            add_labeled("행동 (Show!)", sc.get("dramatic_action", ""))
+
             tp = sc.get("turning_point", "")
             if tp:
                 add_labeled("전환", tp)
             di = sc.get("dramatic_irony", "")
             if di:
                 add_labeled("극적 아이러니", di)
-            add_labeled("감정", sc.get("emotion_shift", ""))
-            add_labeled("연출", sc.get("visual_direction", ""))
+
+            add_labeled("감정 변화", sc.get("emotion_shift", ""))
+            add_labeled("시각 연출", sc.get("visual_direction", ""))
             add_labeled("판돈", sc.get("stakes", ""))
+
             kl = sc.get("key_line", "")
             if kl:
-                add_labeled("핵심 대사", kl)
+                # 핵심 대사는 인용구 스타일
+                char_name = ""
+                if ":" in kl:
+                    char_name, dialogue = kl.split(":", 1)
+                    add_quote(char_name.strip(), dialogue.strip())
+                else:
+                    add_quote("", kl)
 
-    doc.add_page_break()
+            add_spacer(4)
 
-    # ── Treatment (16비트 줄글) ──
+        doc.add_page_break()
+
+    # ═══════════════════════════════════
+    #  SECTION 4: 트리트먼트 TREATMENT
+    # ═══════════════════════════════════
     treatment = project.get("treatment", {})
     if treatment:
-        add_heading("Treatment", 1)
+        add_yellow_header("트리트먼트", "TREATMENT")
 
-        act_labels = {1: "1막 — 설정 (Set-up)", 2: "2막 — 대결 (Confrontation)", 3: "3막 — 해결 (Resolution)"}
+        p_info = doc.add_paragraph()
+        r_info = p_info.add_run("16비트 줄글 트리트먼트  ·  서술체 현재형  ·  대사 포함")
+        r_info.font.size = Pt(9)
+        r_info.font.color.rgb = DIM
+        r_info.font.italic = True
+
+        act_headers = {
+            1: ("1막 — 설정", "ACT 1: SET-UP"),
+            2: ("2막 — 대결", "ACT 2: CONFRONTATION"),
+            3: ("3막 — 해결", "ACT 3: RESOLUTION"),
+        }
+
         for act_num in [1, 2, 3]:
             act_data = treatment.get(f"act{act_num}")
             if act_data:
-                add_heading(act_labels[act_num], 2)
+                kr, en = act_headers[act_num]
+                add_spacer(10)
+                # 막 헤더 (네이비 배경)
+                p_act = doc.add_paragraph()
+                p_act.paragraph_format.space_before = Pt(14)
+                p_act.paragraph_format.space_after = Pt(8)
+                shading = parse_xml(f'<w:shd {nsdecls("w")} w:fill="191970" w:val="clear"/>')
+                p_act.paragraph_format.element.get_or_add_pPr().append(shading)
+                r_act = p_act.add_run(f"  {kr}  ·  {en}")
+                r_act.font.size = Pt(12)
+                r_act.font.bold = True
+                r_act.font.color.rgb = WHITE
 
                 for b in act_data.get("beats", []):
                     beat_no = b.get("beat_no", "")
                     beat_name = b.get("beat_name", "")
                     narrative = b.get("narrative", "")
 
-                    add_heading(f"Beat {beat_no}. {beat_name}", 3)
-                    add_body(narrative)
+                    # 비트 번호 + 이름
+                    p_beat = doc.add_paragraph()
+                    p_beat.paragraph_format.space_before = Pt(12)
+                    p_beat.paragraph_format.space_after = Pt(4)
+                    r_num = p_beat.add_run(f"Beat {beat_no}")
+                    r_num.font.size = Pt(10)
+                    r_num.font.bold = True
+                    r_num.font.color.rgb = YELLOW
+                    r_name = p_beat.add_run(f"  {beat_name}")
+                    r_name.font.size = Pt(10)
+                    r_name.font.bold = True
+                    r_name.font.color.rgb = NAVY
 
-                doc.add_paragraph("")
+                    # 줄글 narrative
+                    if narrative:
+                        p_n = doc.add_paragraph()
+                        p_n.paragraph_format.line_spacing = 1.6
+                        p_n.paragraph_format.first_line_indent = Cm(0.5)
+                        r_n = p_n.add_run(narrative)
+                        r_n.font.size = Pt(10)
+                        r_n.font.color.rgb = BLACK
 
+        # 투자자용 요약
         meta = treatment.get("meta", {})
         if meta.get("investor_summary"):
-            add_heading("투자자용 요약", 2)
+            doc.add_page_break()
+            add_yellow_header("투자자용 요약", "INVESTOR SUMMARY")
             add_body(meta["investor_summary"])
 
-    # ── 점수 ──
-    add_heading("Development Fit Score", 1)
+        # 감독 포인트
+        if meta.get("director_notes"):
+            add_spacer(8)
+            add_sub_header("감독 포인트")
+            for i, note in enumerate(meta["director_notes"], 1):
+                add_labeled(f"Point {i}", note)
+
+    doc.add_page_break()
+
+    # ═══════════════════════════════════
+    #  SECTION 5: 점수 DEVELOPMENT SCORE
+    # ═══════════════════════════════════
+    add_yellow_header("개발 적합도", "DEVELOPMENT FIT SCORE")
+
     cg = project.get("core_gate", {})
     fa = cg.get("five_axis_scores", {})
     if fa:
-        add_labeled("Final Score", str(fa.get("final_score", "")))
-        add_labeled("Verdict", fa.get("verdict", ""))
+        final = fa.get("final_score", "")
+        verdict = fa.get("verdict", "")
 
-    # Footer
+        # 큰 점수
+        p_score = doc.add_paragraph()
+        p_score.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        p_score.paragraph_format.space_before = Pt(12)
+        r_score = p_score.add_run(str(final))
+        r_score.font.size = Pt(36)
+        r_score.font.bold = True
+        r_score.font.color.rgb = NAVY
+
+        p_verdict = doc.add_paragraph()
+        p_verdict.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        r_v = p_verdict.add_run(str(verdict))
+        r_v.font.size = Pt(11)
+        r_v.font.color.rgb = DIM
+
+        # 5축 상세 (테이블)
+        axes = ["originality","market_fit","character","structure","theme"]
+        axis_kr = {"originality":"독창성","market_fit":"시장성","character":"캐릭터","structure":"구조","theme":"테마"}
+        scores_exist = any(fa.get(a) for a in axes)
+        if scores_exist:
+            add_spacer(8)
+            table = doc.add_table(rows=1, cols=3)
+            table.alignment = WD_TABLE_ALIGNMENT.CENTER
+            hdr = table.rows[0].cells
+            for i, text in enumerate(["항목", "점수", "상태"]):
+                hdr[i].text = text
+                for p in hdr[i].paragraphs:
+                    for r in p.runs:
+                        r.font.bold = True
+                        r.font.size = Pt(9)
+                        r.font.color.rgb = NAVY
+            for a in axes:
+                sc = fa.get(a, "")
+                if sc:
+                    row = table.add_row().cells
+                    row[0].text = axis_kr.get(a, a)
+                    row[1].text = str(sc)
+                    sc_val = float(sc) if sc else 0
+                    row[2].text = "●" if sc_val >= 7 else "◐" if sc_val >= 5 else "○"
+
+    # ═══════════════════════════════════
+    #  FOOTER
+    # ═══════════════════════════════════
     doc.add_paragraph("")
+    p_line2 = doc.add_paragraph()
+    p_line2.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    r_line2 = p_line2.add_run("━" * 20)
+    r_line2.font.size = Pt(8)
+    r_line2.font.color.rgb = YELLOW
+
     footer = doc.add_paragraph()
     footer.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    run_f = footer.add_run("© 2026 BLUE JEANS PICTURES · Creator Engine v1.2")
-    run_f.font.size = Pt(8)
-    run_f.font.color.rgb = RGBColor(0x88, 0x88, 0x88)
+    r_f1 = footer.add_run("© 2026 BLUE JEANS PICTURES\n")
+    r_f1.font.size = Pt(8)
+    r_f1.font.color.rgb = DIM
+    r_f2 = footer.add_run("Creator Engine v1.2")
+    r_f2.font.size = Pt(7)
+    r_f2.font.color.rgb = DIM
 
     # Save to buffer
     buffer = io.BytesIO()
@@ -1996,7 +2431,7 @@ elif st.session_state.view == "project" and st.session_state.cur:
     # ═══════════════════════════════════════
     # STEP 1: 리서치 (선택)
     # ═══════════════════════════════════════
-    st.markdown("### 🔍 리서치")
+    st.markdown('<div class="section-header">🔍 리서치 <span class="en">RESEARCH</span></div>', unsafe_allow_html=True)
     st.caption("실화/뉴스 + 기존 작품 정보 검색. 건너뛰어도 됩니다.")
 
     if st.button("🔍 리서치 실행"):
@@ -2069,7 +2504,7 @@ elif st.session_state.view == "project" and st.session_state.cur:
     # ═══════════════════════════════════════
     # STEP 2: Brainstorm (2단계 분할 호출)
     # ═══════════════════════════════════════
-    st.markdown("### 🧠 Brainstorm")
+    st.markdown('<div class="section-header">🧠 Brainstorm <span class="en">CONCEPT IDEATION</span></div>', unsafe_allow_html=True)
 
     if st.button("🧠 Brainstorm 실행", type="primary"):
 
@@ -2417,7 +2852,7 @@ elif st.session_state.view == "core" and st.session_state.cur:
 
     st.markdown("---")
 
-    st.markdown("### 🎯 Core Build 실행")
+    st.markdown('<div class="section-header">🎯 Core Build <span class="en">CORE DEVELOPMENT</span></div>', unsafe_allow_html=True)
     st.caption("로그라인 · 기획의도 · 세계관 · 캐릭터 · Goal/Need/Strategy를 고정합니다.")
 
     if st.button("🎯 Core Build 실행", type="primary"):
@@ -2639,7 +3074,7 @@ elif st.session_state.view == "structure" and st.session_state.cur:
         c3.markdown(f'<div class="callout"><div class="cl">STRATEGY</div>{gns.get("strategy","")}</div>', unsafe_allow_html=True)
 
     st.markdown("---")
-    st.markdown("### 🏗️ Structure Build 실행")
+    st.markdown('<div class="section-header">🏗️ Structure Build <span class="en">STORY STRUCTURE</span></div>', unsafe_allow_html=True)
     st.caption("시놉시스 · 스토리라인 · 3막 구조 · 15비트 · 캐릭터 변화표를 설계합니다.")
 
     if st.button("🏗️ Structure Build 실행", type="primary"):
@@ -2828,7 +3263,7 @@ elif st.session_state.view == "scene_design" and st.session_state.cur:
         st.markdown(f'<div class="callout"><div class="cl">Logline</div>{lp["washed"]}</div>', unsafe_allow_html=True)
 
     st.markdown("---")
-    st.markdown("### 🎬 Scene Design (장면화)")
+    st.markdown('<div class="section-header">🎬 Scene Design <span class="en">SCENE DESIGN</span></div>', unsafe_allow_html=True)
     st.caption("Show, don't tell — 핵심 장면의 극적 행동 · 반전 · 시각 연출을 설계합니다.")
 
     if st.button("🎬 Scene Design 실행", type="primary"):
@@ -2929,7 +3364,7 @@ elif st.session_state.view == "treatment" and st.session_state.cur:
         st.markdown(f'<div class="callout"><div class="cl">Logline</div>{lp["washed"]}</div>', unsafe_allow_html=True)
 
     st.markdown("---")
-    st.markdown("### 📝 Treatment Build 실행")
+    st.markdown('<div class="section-header">📝 Treatment Build <span class="en">16-BEAT TREATMENT</span></div>', unsafe_allow_html=True)
     st.caption("16비트 구조 × 줄글 트리트먼트. 1막(6비트) + 2막(6비트) + 3막(4비트) = 약 40~50페이지")
 
     scene_data = project.get("scene_design", {})
