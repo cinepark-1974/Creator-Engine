@@ -161,18 +161,18 @@ section[data-testid="stSidebar"] {
     color: var(--dim);
 }
 .step-label {
-    font-size: 0.65rem;
+    font-size: 0.6rem;
     margin-top: 0.2rem;
     text-align: center;
-    width: 70px;
+    width: 55px;
 }
 .step-label.active { color: var(--y); font-weight: 600; }
 .step-label.done { color: var(--g); }
 .step-label.upcoming { color: var(--dim); }
 .step-line {
-    width: 40px;
+    width: 25px;
     height: 2px;
-    margin: 0 2px;
+    margin: 0 1px;
     flex-shrink: 0;
 }
 .step-line.done { background: var(--g); }
@@ -199,6 +199,7 @@ defaults = {
     "last_structure_story_raw": "",
     "last_structure_diag_raw": "",
     "last_structure_gate_raw": "",
+    "last_scene_design_raw": "",
     "last_treatment_raw": "",
     "last_error": "",
 }
@@ -213,23 +214,23 @@ STEPS = [
     ("project", "Brainstorm"),
     ("core", "Core"),
     ("structure", "Structure"),
+    ("scene_design", "Scene"),
     ("treatment", "Treatment"),
     ("export", "Export"),
 ]
 
 def render_stepper(current_view, project_data=None):
     """상단 단계 표시 바"""
-    # 현재 단계 인덱스 결정
     view_to_step = {
         "project": 1 if project_data and project_data.get("brainstorm_cards") else 0,
         "core": 2,
         "structure": 3,
-        "treatment": 4,
-        "export": 5,
+        "scene_design": 4,
+        "treatment": 5,
+        "export": 6,
     }
     current_idx = view_to_step.get(current_view, 0)
 
-    # 완료된 단계 결정
     done_idx = -1
     if project_data:
         if project_data.get("brainstorm_cards"):
@@ -237,13 +238,15 @@ def render_stepper(current_view, project_data=None):
         if project_data.get("brainstorm_analysis"):
             ga = project_data["brainstorm_analysis"].get("gate_a_scores", {})
             if ga.get("average", 0) >= 7.0:
-                done_idx = 1  # Gate A 통과
+                done_idx = 1
         if project_data.get("core"):
             done_idx = 2
         if project_data.get("structure_story"):
             done_idx = 3
-        if project_data.get("treatment"):
+        if project_data.get("scene_design"):
             done_idx = 4
+        if project_data.get("treatment"):
+            done_idx = 5
 
     html_parts = []
     for i, (view_key, label) in enumerate(STEPS):
@@ -1143,6 +1146,105 @@ Goal: {gns.get("goal","")} / Need: {gns.get("need","")} / Strategy: {gns.get("st
         return None
 
 
+# ─── API Call: Scene Design (장면화) ───
+def call_scene_design(core_data, story_data, diag_data, genre, fmt):
+    """Scene Design: 핵심 장면 15~18개 설계 (Show, don't tell)"""
+    try:
+        client = get_client()
+        gns = core_data.get("goal_need_strategy", {})
+        lp = core_data.get("logline_pack", {})
+        chars = core_data.get("characters", [])
+        storyline = story_data.get("storyline", [])
+
+        system_prompt = """당신은 헐리우드 최고 수준의 Scene Architect다.
+Structure Build 결과를 기반으로 핵심 장면(Key Scene)을 설계한다.
+'Show, don't tell' 원칙을 따른다.
+모든 장면은 설명이 아닌 행동, 선택, 반전으로 드라마를 구현해야 한다.
+
+중요 규칙:
+- 유효한 단일 JSON만 출력. JSON 외 텍스트 금지.
+- 후행 쉼표 금지. 문자열 줄바꿈 대신 공백.
+- 한국어 작성. 전문용어 한글(English) 병기.
+- 각 필드 1~2문장, 40자 이내.
+"""
+
+        chars_simple = json.dumps(
+            [{"name": c.get("name",""), "role": c.get("role","")} for c in chars],
+            ensure_ascii=False
+        )
+        storyline_json = json.dumps(storyline, ensure_ascii=False)
+
+        user_prompt = f"""[Core]
+로그라인: {lp.get("washed","")}
+Goal: {gns.get("goal","")} / Need: {gns.get("need","")} / Strategy: {gns.get("strategy","")}
+캐릭터: {chars_simple}
+
+[Storyline]
+{storyline_json}
+
+[JSON 스키마]
+{{
+  "key_scenes": [
+    {{
+      "scene_no": 1,
+      "sequence": "소속 시퀀스 라벨",
+      "title": "장면 제목 (10자 이내)",
+      "location": "장소",
+      "characters": "등장 인물",
+      "setup": "장면 시작 상황 1문장",
+      "dramatic_action": "핵심 행동/선택/대결 1문장 — Show, don't tell",
+      "turning_point": "반전 또는 전환 1문장 (없으면 빈 문자열)",
+      "emotion_shift": "감정 변화 (시작감정 → 끝감정)",
+      "visual_direction": "시각적 연출 방향 1문장",
+      "stakes": "판돈 — 실패하면 잃는 것 1문장",
+      "dramatic_irony": "관객은 알지만 인물은 모르는 것 1문장 (없으면 빈 문자열)",
+      "key_line": "이 장면을 정의하는 핵심 대사 한 마디 (캐릭터명: 대사)",
+      "connection": "다음 장면 연결 에너지 1문장"
+    }}
+  ],
+  "scene_map_summary": {{
+    "total_scenes": 0,
+    "act1_scenes": "1막 장면 번호 목록",
+    "act2a_scenes": "2막 전반 장면 번호 목록",
+    "act2b_scenes": "2막 후반 장면 번호 목록",
+    "act3_scenes": "3막 장면 번호 목록",
+    "must_see_scenes": "반드시 살려야 할 핵심 3장면 번호"
+  }}
+}}
+
+규칙:
+- key_scenes는 15~18개
+- dramatic_action이 핵심. 인물이 무엇을 '하는지'를 쓸 것
+- turning_point 있는 장면과 없는 장면이 자연스럽게 섞일 것
+- dramatic_irony는 해당 장면에 극적 아이러니가 있을 때만 작성. 없으면 빈 문자열
+- key_line은 이 장면 전체를 압축하는 대사 한 마디. 반드시 '캐릭터명: 대사' 형식
+- visual_direction은 촬영 감독 전달 수준으로
+"""
+
+        response = client.messages.create(
+            model=ANTHROPIC_MODEL, max_tokens=6000, temperature=0.3,
+            system=system_prompt,
+            messages=[{"role": "user", "content": user_prompt}]
+        )
+        if response.stop_reason == "max_tokens":
+            retry = user_prompt.replace("15~18개", "12~15개")
+            response = client.messages.create(
+                model=ANTHROPIC_MODEL, max_tokens=8000, temperature=0.3,
+                system=system_prompt,
+                messages=[{"role": "user", "content": retry}]
+            )
+        txt = "".join(b.text for b in response.content if hasattr(b, "text")).strip()
+        st.session_state["last_scene_design_raw"] = txt
+        return safe_json_loads(txt)
+    except Exception as e:
+        st.error(f"Scene Design 실패: {e}")
+        raw = st.session_state.get("last_scene_design_raw", "")
+        if raw:
+            with st.expander("🔧 Scene Design Raw (디버그)"):
+                st.text_area("Raw", raw, height=400)
+        return None
+
+
 # ─── API Call: Treatment Build ───
 def call_treatment_build(core_data, story_data, diag_data, genre, fmt):
     """Treatment Build: 시퀀스별 트리트먼트 서술"""
@@ -1396,6 +1498,35 @@ def generate_docx(project):
 
     doc.add_page_break()
 
+    # ── Scene Design ──
+    scene_design = project.get("scene_design", {})
+    if scene_design:
+        add_heading("Scene Design (장면화)", 1)
+        sms = scene_design.get("scene_map_summary", {})
+        if sms.get("must_see_scenes"):
+            add_labeled("Must-See 장면", sms["must_see_scenes"])
+
+        for sc in scene_design.get("key_scenes", []):
+            add_heading(f"S#{sc.get('scene_no','')} {sc.get('title','')}", 2)
+            add_labeled("장소", sc.get("location", ""))
+            add_labeled("인물", sc.get("characters", ""))
+            add_labeled("상황", sc.get("setup", ""))
+            add_labeled("행동(Show)", sc.get("dramatic_action", ""))
+            tp = sc.get("turning_point", "")
+            if tp:
+                add_labeled("전환", tp)
+            di = sc.get("dramatic_irony", "")
+            if di:
+                add_labeled("극적 아이러니", di)
+            add_labeled("감정", sc.get("emotion_shift", ""))
+            add_labeled("연출", sc.get("visual_direction", ""))
+            add_labeled("판돈", sc.get("stakes", ""))
+            kl = sc.get("key_line", "")
+            if kl:
+                add_labeled("핵심 대사", kl)
+
+    doc.add_page_break()
+
     # ── Treatment ──
     treatment = project.get("treatment", {})
     if treatment:
@@ -1443,8 +1574,18 @@ st.markdown(
 )
 
 # ─── 뒤로가기 ───
-if st.session_state.view in ("project", "core", "structure", "treatment") and st.session_state.cur:
+if st.session_state.view in ("project", "core", "structure", "scene_design", "treatment") and st.session_state.cur:
     if st.session_state.view == "treatment":
+        col_nav1, col_nav2 = st.columns(2)
+        with col_nav1:
+            if st.button("← 프로젝트 목록"):
+                st.session_state.view = "home"
+                st.rerun()
+        with col_nav2:
+            if st.button("← Scene Design"):
+                st.session_state.view = "scene_design"
+                st.rerun()
+    elif st.session_state.view == "scene_design":
         col_nav1, col_nav2 = st.columns(2)
         with col_nav1:
             if st.button("← 프로젝트 목록"):
@@ -1554,6 +1695,7 @@ if st.session_state.view == "home":
                 "structure_diag": None,
                 "structure_gate": None,
                 "structure_prose": None,
+                "scene_design": None,
                 "treatment": None,
                 "treatment_gate": None,
                 "final_score": None,
@@ -2390,16 +2532,16 @@ elif st.session_state.view == "structure" and st.session_state.cur:
             st.caption(gd["feedback"])
 
         if gd_ok:
-            st.success("✅ Gate D 통과. Treatment Build 진행 가능.")
-            if st.button("📝 Treatment Build 진행 →", type="primary", use_container_width=True):
-                st.session_state.view = "treatment"
+            st.success("✅ Gate D 통과. Scene Design 진행 가능.")
+            if st.button("🎬 Scene Design 진행 →", type="primary", use_container_width=True):
+                st.session_state.view = "scene_design"
                 st.rerun()
         else:
             st.warning(f"⚠️ Gate D 미통과 (평균 {gd_avg}).")
             col_sd1, col_sd2 = st.columns(2)
             with col_sd1:
-                if st.button("🔓 Override → Treatment Build"):
-                    st.session_state.view = "treatment"
+                if st.button("🔓 Override → Scene Design"):
+                    st.session_state.view = "scene_design"
                     st.rerun()
             with col_sd2:
                 if st.button("🔄 Structure 재실행"):
@@ -2423,6 +2565,119 @@ elif st.session_state.view == "structure" and st.session_state.cur:
 
     elif not project.get("structure_story"):
         st.markdown('<div style="text-align:center;padding:3rem 0;color:var(--dim)">🏗️ Structure Build를 실행하면 여기에 결과가 표시됩니다.</div>', unsafe_allow_html=True)
+
+    st.markdown("---")
+    st.caption("© 2026 BLUE JEANS PICTURES · Creator Engine v1.2")
+
+
+# ═══════════════════════════════════════════════════
+#  SCENE DESIGN (장면화)
+# ═══════════════════════════════════════════════════
+elif st.session_state.view == "scene_design" and st.session_state.cur:
+
+    project = st.session_state.projects[st.session_state.cur]
+    core = project.get("core", {})
+    story = project.get("structure_story", {})
+    diag = project.get("structure_diag", {})
+
+    st.markdown(f"## {project['title']}")
+    st.caption(f"{project['genre']} · {project['target_market']} · {project['format']}")
+    render_stepper("scene_design", project)
+
+    gns = core.get("goal_need_strategy", {})
+    lp = core.get("logline_pack", {})
+    if lp.get("washed"):
+        st.markdown(f'<div class="callout"><div class="cl">Logline</div>{lp["washed"]}</div>', unsafe_allow_html=True)
+
+    st.markdown("---")
+    st.markdown("### 🎬 Scene Design (장면화)")
+    st.caption("Show, don't tell — 핵심 장면의 극적 행동 · 반전 · 시각 연출을 설계합니다.")
+
+    if st.button("🎬 Scene Design 실행", type="primary"):
+        if not story:
+            st.error("Structure Build가 없습니다.")
+        else:
+            with st.spinner("핵심 장면 설계 중... (약 30~40초)"):
+                sd = call_scene_design(core, story, diag, project["genre"], project["format"])
+            if sd:
+                project["scene_design"] = sd
+                project["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
+                st.rerun()
+
+    # ── Scene Design 결과 표시 ──
+    if project.get("scene_design"):
+        sd = project["scene_design"]
+        scenes = sd.get("key_scenes", [])
+        sms = sd.get("scene_map_summary", {})
+
+        # 장면 맵 요약
+        if sms:
+            st.markdown("#### 🗺️ Scene Map")
+            c1, c2, c3, c4 = st.columns(4)
+            c1.markdown(f'<div class="callout"><div class="cl">1막</div>{sms.get("act1_scenes","")}</div>', unsafe_allow_html=True)
+            c2.markdown(f'<div class="callout"><div class="cl">2막 전반</div>{sms.get("act2a_scenes","")}</div>', unsafe_allow_html=True)
+            c3.markdown(f'<div class="callout"><div class="cl">2막 후반</div>{sms.get("act2b_scenes","")}</div>', unsafe_allow_html=True)
+            c4.markdown(f'<div class="callout"><div class="cl">3막</div>{sms.get("act3_scenes","")}</div>', unsafe_allow_html=True)
+
+            if sms.get("must_see_scenes"):
+                st.markdown(f'<div class="callout" style="border-left-color:var(--y)"><div class="cl">⭐ Must-See 장면</div>{sms["must_see_scenes"]}</div>', unsafe_allow_html=True)
+
+        # 핵심 장면 카드
+        st.markdown(f"#### 🎬 핵심 장면 ({len(scenes)}개)")
+        for sc in scenes:
+            tp = sc.get("turning_point", "")
+            tp_html = f'<br>🔄 <b>전환:</b> {tp}' if tp else ""
+            di = sc.get("dramatic_irony", "")
+            di_html = f'<br>👁️ <b>아이러니:</b> <i>{di}</i>' if di else ""
+            kl = sc.get("key_line", "")
+            kl_html = f'<br><span style="color:var(--y);font-weight:600">💬 "{kl}"</span>' if kl else ""
+            st.markdown(
+                f'<div class="card">'
+                f'<div class="cl">S#{sc.get("scene_no","")} · {sc.get("sequence","")} · {sc.get("location","")}</div>'
+                f'<b>{sc.get("title","")}</b> — {sc.get("characters","")}<br>'
+                f'<span style="font-size:.85rem">'
+                f'📍 {sc.get("setup","")}<br>'
+                f'🎭 <b>행동:</b> {sc.get("dramatic_action","")}'
+                f'{tp_html}'
+                f'{di_html}<br>'
+                f'💭 {sc.get("emotion_shift","")}<br>'
+                f'🎥 {sc.get("visual_direction","")}<br>'
+                f'⚡ 판돈: {sc.get("stakes","")}'
+                f'{kl_html}<br>'
+                f'→ {sc.get("connection","")}'
+                f'</span></div>',
+                unsafe_allow_html=True
+            )
+
+        st.markdown("---")
+
+        # Treatment 진행
+        st.success("✅ Scene Design 완료. Treatment Build 진행 가능.")
+        if st.button("📝 Treatment Build 진행 →", type="primary", use_container_width=True):
+            st.session_state.view = "treatment"
+            st.rerun()
+
+        # DOCX 다운로드
+        st.markdown("---")
+        st.markdown("#### 📥 기획개발보고서 다운로드")
+        title_safe = project.get("title", "프로젝트").replace(" ", "_")
+        docx_buffer = generate_docx(project)
+        st.download_button(
+            label="📥 기획개발보고서 다운로드 (.docx)",
+            data=docx_buffer,
+            file_name=f"기획개발보고서_{title_safe}_Blue.docx",
+            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            use_container_width=True
+        )
+
+    else:
+        st.markdown(
+            '<div style="text-align:center;padding:3rem 0;color:var(--dim)">'
+            '🎬 Scene Design을 실행하면 여기에 핵심 장면이 표시됩니다.<br>'
+            'Show, don\'t tell — 행동 · 반전 · 시각 연출'
+            '</div>',
+            unsafe_allow_html=True
+        )
 
     st.markdown("---")
     st.caption("© 2026 BLUE JEANS PICTURES · Creator Engine v1.2")
