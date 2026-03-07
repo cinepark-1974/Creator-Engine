@@ -23,7 +23,7 @@ st.set_page_config(
 st.markdown("""
 <style>
 @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
-@import url('https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@600;700;900&display=swap');
+@import url('https://cdn.jsdelivr.net/gh/projectnoonnu/2408-3@latest/Paperlogy.css');
 @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&display=swap');
 
 :root {
@@ -37,9 +37,10 @@ st.markdown("""
     --g: #2EC484;
     --dim: #8E8E99;
     --light-bg: #EEEEF6;
-    --serif: 'Noto Serif KR', 'Georgia', serif;
-    --display: 'Playfair Display', 'Noto Serif KR', 'Georgia', serif;
+    --serif: 'Paperlogy', 'Noto Serif KR', 'Georgia', serif;
+    --display: 'Playfair Display', 'Paperlogy', 'Georgia', serif;
     --body: 'Pretendard', -apple-system, sans-serif;
+    --heading: 'Paperlogy', 'Pretendard', sans-serif;
 }
 
 /* ── 기본 타이포 ── */
@@ -59,7 +60,7 @@ html, body, [class*="css"] {
 .stMarkdown, .stText, .stCode {
     color: var(--t) !important;
 }
-h1, h2, h3, h4, h5, h6 { color: var(--navy) !important; }
+h1, h2, h3, h4, h5, h6 { color: var(--navy) !important; font-family: var(--heading) !important; }
 p, span, label, div, li { color: inherit; }
 
 /* ── 사이드바 숨김 ── */
@@ -175,7 +176,7 @@ details[open] > div { background-color: var(--card) !important; }
     color: var(--navy);
     letter-spacing: 0.15em;
     margin-bottom: 0;
-    font-family: var(--body);
+    font-family: var(--heading);
 }
 
 .brand-title {
@@ -266,7 +267,7 @@ details[open] > div { background-color: var(--card) !important; }
     font-weight: 900;
     color: var(--navy);
     text-align: center;
-    font-family: var(--display);
+    font-family: var(--heading);
 }
 .sm {
     font-size: 0.7rem;
@@ -295,7 +296,7 @@ details[open] > div { background-color: var(--card) !important; }
     border-radius: 6px;
     font-weight: 800;
     font-size: 1rem;
-    font-family: var(--serif);
+    font-family: var(--heading);
     margin: 1.5rem 0 0.8rem 0;
     display: flex;
     justify-content: space-between;
@@ -391,7 +392,7 @@ details[open] > div { background-color: var(--card) !important; }
 
 # ─── Session State ───
 defaults = {
-    "view": "home",         # home | project | core | structure | treatment | export
+    "view": "home",         # home | project | core | char_bible | structure | scene_design | treatment | tone_doc | export
     "projects": {},
     "cur": None,
     "last_research_raw": "",
@@ -399,6 +400,7 @@ defaults = {
     "last_analysis_raw": "",
     "last_core_raw": "",
     "last_gate_raw": "",
+    "last_char_bible_raw": "",
     "last_structure_story_raw": "",
     "last_structure_diag_raw": "",
     "last_structure_gate_raw": "",
@@ -406,6 +408,7 @@ defaults = {
     "last_treatment_act1_raw": "",
     "last_treatment_act2_raw": "",
     "last_treatment_act3_raw": "",
+    "last_tone_doc_raw": "",
     "last_error": "",
 }
 for k, v in defaults.items():
@@ -413,14 +416,16 @@ for k, v in defaults.items():
         st.session_state[k] = v
 
 
-# ─── Stepper ───
+# ─── Stepper (9단계) ───
 STEPS = [
     ("project", "아이디어"),
     ("project", "Brainstorm"),
     ("core", "Core"),
+    ("char_bible", "Bible"),
     ("structure", "Structure"),
     ("scene_design", "Scene"),
     ("treatment", "Treatment"),
+    ("tone_doc", "Tone"),
     ("export", "Export"),
 ]
 
@@ -429,10 +434,12 @@ def render_stepper(current_view, project_data=None):
     view_to_step = {
         "project": 1 if project_data and project_data.get("brainstorm_cards") else 0,
         "core": 2,
-        "structure": 3,
-        "scene_design": 4,
-        "treatment": 5,
-        "export": 6,
+        "char_bible": 3,
+        "structure": 4,
+        "scene_design": 5,
+        "treatment": 6,
+        "tone_doc": 7,
+        "export": 8,
     }
     current_idx = view_to_step.get(current_view, 0)
 
@@ -446,12 +453,16 @@ def render_stepper(current_view, project_data=None):
                 done_idx = 1
         if project_data.get("core"):
             done_idx = 2
-        if project_data.get("structure_story"):
+        if project_data.get("char_bible"):
             done_idx = 3
-        if project_data.get("scene_design"):
+        if project_data.get("structure_story"):
             done_idx = 4
-        if project_data.get("treatment"):
+        if project_data.get("scene_design"):
             done_idx = 5
+        if project_data.get("treatment"):
+            done_idx = 6
+        if project_data.get("tone_doc"):
+            done_idx = 7
 
     html_parts = []
     for i, (view_key, label) in enumerate(STEPS):
@@ -1148,6 +1159,119 @@ Core Build 결과를 기반으로 Gate B (Drive Gate)와 Gate C (Character Gate)
         return None
 
 
+# ─── API Call: Character Bible ───
+def call_character_bible(core_data, genre, fmt):
+    """캐릭터 바이블 — 헐리우드 수준 캐릭터 설계서"""
+    try:
+        client = get_client()
+        chars = core_data.get("characters", [])
+        gns = core_data.get("goal_need_strategy", {})
+        lp = core_data.get("logline_pack", {})
+        wb = core_data.get("world_build", {})
+
+        chars_json = json.dumps(chars, ensure_ascii=False)
+        gns_json = json.dumps(gns, ensure_ascii=False)
+        wb_json = json.dumps(wb, ensure_ascii=False)
+
+        system_prompt = f"""당신은 헐리우드 A-list 캐릭터 디자이너이자 심리학 전문가다.
+Core Build에서 만든 기본 캐릭터를 '캐릭터 바이블' 수준으로 확장한다.
+
+[목표]
+Writer Engine(시나리오 생성 AI)이 80~120씬 동안 일관된 인물을 쓸 수 있도록,
+각 인물의 내면·외형·말투·관계·변화를 정밀하게 설계한다.
+
+[작성 원칙]
+1. 백스토리는 현재 행동의 원인이 되어야 한다.
+2. 비밀(secret)은 플롯의 전환점이 될 수 있어야 한다.
+3. 말투(speech_pattern)는 구체적 규칙으로 — '거칠다' 같은 추상어 금지.
+4. 대사 샘플(sample_lines)은 실제 시나리오에 바로 넣을 수 있는 수준.
+5. 관계별 태도(relationship_attitudes)는 상대에 따라 달라지는 행동을 명시.
+6. 변화 궤적(arc_detail)은 1막/미드포인트/클라이맥스 3단계로 구체적.
+7. 장르: {genre} / 포맷: {fmt}
+
+[출력 규칙]
+- 유효한 단일 JSON만 출력. JSON 외 텍스트 금지.
+- 후행 쉼표 금지. 한국어 작성.
+- 대사 샘플 안의 따옴표는 작은따옴표('')만 사용.
+- 문자열 안에 쌍따옴표(") 사용 절대 금지."""
+
+        user_prompt = f"""[기본 캐릭터]
+{chars_json}
+
+[작품 Goal/Need/Strategy]
+{gns_json}
+
+[세계관]
+{wb_json}
+
+[로그라인]
+{lp.get("washed","")}
+
+[JSON 스키마]
+{{
+  "characters": [
+    {{
+      "role": "protagonist / antagonist / ally / mirror",
+      "name": "이름",
+      "age": "나이",
+      "appearance": "외형·첫인상 2~3문장",
+      "occupation": "직업/사회적 위치",
+      "goal": "이 인물의 욕망 (Core에서 가져와 확장)",
+      "need": "진짜 결핍 (본인은 모르는 것)",
+      "flaw": "치명적 결점",
+      "backstory": "과거사 5문장 — 왜 지금 이런 사람인가",
+      "secret": "비밀 1개 — 이것이 밝혀지면 플롯이 바뀐다",
+      "belief": "핵심 신념 — 절대 양보 못하는 가치",
+      "fear": "가장 두려워하는 것",
+      "habits": ["반복되는 행동 패턴 3개"],
+      "speech_pattern": [
+        "말투 규칙 1: 예) 문장을 끝까지 안 한다. 항상 중간에 끊는다",
+        "말투 규칙 2: 예) 감정적일 때 단어 1~2개로만 대답한다",
+        "말투 규칙 3: 예) 상대를 이름 대신 직함으로 부른다"
+      ],
+      "sample_lines": {{
+        "normal": "평상시 대사 예시",
+        "angry": "분노 시 대사 예시",
+        "vulnerable": "취약한 순간 대사 예시"
+      }},
+      "relationship_attitudes": [
+        "→ 캐릭터B: 관계 + 태도 변화",
+        "→ 캐릭터C: 관계 + 태도 변화"
+      ],
+      "arc_detail": {{
+        "act1_end": "1막 끝 상태 1~2문장",
+        "midpoint": "미드포인트 상태 1~2문장",
+        "climax": "클라이맥스 상태 1~2문장"
+      }},
+      "strategy": "행동 방식",
+      "dialogue_tone": "대사톤 키워드 3개"
+    }}
+  ]
+}}
+
+규칙:
+- characters는 정확히 {len(chars)}명 (Core Build과 동일).
+- 각 인물의 backstory는 반드시 5문장 이상.
+- sample_lines의 대사는 실제 시나리오 품질.
+- speech_pattern은 추상어('거칠다', '따뜻하다') 금지. 구체적 규칙만."""
+
+        response = client.messages.create(
+            model=ANTHROPIC_MODEL, max_tokens=8000, temperature=0.3,
+            system=system_prompt,
+            messages=[{"role": "user", "content": user_prompt}]
+        )
+        txt = "".join(b.text for b in response.content if hasattr(b, "text")).strip()
+        st.session_state["last_char_bible_raw"] = txt
+        return safe_json_loads(txt)
+    except Exception as e:
+        st.error(f"Character Bible 생성 실패: {e}")
+        raw = st.session_state.get("last_char_bible_raw", "")
+        if raw:
+            with st.expander("🔧 Character Bible Raw (디버그)"):
+                st.text_area("Raw", raw, height=400)
+        return None
+
+
 # ─── API Call: Structure Build Story (1단계) ───
 def call_structure_story(core_data, genre, market, fmt):
     """Structure 1단계: Synopsis 1P + Storyline"""
@@ -1723,6 +1847,114 @@ def call_treatment_gate(treatment_data):
         return None
 
 
+# ─── API Call: Tone Document ───
+def call_tone_document(core_data, structure_data, scene_data, treatment_data, char_bible, genre, fmt):
+    """톤 & 연출 문서 — Writer Engine의 스타일 가이드"""
+    try:
+        client = get_client()
+        lp = core_data.get("logline_pack", {})
+        gns = core_data.get("goal_need_strategy", {})
+        wb = core_data.get("world_build", {})
+
+        # 캐릭터 이름/역할만 추출
+        char_names = []
+        if char_bible:
+            for c in char_bible.get("characters", []):
+                char_names.append(f"{c.get('name','')}({c.get('role','')})")
+        char_str = ", ".join(char_names)
+
+        # Treatment 요약
+        treatment_summary = ""
+        for act_key in ["act1", "act2", "act3"]:
+            act = treatment_data.get(act_key, {})
+            if act:
+                for b in act.get("beats", []):
+                    treatment_summary += f"Beat {b.get('beat_no','')}: {b.get('beat_name','')}. "
+
+        system_prompt = f"""당신은 헐리우드 최고 수준의 톤 디자이너(Tone Designer)이자 비주얼 스토리텔러다.
+기획개발 패키지를 기반으로, Writer Engine이 시나리오를 쓸 때 참조할 '톤 & 연출 문서'를 작성한다.
+
+[목표]
+이 문서가 있으면 AI가 80~120씬 동안 일관된 톤·분위기·연출 스타일을 유지할 수 있다.
+
+[장르: {genre} / 포맷: {fmt}]
+
+[출력 규칙]
+- 유효한 단일 JSON만 출력. JSON 외 텍스트 금지.
+- 후행 쉼표 금지. 한국어 작성.
+- 문자열 안에 쌍따옴표 사용 금지. 작은따옴표만."""
+
+        user_prompt = f"""[로그라인]
+{lp.get("washed","")}
+
+[캐릭터]
+{char_str}
+
+[세계관]
+{json.dumps(wb, ensure_ascii=False)}
+
+[Treatment 비트 구성]
+{treatment_summary}
+
+[JSON 스키마]
+{{
+  "visual_style": {{
+    "camera_philosophy": "카메라 철학 2~3문장 (예: 인물과 거리를 유지하다가 감정 폭발 순간만 클로즈업)",
+    "color_palette": "색감 톤 2문장 (예: 1막은 차가운 블루, 2막 후반부터 따뜻한 앰버)",
+    "lighting_rule": "조명 규칙 1~2문장",
+    "signature_shot": "이 작품만의 시그니처 쇼트 1~2문장"
+  }},
+  "pacing": {{
+    "overall": "전체 페이싱 철학 1문장",
+    "act1_tempo": "1막 템포 1문장",
+    "act2_tempo": "2막 템포 1문장",
+    "act3_tempo": "3막 템포 1문장",
+    "dialogue_density": "대사 vs 지문 비율 (예: 지문 65% / 대사 35%)"
+  }},
+  "dialogue_rules": {{
+    "overall_tone": "대사 전체 톤 1문장",
+    "subtext_rule": "서브텍스트 규칙 1~2문장 (캐릭터가 진심을 직접 말하는가, 돌려 말하는가)",
+    "silence_usage": "침묵/비언어 활용 규칙 1문장",
+    "forbidden_phrases": ["이 작품에서 절대 쓰지 않을 대사 패턴 3개"]
+  }},
+  "motifs": {{
+    "recurring_objects": ["반복 소품/모티프 3~4개 — 각각 의미 포함"],
+    "recurring_locations": ["반복 장소 2~3개 — 각각 감정적 의미"],
+    "weather_mood": "날씨/계절 활용 규칙 1~2문장"
+  }},
+  "music_sound": {{
+    "score_direction": "음악 방향 1~2문장",
+    "silence_scenes": "무음 사용 규칙 1문장",
+    "diegetic_sounds": "작품 내 소리 활용 2~3개"
+  }},
+  "forbidden": [
+    "이 작품에서 절대 하지 말아야 할 연출/톤/대사 규칙 5개"
+  ],
+  "reference_films": [
+    {{"title": "참고작품 1", "reason": "이유 1문장"}},
+    {{"title": "참고작품 2", "reason": "이유 1문장"}},
+    {{"title": "참고작품 3", "reason": "이유 1문장"}}
+  ],
+  "writer_instruction": "Writer Engine에게 보내는 최종 지시 3~5문장 — 이 작품의 시나리오를 쓸 때 반드시 지킬 것"
+}}"""
+
+        response = client.messages.create(
+            model=ANTHROPIC_MODEL, max_tokens=4000, temperature=0.3,
+            system=system_prompt,
+            messages=[{"role": "user", "content": user_prompt}]
+        )
+        txt = "".join(b.text for b in response.content if hasattr(b, "text")).strip()
+        st.session_state["last_tone_doc_raw"] = txt
+        return safe_json_loads(txt)
+    except Exception as e:
+        st.error(f"Tone Document 생성 실패: {e}")
+        raw = st.session_state.get("last_tone_doc_raw", "")
+        if raw:
+            with st.expander("🔧 Tone Document Raw (디버그)"):
+                st.text_area("Raw", raw, height=400)
+        return None
+
+
 # ─── DOCX 생성 ───
 def generate_docx(project):
     """기획개발보고서 DOCX 생성 — BLUE JEANS 기획서 스타일"""
@@ -1971,6 +2203,60 @@ def generate_docx(project):
 
             add_spacer(8)
 
+    # ── Character Bible (확장) ──
+    char_bible = project.get("char_bible", {})
+    if char_bible:
+        doc.add_page_break()
+        add_yellow_header("캐릭터 바이블", "CHARACTER BIBLE")
+
+        for ch in char_bible.get("characters", []):
+            role_kr = {"protagonist":"주인공","antagonist":"적대자","ally":"조력자","mirror":"거울"}
+            role = role_kr.get(ch.get("role",""), ch.get("role",""))
+            name = ch.get("name","")
+            age = ch.get("age","")
+
+            add_sub_header(f"▎ {role} · {name} ({age})")
+
+            add_labeled("외형·첫인상", ch.get("appearance",""))
+            add_labeled("직업/위치", ch.get("occupation",""))
+            add_body(ch.get("backstory",""))
+
+            add_labeled("비밀", ch.get("secret",""))
+            add_labeled("신념", ch.get("belief",""))
+            add_labeled("두려움", ch.get("fear",""))
+
+            habits = ch.get("habits", [])
+            if habits:
+                h_str = " · ".join(habits) if isinstance(habits, list) else str(habits)
+                add_labeled("반복 습관", h_str)
+
+            sp = ch.get("speech_pattern", [])
+            if sp:
+                sp_list = sp if isinstance(sp, list) else [sp]
+                for i, s in enumerate(sp_list, 1):
+                    add_labeled(f"말투 {i}", s)
+
+            sl = ch.get("sample_lines", {})
+            if sl:
+                sl_labels = {"normal":"평상시","angry":"분노","vulnerable":"취약"}
+                for k, v in sl.items():
+                    label = sl_labels.get(k, k)
+                    add_quote(f"{name} — {label}", v)
+
+            ra = ch.get("relationship_attitudes", [])
+            if ra:
+                ra_list = ra if isinstance(ra, list) else [ra]
+                for r in ra_list:
+                    add_labeled("관계", r)
+
+            arc = ch.get("arc_detail", {})
+            if arc:
+                add_labeled("1막 끝", arc.get("act1_end",""))
+                add_labeled("미드포인트", arc.get("midpoint",""))
+                add_labeled("클라이맥스", arc.get("climax",""))
+
+            add_spacer(10)
+
     doc.add_page_break()
 
     # ═══════════════════════════════════
@@ -2199,6 +2485,69 @@ def generate_docx(project):
                     row[2].text = "●" if sc_val >= 7 else "◐" if sc_val >= 5 else "○"
 
     # ═══════════════════════════════════
+    #  SECTION 6: 톤 문서 TONE DOCUMENT
+    # ═══════════════════════════════════
+    tone_doc = project.get("tone_doc", {})
+    if tone_doc:
+        doc.add_page_break()
+        add_yellow_header("톤 & 연출 문서", "TONE DOCUMENT")
+
+        vs = tone_doc.get("visual_style", {})
+        if vs:
+            add_sub_header("비주얼 스타일")
+            for label, key in [("카메라 철학","camera_philosophy"),("색감 팔레트","color_palette"),("조명 규칙","lighting_rule"),("시그니처 쇼트","signature_shot")]:
+                add_labeled(label, vs.get(key, ""))
+
+        pc = tone_doc.get("pacing", {})
+        if pc:
+            add_sub_header("페이싱")
+            for label, key in [("전체","overall"),("1막","act1_tempo"),("2막","act2_tempo"),("3막","act3_tempo"),("대사 비율","dialogue_density")]:
+                add_labeled(label, pc.get(key, ""))
+
+        dr = tone_doc.get("dialogue_rules", {})
+        if dr:
+            add_sub_header("대사 규칙")
+            for label, key in [("전체 톤","overall_tone"),("서브텍스트","subtext_rule"),("침묵 활용","silence_usage")]:
+                add_labeled(label, dr.get(key, ""))
+            fp = dr.get("forbidden_phrases", [])
+            if fp:
+                fp_list = fp if isinstance(fp, list) else [fp]
+                for f in fp_list:
+                    add_labeled("금지", f)
+
+        mt = tone_doc.get("motifs", {})
+        if mt:
+            add_sub_header("모티프")
+            for label, key in [("반복 소품","recurring_objects"),("반복 장소","recurring_locations")]:
+                val = mt.get(key, [])
+                if val:
+                    items = val if isinstance(val, list) else [val]
+                    add_labeled(label, " · ".join(items))
+            add_labeled("날씨/계절", mt.get("weather_mood",""))
+
+        forbidden = tone_doc.get("forbidden", [])
+        if forbidden:
+            add_sub_header("금기 사항")
+            fb_list = forbidden if isinstance(forbidden, list) else [forbidden]
+            for f in fb_list:
+                add_labeled("🚫", f)
+
+        refs = tone_doc.get("reference_films", [])
+        if refs:
+            add_sub_header("참고 작품")
+            for ref in refs:
+                if isinstance(ref, dict):
+                    add_labeled(ref.get("title",""), ref.get("reason",""))
+                else:
+                    add_body(str(ref))
+
+        wi = tone_doc.get("writer_instruction", "")
+        if wi:
+            add_spacer(8)
+            add_sub_header("Writer Engine 최종 지시")
+            add_body(wi)
+
+    # ═══════════════════════════════════
     #  FOOTER
     # ═══════════════════════════════════
     doc.add_paragraph("")
@@ -2239,8 +2588,18 @@ st.markdown(
 )
 
 # ─── 뒤로가기 ───
-if st.session_state.view in ("project", "core", "structure", "scene_design", "treatment") and st.session_state.cur:
-    if st.session_state.view == "treatment":
+if st.session_state.view in ("project", "core", "char_bible", "structure", "scene_design", "treatment", "tone_doc") and st.session_state.cur:
+    if st.session_state.view == "tone_doc":
+        col_nav1, col_nav2 = st.columns(2)
+        with col_nav1:
+            if st.button("← 프로젝트 목록"):
+                st.session_state.view = "home"
+                st.rerun()
+        with col_nav2:
+            if st.button("← Treatment"):
+                st.session_state.view = "treatment"
+                st.rerun()
+    elif st.session_state.view == "treatment":
         col_nav1, col_nav2 = st.columns(2)
         with col_nav1:
             if st.button("← 프로젝트 목록"):
@@ -2261,6 +2620,16 @@ if st.session_state.view in ("project", "core", "structure", "scene_design", "tr
                 st.session_state.view = "structure"
                 st.rerun()
     elif st.session_state.view == "structure":
+        col_nav1, col_nav2 = st.columns(2)
+        with col_nav1:
+            if st.button("← 프로젝트 목록"):
+                st.session_state.view = "home"
+                st.rerun()
+        with col_nav2:
+            if st.button("← Character Bible"):
+                st.session_state.view = "char_bible"
+                st.rerun()
+    elif st.session_state.view == "char_bible":
         col_nav1, col_nav2 = st.columns(2)
         with col_nav1:
             if st.button("← 프로젝트 목록"):
@@ -2356,6 +2725,7 @@ if st.session_state.view == "home":
                 "brainstorm_analysis": None,
                 "core": None,
                 "core_gate": None,
+                "char_bible": None,
                 "structure_story": None,
                 "structure_diag": None,
                 "structure_gate": None,
@@ -2363,6 +2733,7 @@ if st.session_state.view == "home":
                 "scene_design": None,
                 "treatment": None,
                 "treatment_gate": None,
+                "tone_doc": None,
                 "final_score": None,
             }
 
@@ -3009,16 +3380,16 @@ elif st.session_state.view == "core" and st.session_state.cur:
                     st.markdown(f'<div style="display:flex;align-items:center;margin:.2rem 0;font-size:.8rem"><div style="width:110px;color:var(--dim)">{nm}</div><div style="flex:1;background:#E0E0E8;border-radius:4px;height:8px;margin:0 .5rem"><div style="width:{sc*10}%;background:var(--y);height:100%;border-radius:4px"></div></div><div style="width:30px;text-align:right">{sc}</div></div>', unsafe_allow_html=True)
 
             if verdict == "개발 진행":
-                st.success(f"✅ {verdict}. Structure Build로 진행할 수 있습니다.")
-                if st.button("🏗️ Structure Build 진행 →", type="primary", use_container_width=True):
-                    st.session_state.view = "structure"
+                st.success(f"✅ {verdict}. Character Bible 진행 가능.")
+                if st.button("📖 Character Bible 진행 →", type="primary", use_container_width=True):
+                    st.session_state.view = "char_bible"
                     st.rerun()
             elif verdict == "개발 보류":
                 st.warning(f"⚠️ {verdict}. Core Build 보강 필요.")
                 col_cv1, col_cv2 = st.columns(2)
                 with col_cv1:
-                    if st.button("🔓 Override → Structure Build"):
-                        st.session_state.view = "structure"
+                    if st.button("🔓 Override → Character Bible"):
+                        st.session_state.view = "char_bible"
                         st.rerun()
                 with col_cv2:
                     if st.button("🔄 Core Build 재실행"):
@@ -3043,6 +3414,133 @@ elif st.session_state.view == "core" and st.session_state.cur:
             '<div style="text-align:center;padding:3rem 0;color:var(--dim)">'
             '🎯 Core Build를 실행하면 여기에 결과가 표시됩니다.<br>'
             'Logline Pack · Project Intent · World Build · Character Build'
+            '</div>',
+            unsafe_allow_html=True
+        )
+
+    st.markdown("---")
+    st.caption("© 2026 BLUE JEANS PICTURES · Creator Engine v1.2")
+
+
+# ═══════════════════════════════════════════════════
+#  CHARACTER BIBLE
+# ═══════════════════════════════════════════════════
+elif st.session_state.view == "char_bible" and st.session_state.cur:
+
+    project = st.session_state.projects[st.session_state.cur]
+    core = project.get("core", {})
+
+    st.markdown(f"## {project['title']}")
+    st.caption(f"{project['genre']} · {project['target_market']} · {project['format']}")
+    render_stepper("char_bible", project)
+
+    lp = core.get("logline_pack", {})
+    if lp.get("washed"):
+        st.markdown(f'<div class="callout"><div class="cl">Logline</div>{lp["washed"]}</div>', unsafe_allow_html=True)
+
+    st.markdown("---")
+    st.markdown('<div class="section-header">📖 Character Bible <span class="en">CHARACTER DESIGN BIBLE</span></div>', unsafe_allow_html=True)
+    st.caption("백스토리 · 비밀 · 말투 규칙 · 대사 샘플 · 관계 태도 · 변화 궤적 — Writer Engine이 일관된 인물을 쓰기 위한 설계서")
+
+    if not project.get("char_bible"):
+        if st.button("📖 Character Bible 생성", type="primary"):
+            with st.spinner("캐릭터 바이블 설계 중... (최대 60초)"):
+                result = call_character_bible(core, project["genre"], project["format"])
+            if result:
+                project["char_bible"] = result
+                project["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
+                st.rerun()
+
+    bible = project.get("char_bible", {})
+    if bible:
+        chars = bible.get("characters", [])
+        role_labels = {"protagonist":"주인공","antagonist":"적대자","ally":"조력자","mirror":"거울"}
+        role_emoji = {"protagonist":"🔥","antagonist":"🖤","ally":"💙","mirror":"🪞"}
+
+        for ch in chars:
+            role = role_labels.get(ch.get("role",""), ch.get("role",""))
+            emoji = role_emoji.get(ch.get("role",""), "👤")
+            name = ch.get("name", "")
+            age = ch.get("age", "")
+
+            st.markdown(f'<div class="section-header">{emoji} {role}: {name} ({age}) <span class="en">{ch.get("role","").upper()}</span></div>', unsafe_allow_html=True)
+
+            # 외형 & 직업
+            st.markdown(f'<div class="callout"><div class="cl">외형 · 첫인상</div>{ch.get("appearance","")}</div>', unsafe_allow_html=True)
+            if ch.get("occupation"):
+                st.markdown(f'<div class="ri"><div class="rl">직업/위치</div>{ch.get("occupation","")}</div>', unsafe_allow_html=True)
+
+            # 욕망/결핍/결점
+            c1, c2, c3 = st.columns(3)
+            c1.markdown(f'<div class="callout"><div class="cl">GOAL</div>{ch.get("goal","")}</div>', unsafe_allow_html=True)
+            c2.markdown(f'<div class="callout"><div class="cl">NEED</div>{ch.get("need","")}</div>', unsafe_allow_html=True)
+            c3.markdown(f'<div class="callout"><div class="cl">FLAW</div>{ch.get("flaw","")}</div>', unsafe_allow_html=True)
+
+            # 백스토리
+            st.markdown(f'<div class="card"><div class="cl">📜 백스토리</div><p style="line-height:1.7">{ch.get("backstory","")}</p></div>', unsafe_allow_html=True)
+
+            # 비밀 & 신념 & 두려움
+            c4, c5, c6 = st.columns(3)
+            c4.markdown(f'<div class="ri"><div class="rl">🔒 비밀</div>{ch.get("secret","")}</div>', unsafe_allow_html=True)
+            c5.markdown(f'<div class="ri"><div class="rl">⚖️ 신념</div>{ch.get("belief","")}</div>', unsafe_allow_html=True)
+            c6.markdown(f'<div class="ri"><div class="rl">😰 두려움</div>{ch.get("fear","")}</div>', unsafe_allow_html=True)
+
+            # 습관
+            habits = ch.get("habits", [])
+            if habits:
+                habits_html = " · ".join(habits) if isinstance(habits, list) else str(habits)
+                st.markdown(f'<div class="ri"><div class="rl">🔄 반복 습관</div>{habits_html}</div>', unsafe_allow_html=True)
+
+            # 말투 규칙
+            sp = ch.get("speech_pattern", [])
+            if sp:
+                sp_list = sp if isinstance(sp, list) else [sp]
+                sp_html = "<br>".join([f"• {s}" for s in sp_list])
+                st.markdown(f'<div class="card"><div class="cl">🗣️ 말투 규칙 (SPEECH PATTERN)</div>{sp_html}</div>', unsafe_allow_html=True)
+
+            # 대사 샘플
+            sl = ch.get("sample_lines", {})
+            if sl:
+                sl_labels = {"normal":"평상시","angry":"분노","vulnerable":"취약"}
+                sl_html = ""
+                for k, v in sl.items():
+                    label = sl_labels.get(k, k)
+                    sl_html += f'<div style="margin:.3rem 0"><b style="color:var(--navy);font-size:.75rem">[{label}]</b> <i>\u2018{v}\u2019</i></div>'
+                st.markdown(f'<div class="card"><div class="cl">💬 대사 샘플 (SAMPLE LINES)</div>{sl_html}</div>', unsafe_allow_html=True)
+
+            # 관계별 태도
+            ra = ch.get("relationship_attitudes", [])
+            if ra:
+                ra_list = ra if isinstance(ra, list) else [ra]
+                ra_html = "<br>".join([f"• {r}" for r in ra_list])
+                st.markdown(f'<div class="card"><div class="cl">🔗 관계별 태도</div>{ra_html}</div>', unsafe_allow_html=True)
+
+            # 변화 궤적
+            arc = ch.get("arc_detail", {})
+            if arc:
+                st.markdown(
+                    f'<div class="card"><div class="cl">📈 변화 궤적 (ARC)</div>'
+                    f'<div style="margin:.3rem 0"><b style="color:var(--navy);font-size:.75rem">[1막 끝]</b> {arc.get("act1_end","")}</div>'
+                    f'<div style="margin:.3rem 0"><b style="color:var(--navy);font-size:.75rem">[미드포인트]</b> {arc.get("midpoint","")}</div>'
+                    f'<div style="margin:.3rem 0"><b style="color:var(--navy);font-size:.75rem">[클라이맥스]</b> {arc.get("climax","")}</div>'
+                    f'</div>',
+                    unsafe_allow_html=True
+                )
+
+            st.markdown("")  # spacer
+
+        # Structure 진행 버튼
+        st.markdown("---")
+        st.success("✅ Character Bible 완료. Structure Build 진행 가능.")
+        if st.button("🏗️ Structure Build 진행 →", type="primary", use_container_width=True):
+            st.session_state.view = "structure"
+            st.rerun()
+
+    else:
+        st.markdown(
+            '<div style="text-align:center;padding:3rem 0;color:var(--dim)">'
+            '📖 Character Bible을 생성하면 여기에 결과가 표시됩니다.<br>'
+            '백스토리 · 비밀 · 말투 규칙 · 대사 샘플 · 관계 태도 · 변화 궤적'
             '</div>',
             unsafe_allow_html=True
         )
@@ -3509,10 +4007,165 @@ elif st.session_state.view == "treatment" and st.session_state.cur:
             use_container_width=True
         )
 
+        # Tone Document 진행
+        st.markdown("---")
+        st.success("✅ Treatment 완료. Tone Document 진행 가능.")
+        if st.button("🎨 Tone Document 진행 →", type="primary", use_container_width=True):
+            st.session_state.view = "tone_doc"
+            st.rerun()
+
     else:
         st.markdown(
             '<div style="text-align:center;padding:3rem 0;color:var(--dim)">'
             '📝 Treatment Build를 실행하면 여기에 결과가 표시됩니다.'
+            '</div>',
+            unsafe_allow_html=True
+        )
+
+    st.markdown("---")
+    st.caption("© 2026 BLUE JEANS PICTURES · Creator Engine v1.2")
+
+
+# ═══════════════════════════════════════════════════
+#  TONE DOCUMENT
+# ═══════════════════════════════════════════════════
+elif st.session_state.view == "tone_doc" and st.session_state.cur:
+
+    project = st.session_state.projects[st.session_state.cur]
+    core = project.get("core", {})
+    treatment = project.get("treatment", {})
+
+    st.markdown(f"## {project['title']}")
+    st.caption(f"{project['genre']} · {project['target_market']} · {project['format']}")
+    render_stepper("tone_doc", project)
+
+    lp = core.get("logline_pack", {})
+    if lp.get("washed"):
+        st.markdown(f'<div class="callout"><div class="cl">Logline</div>{lp["washed"]}</div>', unsafe_allow_html=True)
+
+    st.markdown("---")
+    st.markdown('<div class="section-header">🎨 Tone Document <span class="en">VISUAL & TONAL GUIDE</span></div>', unsafe_allow_html=True)
+    st.caption("카메라 · 색감 · 페이싱 · 대사 규칙 · 모티프 · 금기 — Writer Engine의 톤 일관성 가이드")
+
+    if not project.get("tone_doc"):
+        if st.button("🎨 Tone Document 생성", type="primary"):
+            with st.spinner("톤 & 연출 문서 설계 중... (최대 40초)"):
+                result = call_tone_document(
+                    core, project.get("structure_story", {}),
+                    project.get("scene_design", {}), treatment,
+                    project.get("char_bible", {}),
+                    project["genre"], project["format"]
+                )
+            if result:
+                project["tone_doc"] = result
+                project["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
+                st.rerun()
+
+    td = project.get("tone_doc", {})
+    if td:
+        # Visual Style
+        vs = td.get("visual_style", {})
+        if vs:
+            st.markdown('<div class="section-header">🎥 비주얼 스타일 <span class="en">VISUAL STYLE</span></div>', unsafe_allow_html=True)
+            for label, key in [("카메라 철학","camera_philosophy"),("색감 팔레트","color_palette"),("조명 규칙","lighting_rule"),("시그니처 쇼트","signature_shot")]:
+                val = vs.get(key, "")
+                if val:
+                    st.markdown(f'<div class="ri"><div class="rl">{label}</div>{val}</div>', unsafe_allow_html=True)
+
+        # Pacing
+        pc = td.get("pacing", {})
+        if pc:
+            st.markdown('<div class="section-header">⏱️ 페이싱 <span class="en">PACING</span></div>', unsafe_allow_html=True)
+            for label, key in [("전체 철학","overall"),("1막 템포","act1_tempo"),("2막 템포","act2_tempo"),("3막 템포","act3_tempo"),("대사 비율","dialogue_density")]:
+                val = pc.get(key, "")
+                if val:
+                    st.markdown(f'<div class="ri"><div class="rl">{label}</div>{val}</div>', unsafe_allow_html=True)
+
+        # Dialogue Rules
+        dr = td.get("dialogue_rules", {})
+        if dr:
+            st.markdown('<div class="section-header">💬 대사 규칙 <span class="en">DIALOGUE RULES</span></div>', unsafe_allow_html=True)
+            for label, key in [("전체 톤","overall_tone"),("서브텍스트","subtext_rule"),("침묵 활용","silence_usage")]:
+                val = dr.get(key, "")
+                if val:
+                    st.markdown(f'<div class="ri"><div class="rl">{label}</div>{val}</div>', unsafe_allow_html=True)
+            forbidden = dr.get("forbidden_phrases", [])
+            if forbidden:
+                fp_list = forbidden if isinstance(forbidden, list) else [forbidden]
+                fp_html = "<br>".join([f"🚫 {f}" for f in fp_list])
+                st.markdown(f'<div class="card"><div class="cl">금지 대사 패턴</div>{fp_html}</div>', unsafe_allow_html=True)
+
+        # Motifs
+        mt = td.get("motifs", {})
+        if mt:
+            st.markdown('<div class="section-header">🔄 모티프 <span class="en">RECURRING MOTIFS</span></div>', unsafe_allow_html=True)
+            for label, key in [("반복 소품/모티프","recurring_objects"),("반복 장소","recurring_locations")]:
+                val = mt.get(key, [])
+                if val:
+                    items = val if isinstance(val, list) else [val]
+                    items_html = "<br>".join([f"• {i}" for i in items])
+                    st.markdown(f'<div class="card"><div class="cl">{label}</div>{items_html}</div>', unsafe_allow_html=True)
+            wm = mt.get("weather_mood", "")
+            if wm:
+                st.markdown(f'<div class="ri"><div class="rl">날씨/계절</div>{wm}</div>', unsafe_allow_html=True)
+
+        # Music & Sound
+        ms = td.get("music_sound", {})
+        if ms:
+            st.markdown('<div class="section-header">🎵 사운드 <span class="en">MUSIC & SOUND</span></div>', unsafe_allow_html=True)
+            for label, key in [("음악 방향","score_direction"),("무음 활용","silence_scenes")]:
+                val = ms.get(key, "")
+                if val:
+                    st.markdown(f'<div class="ri"><div class="rl">{label}</div>{val}</div>', unsafe_allow_html=True)
+            ds = ms.get("diegetic_sounds", [])
+            if ds:
+                items = ds if isinstance(ds, list) else [ds]
+                items_html = " · ".join(items)
+                st.markdown(f'<div class="ri"><div class="rl">작품 내 소리</div>{items_html}</div>', unsafe_allow_html=True)
+
+        # Forbidden
+        forbidden = td.get("forbidden", [])
+        if forbidden:
+            st.markdown('<div class="section-header">🚫 금기 <span class="en">FORBIDDEN</span></div>', unsafe_allow_html=True)
+            fb_list = forbidden if isinstance(forbidden, list) else [forbidden]
+            fb_html = "<br>".join([f"🚫 {f}" for f in fb_list])
+            st.markdown(f'<div class="card">{fb_html}</div>', unsafe_allow_html=True)
+
+        # Reference Films
+        refs = td.get("reference_films", [])
+        if refs:
+            st.markdown('<div class="section-header">🎬 참고 작품 <span class="en">REFERENCE FILMS</span></div>', unsafe_allow_html=True)
+            for ref in refs:
+                title_ref = ref.get("title", "") if isinstance(ref, dict) else str(ref)
+                reason = ref.get("reason", "") if isinstance(ref, dict) else ""
+                st.markdown(f'<div class="ri"><div class="rl">{title_ref}</div>{reason}</div>', unsafe_allow_html=True)
+
+        # Writer Instruction
+        wi = td.get("writer_instruction", "")
+        if wi:
+            st.markdown(f'<div class="callout" style="border-left-color:var(--y)"><div class="cl">✍️ Writer Engine 최종 지시</div>{wi}</div>', unsafe_allow_html=True)
+
+        # 완료
+        st.markdown("---")
+        st.success("🎉 기획개발 완료! 전체 9단계 파이프라인이 완성되었습니다.")
+        st.info("→ Writer Engine에서 이 기획서를 불러와 시나리오를 생성할 수 있습니다.")
+
+        # 최종 DOCX 다운로드
+        title_safe = project.get("title", "프로젝트").replace(" ", "_")
+        docx_buffer = generate_docx(project)
+        st.download_button(
+            label="📥 기획개발보고서 [최종 + Tone] 다운로드 (.docx)",
+            data=docx_buffer,
+            file_name=f"기획개발보고서_{title_safe}_최종_Blue.docx",
+            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            use_container_width=True
+        )
+
+    else:
+        st.markdown(
+            '<div style="text-align:center;padding:3rem 0;color:var(--dim)">'
+            '🎨 Tone Document를 생성하면 여기에 결과가 표시됩니다.<br>'
+            '카메라 · 색감 · 페이싱 · 대사 규칙 · 모티프 · 참고 작품'
             '</div>',
             unsafe_allow_html=True
         )
