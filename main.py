@@ -724,7 +724,7 @@ JSON 외 텍스트 금지.
 
         response = client.messages.create(
             model=ANTHROPIC_MODEL,
-            max_tokens=3000,
+            max_tokens=16000,
             temperature=0.2,
             system=system_prompt,
             messages=[{"role": "user", "content": user_prompt}]
@@ -841,7 +841,7 @@ def call_brainstorm_cards(idea, genre, market, fmt, research=None):
 
         response = client.messages.create(
             model=ANTHROPIC_MODEL,
-            max_tokens=6000,
+            max_tokens=16000,
             temperature=0.35,
             system=system_prompt,
             messages=[{"role": "user", "content": user_prompt}]
@@ -854,7 +854,7 @@ def call_brainstorm_cards(idea, genre, market, fmt, research=None):
             retry_prompt = user_prompt.replace("idea_cards는 10개", "idea_cards는 7개")
             response = client.messages.create(
                 model=ANTHROPIC_MODEL,
-                max_tokens=8000,
+                max_tokens=16000,
                 temperature=0.35,
                 system=system_prompt,
                 messages=[{"role": "user", "content": retry_prompt}]
@@ -1105,7 +1105,7 @@ Brainstorm에서 선정된 컨셉을 기반으로 Core Build를 수행한다.
 
         response = client.messages.create(
             model=ANTHROPIC_MODEL,
-            max_tokens=6000,
+            max_tokens=16000,
             temperature=0.3,
             system=system_prompt,
             messages=[{"role": "user", "content": user_prompt}]
@@ -1115,7 +1115,7 @@ Brainstorm에서 선정된 컨셉을 기반으로 Core Build를 수행한다.
             st.warning("⚠️ Core Build 응답 잘림. 재시도...")
             response = client.messages.create(
                 model=ANTHROPIC_MODEL,
-                max_tokens=8000,
+                max_tokens=16000,
                 temperature=0.3,
                 system=system_prompt,
                 messages=[{"role": "user", "content": user_prompt}]
@@ -1316,7 +1316,7 @@ Writer Engine(시나리오 생성 AI)이 80~120씬 동안 이 인물을 일관�
 - speech_pattern은 추상어 금지. 구체적 규칙만."""
 
         response = client.messages.create(
-            model=ANTHROPIC_MODEL, max_tokens=8000, temperature=0.3,
+            model=ANTHROPIC_MODEL, max_tokens=16000, temperature=0.3,
             system=system_prompt,
             messages=[{"role": "user", "content": user_prompt}]
         )
@@ -1334,7 +1334,7 @@ Writer Engine(시나리오 생성 AI)이 80~120씬 동안 이 인물을 일관�
                 "클라이맥스 상태 2문장", "클라이맥스 상태 1문장"
             )
             response = client.messages.create(
-                model=ANTHROPIC_MODEL, max_tokens=8000, temperature=0.3,
+                model=ANTHROPIC_MODEL, max_tokens=16000, temperature=0.3,
                 system=system_prompt,
                 messages=[{"role": "user", "content": retry_prompt}]
             )
@@ -1431,13 +1431,13 @@ Strategy: {gns.get("strategy","")}
 """
 
         response = client.messages.create(
-            model=ANTHROPIC_MODEL, max_tokens=6000, temperature=0.3,
+            model=ANTHROPIC_MODEL, max_tokens=16000, temperature=0.3,
             system=system_prompt,
             messages=[{"role": "user", "content": user_prompt}]
         )
         if response.stop_reason == "max_tokens":
             response = client.messages.create(
-                model=ANTHROPIC_MODEL, max_tokens=8000, temperature=0.3,
+                model=ANTHROPIC_MODEL, max_tokens=16000, temperature=0.3,
                 system=system_prompt,
                 messages=[{"role": "user", "content": user_prompt}]
             )
@@ -1528,13 +1528,13 @@ Goal: {gns.get("goal","")} / Need: {gns.get("need","")} / Strategy: {gns.get("st
 """
 
         response = client.messages.create(
-            model=ANTHROPIC_MODEL, max_tokens=5000, temperature=0.25,
+            model=ANTHROPIC_MODEL, max_tokens=16000, temperature=0.25,
             system=system_prompt,
             messages=[{"role": "user", "content": user_prompt}]
         )
         if response.stop_reason == "max_tokens":
             response = client.messages.create(
-                model=ANTHROPIC_MODEL, max_tokens=8000, temperature=0.25,
+                model=ANTHROPIC_MODEL, max_tokens=16000, temperature=0.25,
                 system=system_prompt,
                 messages=[{"role": "user", "content": user_prompt}]
             )
@@ -1717,14 +1717,14 @@ Goal: {gns.get("goal","")} / Need: {gns.get("need","")} / Strategy: {gns.get("st
 """
 
         response = client.messages.create(
-            model=ANTHROPIC_MODEL, max_tokens=6000, temperature=0.3,
+            model=ANTHROPIC_MODEL, max_tokens=16000, temperature=0.3,
             system=system_prompt,
             messages=[{"role": "user", "content": user_prompt}]
         )
         if response.stop_reason == "max_tokens":
             retry = user_prompt.replace("15~18개", "12~15개")
             response = client.messages.create(
-                model=ANTHROPIC_MODEL, max_tokens=8000, temperature=0.3,
+                model=ANTHROPIC_MODEL, max_tokens=16000, temperature=0.3,
                 system=system_prompt,
                 messages=[{"role": "user", "content": retry}]
             )
@@ -1850,14 +1850,14 @@ Goal: {gns.get("goal","")} / Need: {gns.get("need","")} / Strategy: {gns.get("st
 """
 
         response = client.messages.create(
-            model=ANTHROPIC_MODEL, max_tokens=8000, temperature=0.4,
+            model=ANTHROPIC_MODEL, max_tokens=16000, temperature=0.4,
             system=system_prompt,
             messages=[{"role": "user", "content": user_prompt}]
         )
         if response.stop_reason == "max_tokens":
             retry = user_prompt.replace("1500~2500자", "1000~1500자").replace("1500자 이상", "1000자 이상")
             response = client.messages.create(
-                model=ANTHROPIC_MODEL, max_tokens=8000, temperature=0.4,
+                model=ANTHROPIC_MODEL, max_tokens=16000, temperature=0.4,
                 system=system_prompt,
                 messages=[{"role": "user", "content": retry}]
             )
@@ -2038,10 +2038,23 @@ def call_tone_document(core_data, structure_data, scene_data, treatment_data, ch
 }}"""
 
         response = client.messages.create(
-            model=ANTHROPIC_MODEL, max_tokens=4000, temperature=0.3,
+            model=ANTHROPIC_MODEL, max_tokens=16000, temperature=0.3,
             system=system_prompt,
             messages=[{"role": "user", "content": user_prompt}]
         )
+        if response.stop_reason == "max_tokens":
+            # 분량 줄여서 재시도
+            retry_prompt = user_prompt.replace(
+                "카메라 철학 2~3문장", "카메라 철학 1~2문장"
+            ).replace(
+                "이 작품에서 절대 하지 말아야 할 연출/톤/대사 규칙 5개",
+                "이 작품에서 절대 하지 말아야 할 규칙 3개"
+            )
+            response = client.messages.create(
+                model=ANTHROPIC_MODEL, max_tokens=16000, temperature=0.3,
+                system=system_prompt,
+                messages=[{"role": "user", "content": retry_prompt}]
+            )
         txt = "".join(b.text for b in response.content if hasattr(b, "text")).strip()
         st.session_state["last_tone_doc_raw"] = txt
         return safe_json_loads(txt)
