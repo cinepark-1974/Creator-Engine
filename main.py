@@ -11,6 +11,80 @@ from datetime import datetime
 
 ANTHROPIC_MODEL = "claude-sonnet-4-6"
 
+# ─── 장르별 필수 규칙 (Genre Rules) ───
+GENRE_RULES = {
+    "범죄/스릴러": {
+        "must_have": ["초반 10분 내 범죄/사건 발생", "관객이 범인보다 한 발 늦게 알아채는 구조", "미드포인트에서 게임의 룰이 바뀌는 반전", "클라이맥스 직전 2중 반전(double twist)"],
+        "hook_rule": "매 비트 끝에 새로운 의문 또는 위협이 제시되어야 한다. 관객이 '다음에 뭐가?'를 멈추지 못하게.",
+        "punch_rule": "핵심 씬마다 punch line — 인물의 선택이 돌이킬 수 없는 결과를 만드는 순간. 대사 한 마디 또는 행동 하나로 씬의 온도가 급변.",
+        "setpiece": "추격/대치/심문/잠입 중 최소 2개 setpiece 필수",
+        "forbidden": "설명적 회상 남발, 형사의 독백으로 사건 정리, 우연의 일치로 범인 발각"
+    },
+    "드라마": {
+        "must_have": ["주인공의 내면 결핍이 외부 사건과 충돌하는 1막 설정", "관계의 균열이 극대화되는 미드포인트", "진짜 감정이 터지는 고백/대결 씬", "변화가 행동으로 증명되는 결말"],
+        "hook_rule": "감정적 긴장의 실을 끊지 않는다. 매 비트 끝에 해결되지 않은 감정적 질문이 남아야 한다.",
+        "punch_rule": "punch는 폭발이 아니라 침묵. 인물이 차마 말하지 못하는 것, 또는 마침내 말해버리는 것이 punch.",
+        "setpiece": "감정적 클라이맥스 씬 1개 + 관계 전환 씬 1개 필수",
+        "forbidden": "감정을 직접 설명하는 내레이션, '나는 슬펐다' 류의 감정 나열, 갈등 없는 화해"
+    },
+    "액션": {
+        "must_have": ["1막에 주인공의 전투 능력을 보여주는 오프닝 액션", "2막마다 스케일이 커지는 액션 시퀀스", "미드포인트에서 패배 또는 배신", "클라이맥스에서 가장 큰 스케일의 최종 대결"],
+        "hook_rule": "물리적 위협과 시간 압박이 매 비트를 관통한다. 숨 쉴 틈 없는 페이싱.",
+        "punch_rule": "액션 씬마다 punch — 예상을 깨는 전술 변화 또는 환경 변화. 같은 패턴의 액션 반복 금지.",
+        "setpiece": "최소 3개 대형 setpiece (오프닝/미드포인트/클라이맥스) + 소규모 액션 3개 이상",
+        "forbidden": "설명으로 처리하는 액션, 무의미한 총격전 반복, 빌런의 동기 없는 폭력"
+    },
+    "로맨스": {
+        "must_have": ["첫 만남의 설렘 또는 마찰이 있는 도입", "감정 접근 후 오해/장벽으로 멀어지는 미드포인트", "진심 고백 또는 희생의 클라이맥스", "관계의 새로운 균형을 보여주는 결말"],
+        "hook_rule": "두 사람 사이의 긴장(끌림+저항)이 매 비트에서 진동해야 한다.",
+        "punch_rule": "punch는 감정의 급반전 — 웃기다가 울리거나, 가까워지다가 벽이 생기는 순간.",
+        "setpiece": "첫 만남 씬 + 감정 폭발 씬 + 이별/재회 씬 필수",
+        "forbidden": "삼각관계의 기계적 반복, 오해가 대화 한마디로 해결, 물리적 장벽만으로 갈등 유지"
+    },
+    "코미디": {
+        "must_have": ["도입 5분 내 코믹 톤 확립", "주인공의 결점이 웃음의 원천", "미드포인트에서 거짓말/오해가 극대화", "클라이맥스에서 모든 거짓말이 동시에 터지는 구조"],
+        "hook_rule": "웃음 후 즉시 다음 상황을 예고한다. 관객이 '이거 어떻게 빠져나가지?'를 기대하게.",
+        "punch_rule": "punch는 예상을 깨는 반응 — 인물이 관객의 예측과 정반대로 행동하는 순간.",
+        "setpiece": "대형 코믹 셋피스 최소 2개 (오해 폭발 + 진실 폭로)",
+        "forbidden": "상황 설명으로 웃기려는 시도, 같은 개그 반복, 인물 비하로 웃음 유발"
+    },
+    "호러/공포": {
+        "must_have": ["일상의 균열을 보여주는 불안한 오프닝", "규칙 발견 — 이 공포의 작동 방식을 관객이 이해", "규칙 위반 — 인물이 규칙을 깨뜨리면서 공포 극대화", "최종 대면 — 공포의 실체와 직접 대결"],
+        "hook_rule": "매 비트 끝에 '안전하다고 생각한 순간' 새로운 위협의 징후가 나타나야 한다.",
+        "punch_rule": "punch는 두 종류 — jump scare(갑작스러운 공포)와 slow burn(천천히 스며드는 불안). 반드시 교차 배치.",
+        "setpiece": "공포의 규칙 발견 씬 + 규칙 위반 씬 + 최종 대면 씬 필수",
+        "forbidden": "설명으로 무서움을 전달, 공포 원인의 과잉 설명, 공포와 무관한 로맨스 삽입"
+    },
+    "SF": {
+        "must_have": ["세계관의 핵심 규칙을 자연스럽게 보여주는 도입", "규칙이 만드는 딜레마 — 기술/환경이 인물에게 불가능한 선택을 강요", "미드포인트에서 세계관의 진실이 뒤집히는 반전", "기술/환경의 논리 안에서 해결되는 클라이맥스"],
+        "hook_rule": "세계관의 새로운 측면이 매 비트에서 하나씩 드러나야 한다. 정보 과부하 금지.",
+        "punch_rule": "punch는 세계관 규칙의 예상치 못한 적용 — '이 기술이 이렇게도 쓰일 수 있다고?'",
+        "setpiece": "세계관 소개 씬 + 기술 딜레마 씬 + 세계관 반전 씬 필수",
+        "forbidden": "세계관 설명을 위한 강의식 대사, 현실 과학과의 불필요한 변명, 데우스 엑스 마키나"
+    },
+    "판타지": {
+        "must_have": ["평범한 세계에서 판타지 세계로의 전환(문턱 넘기)", "마법/능력의 규칙과 대가 설정", "멘토의 퇴장 또는 배신", "최종 대결에서 내면의 성장이 외부 승리로 연결"],
+        "hook_rule": "새로운 세계의 경이로움과 위험이 동시에 제시되어야 한다.",
+        "punch_rule": "punch는 마법/능력의 예상치 못한 대가 — 힘을 쓸수록 잃는 것이 커지는 구조.",
+        "setpiece": "세계 진입 씬 + 능력 각성 씬 + 최종 대결 씬 필수",
+        "forbidden": "대가 없는 만능 마법, 예언에 의한 수동적 전개, 악의 동기 없는 빌런"
+    },
+    "미지정": {
+        "must_have": ["명확한 도입 훅", "미드포인트 반전", "클라이맥스 대결/대면", "변화가 증명되는 결말"],
+        "hook_rule": "매 비트 끝에 다음 비트로 끌어당기는 질문 또는 위협이 있어야 한다.",
+        "punch_rule": "핵심 씬마다 예상을 깨는 순간이 있어야 한다.",
+        "setpiece": "장르 무관하게 관객이 기억할 대표 씬 최소 2개",
+        "forbidden": "설명적 전개, 갈등 없는 진행, 우연에 의한 해결"
+    },
+}
+
+def get_genre_rules(genre: str) -> dict:
+    """장르 이름에서 GENRE_RULES 매칭"""
+    for key in GENRE_RULES:
+        if key in genre or genre in key:
+            return GENRE_RULES[key]
+    return GENRE_RULES["미지정"]
+
 # ─── Page Config ───
 st.set_page_config(
     page_title="BLUE JEANS · Creator Engine",
@@ -991,6 +1065,11 @@ Brainstorm에서 선정된 컨셉을 기반으로 Core Build를 수행한다.
 로그라인을 고정하고, 기획의도와 주제를 정리하고, 세계관과 캐릭터를 설계하고,
 주인공의 Goal / Need / Strategy를 확정한다.
 
+[장르 인식]
+- 선택된 장르의 필수 요소가 Core Build에 반영되어야 한다.
+- 로그라인에 장르적 Hook이 포함되어야 한다. 장르를 모르는 사람이 읽어도 '이 영화 보고 싶다'가 나와야 한다.
+- 캐릭터 설계에 장르적 역할이 반영되어야 한다. (호러의 경우 공포의 규칙을 아는 인물, 액션의 경우 전투 능력 설정 등)
+
 중요 규칙:
 - 반드시 유효한 단일 JSON 객체만 출력한다.
 - JSON 외 텍스트 금지.
@@ -1651,16 +1730,25 @@ def call_scene_design(core_data, story_data, diag_data, genre, fmt):
         chars = core_data.get("characters", [])
         storyline = story_data.get("storyline", [])
 
-        system_prompt = """당신은 헐리우드 최고 수준의 Scene Architect다.
+        system_prompt = f"""당신은 헐리우드 최고 수준의 Scene Architect다.
 Structure Build 결과를 기반으로 핵심 장면(Key Scene)을 설계한다.
 'Show, don't tell' 원칙을 따른다.
 모든 장면은 설명이 아닌 행동, 선택, 반전으로 드라마를 구현해야 한다.
+
+[장르: {genre}]
+{json.dumps(get_genre_rules(genre), ensure_ascii=False)}
+
+[Hook & Punch 규칙]
+- HOOK: 매 장면 끝에 관객이 다음 장면을 보지 않을 수 없는 질문/위협/기대를 심는다.
+- PUNCH: 장면의 가장 강한 순간 — 대사 한 마디, 행동 하나, 또는 침묵이 씬의 온도를 급변시킨다.
+- SETPIECE: 장르의 정체성을 정의하는 대형 장면. 관객이 이 영화를 기억할 때 떠올리는 장면.
 
 중요 규칙:
 - 유효한 단일 JSON만 출력. JSON 외 텍스트 금지.
 - 후행 쉼표 금지. 문자열 줄바꿈 대신 공백.
 - 한국어 작성. 전문용어 한글(English) 병기.
 - 각 필드 1~2문장, 40자 이내.
+- 대사는 작은따옴표만 사용. 쌍따옴표 금지.
 """
 
         chars_simple = json.dumps(
@@ -1694,6 +1782,9 @@ Goal: {gns.get("goal","")} / Need: {gns.get("need","")} / Strategy: {gns.get("st
       "stakes": "판돈 — 실패하면 잃는 것 1문장",
       "dramatic_irony": "관객은 알지만 인물은 모르는 것 1문장 (없으면 빈 문자열)",
       "key_line": "이 장면을 정의하는 핵심 대사 한 마디 (캐릭터명: 대사)",
+      "hook": "이 장면 끝에서 관객을 다음 장면으로 끌어당기는 질문/위협/기대 1문장",
+      "punch": "이 장면에서 가장 강한 순간 — 온도가 급변하는 대사/행동/침묵 1문장",
+      "is_setpiece": "Y 또는 N — 장르를 정의하는 대표 장면인가",
       "connection": "다음 장면 연결 에너지 1문장"
     }}
   ],
@@ -1714,6 +1805,9 @@ Goal: {gns.get("goal","")} / Need: {gns.get("need","")} / Strategy: {gns.get("st
 - dramatic_irony는 해당 장면에 극적 아이러니가 있을 때만 작성. 없으면 빈 문자열
 - key_line은 이 장면 전체를 압축하는 대사 한 마디. 반드시 '캐릭터명: 대사' 형식
 - visual_direction은 촬영 감독 전달 수준으로
+- hook은 매 장면 필수. 관객이 다음 장면을 보지 않을 수 없게 만드는 미끼
+- punch는 장면의 가장 강한 순간. 없으면 그 장면은 존재 이유가 없다
+- is_setpiece가 Y인 장면이 최소 3개 이상. 이 장면들이 이 영화의 포스터가 된다
 """
 
         response = client.messages.create(
@@ -1795,6 +1889,9 @@ def call_treatment_beats(core_data, story_data, scene_data, genre, fmt, act_numb
 
         beat_list = "\n".join([f"Beat {b[0]}. {b[1]} — {b[2]}" for b in beats])
 
+        genre_rules = get_genre_rules(genre)
+        genre_rules_text = json.dumps(genre_rules, ensure_ascii=False)
+
         system_prompt = f"""당신은 한국 최고 수준의 시나리오 작가다.
 {act_label}의 트리트먼트를 비트 단위 줄글로 작성한다.
 
@@ -1807,6 +1904,14 @@ def call_treatment_beats(core_data, story_data, scene_data, genre, fmt, act_numb
 6. 한 비트는 하나의 독립된 시퀀스처럼 읽혀야 한다.
 7. 각 비트의 narrative는 1500~2500자 분량의 줄글이다.
 8. 영화를 보듯 읽혀야 한다. 설명하지 말고 보여줘라.
+
+[Hook & Punch 필수 규칙]
+9. 매 비트의 마지막 2~3문장은 반드시 HOOK이어야 한다 — 관객이 다음 비트를 보지 않을 수 없게 만드는 질문, 위협, 또는 예상치 못한 전환.
+10. 매 비트 안에 최소 1개의 PUNCH가 있어야 한다 — 인물의 선택, 대사 한 마디, 또는 침묵이 씬의 온도를 급변시키는 순간.
+11. HOOK과 PUNCH가 없는 비트는 존재 이유가 없다. 매 비트를 끝낸 후 스스로 확인하라: '이 비트를 읽은 사람이 다음 비트가 궁금한가?'
+
+[장르 규칙: {genre}]
+{genre_rules_text}
 
 [출력 규칙]
 - 유효한 단일 JSON만 출력. JSON 외 텍스트 금지.
@@ -1838,7 +1943,9 @@ Goal: {gns.get("goal","")} / Need: {gns.get("need","")} / Strategy: {gns.get("st
     {{
       "beat_no": 0,
       "beat_name": "비트 이름",
-      "narrative": "1500~2500자 줄글 트리트먼트"
+      "narrative": "1500~2500자 줄글 트리트먼트",
+      "hook": "이 비트 끝의 훅 — 다음 비트로 끌어당기는 질문/위협/전환 1문장",
+      "punch": "이 비트에서 가장 강한 순간 — 온도가 급변하는 대사/행동/침묵 1문장"
     }}
   ]
 }}
@@ -1847,6 +1954,8 @@ Goal: {gns.get("goal","")} / Need: {gns.get("need","")} / Strategy: {gns.get("st
 - beats는 정확히 {len(beats)}개.
 - 각 narrative 반드시 1500자 이상.
 - 영화 트리트먼트답게 읽히는 맛이 있어야 한다.
+- hook은 매 비트 필수. narrative의 마지막 2~3문장이 hook 역할을 해야 한다.
+- punch는 매 비트 필수. narrative 안에서 가장 강한 순간을 1문장으로 요약.
 """
 
         response = client.messages.create(
