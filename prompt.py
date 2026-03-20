@@ -416,7 +416,9 @@ Brainstorm에서 선정된 컨셉을 기반으로 Core Build를 수행한다.
 
 {JSON_OUTPUT_RULES_STRICT}
 - 작가의 고유한 아이디어를 훼손하지 않는다.
-- 캐릭터는 주인공, 적대자, 조력자, 거울 캐릭터 4인으로 제한한다."""
+- 필수 캐릭터 4인(protagonist/antagonist/ally/mirror)은 characters 배열에.
+- 추가 캐릭터(0~4인)는 extended_characters 배열에. 역할명은 자유 (catalyst/subplot_lead/mentor/rival/informant 등).
+- 영화는 총 4~5명, 미니시리즈는 6~8명이 적정. 이야기가 필요로 하는 만큼 생성."""
 
 
 SYSTEM_CORE_GATE = """당신은 Development Producer다.
