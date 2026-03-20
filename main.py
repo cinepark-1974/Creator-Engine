@@ -3475,6 +3475,178 @@ elif st.session_state.view == "char_bible" and st.session_state.cur:
 
             st.markdown("")  # spacer
 
+        # ── 캐릭터 관계도 ──
+        st.markdown("---")
+        st.markdown('<div class="section-header">🕸️ 캐릭터 관계도 <span class="en">CHARACTER MAP</span></div>', unsafe_allow_html=True)
+
+        def render_relationship_map(chars):
+            import math, html as _html
+
+            role_colors = {
+                "protagonist": "#FFCB05",
+                "antagonist":  "#D32F2F",
+                "ally":        "#2EC484",
+                "mirror":      "#7B68EE",
+                "catalyst":    "#FF8C00",
+                "subplot_lead":"#20B2AA",
+            }
+            role_labels_kr = {
+                "protagonist":"주인공","antagonist":"적대자","ally":"조력자",
+                "mirror":"거울","catalyst":"촉매자","subplot_lead":"서브플롯",
+            }
+
+            # 관계 키워드 → 유형 매핑
+            def classify_rel(text):
+                t = text.lower()
+                if any(k in t for k in ["죽이","살해","적","증오","혐오","원수","복수","배신","이용","조종","견제"]):
+                    return "hostile"
+                if any(k in t for k in ["사랑","좋아","연인","설레","끌","호감","연모","연인"]):
+                    return "love"
+                if any(k in t for k in ["돕","협력","신뢰","지지","동료","우정","친구","함께","의지"]):
+                    return "ally"
+                if any(k in t for k in ["질투","경쟁","라이벌","갈등","충돌","대립"]):
+                    return "rival"
+                if any(k in t for k in ["가르","멘토","스승","보호","이끌","안내"]):
+                    return "mentor"
+                return "neutral"
+
+            rel_style = {
+                "hostile": {"color":"#D32F2F","label":"⚔️ 적대","dash":"8,4"},
+                "love":    {"color":"#FF69B4","label":"❤️ 사랑","dash":"0"},
+                "ally":    {"color":"#2EC484","label":"🤝 협력","dash":"0"},
+                "rival":   {"color":"#FF8C00","label":"🥊 경쟁","dash":"6,3"},
+                "mentor":  {"color":"#7B68EE","label":"🎓 멘토","dash":"0"},
+                "neutral": {"color":"#AAAAAA","label":"— 중립","dash":"4,4"},
+            }
+
+            n = len(chars)
+            if n == 0:
+                return
+
+            # 원형 배치 좌표 계산
+            cx, cy, r = 400, 300, 200
+            positions = []
+            for i in range(n):
+                angle = (2 * math.pi * i / n) - math.pi / 2
+                x = cx + r * math.cos(angle)
+                y = cy + r * math.sin(angle)
+                positions.append((x, y))
+
+            # 관계 엣지 파싱
+            edges = []
+            for i, ch in enumerate(chars):
+                ra = ch.get("relationship_attitudes", [])
+                if isinstance(ra, list):
+                    for rel_text in ra:
+                        for j, other in enumerate(chars):
+                            if i == j:
+                                continue
+                            other_name = other.get("name", "")
+                            if other_name and other_name in rel_text:
+                                rel_type = classify_rel(rel_text)
+                                short = rel_text.replace(f"→ {other_name}:", "").replace(f"→{other_name}:", "").strip()
+                                short = short[:30] + "…" if len(short) > 30 else short
+                                edges.append((i, j, rel_type, short))
+
+            # SVG 생성
+            svg_lines = [
+                f'<svg viewBox="0 0 800 600" xmlns="http://www.w3.org/2000/svg" '
+                f'style="width:100%;max-width:800px;background:#F7F7F5;border-radius:16px;'
+                f'border:1px solid #E2E2E0;font-family:Pretendard,sans-serif">',
+                '<defs>',
+            ]
+            # 화살표 마커
+            for rtype, rs in rel_style.items():
+                svg_lines.append(
+                    f'<marker id="arr_{rtype}" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">'
+                    f'<path d="M0,0 L0,6 L8,3 z" fill="{rs["color"]}"/></marker>'
+                )
+            svg_lines.append('</defs>')
+
+            # 엣지 선
+            drawn = set()
+            for (i, j, rtype, label) in edges:
+                key = tuple(sorted([i, j]))
+                rs = rel_style[rtype]
+                x1, y1 = positions[i]
+                x2, y2 = positions[j]
+                # 살짝 오프셋 (양방향 선 구분)
+                offset = 8 if (i, j) > (j, i) else -8
+                mx = (x1 + x2) / 2 + offset * ((y2 - y1) / max(abs(x2 - x1) + abs(y2 - y1), 1))
+                my = (y1 + y2) / 2 - offset * ((x2 - x1) / max(abs(x2 - x1) + abs(y2 - y1), 1))
+
+                dash_attr = f'stroke-dasharray="{rs["dash"]}"' if rs["dash"] != "0" else ""
+                svg_lines.append(
+                    f'<line x1="{x1:.0f}" y1="{y1:.0f}" x2="{x2:.0f}" y2="{y2:.0f}" '
+                    f'stroke="{rs["color"]}" stroke-width="2" {dash_attr} '
+                    f'marker-end="url(#arr_{rtype})" opacity="0.7"/>'
+                )
+                # 관계 레이블
+                escaped = _html.escape(label)
+                svg_lines.append(
+                    f'<text x="{mx:.0f}" y="{my:.0f}" text-anchor="middle" '
+                    f'font-size="9" fill="{rs["color"]}" font-weight="600" '
+                    f'style="paint-order:stroke" stroke="white" stroke-width="3">'
+                    f'{escaped}</text>'
+                )
+
+            # 노드 원
+            node_r = 44
+            for i, ch in enumerate(chars):
+                x, y = positions[i]
+                role = ch.get("role", "neutral")
+                color = role_colors.get(role, "#888888")
+                name = _html.escape(ch.get("name", f"캐릭터{i+1}"))
+                role_kr = role_labels_kr.get(role, role)
+
+                # 외곽 링
+                svg_lines.append(
+                    f'<circle cx="{x:.0f}" cy="{y:.0f}" r="{node_r+4}" '
+                    f'fill="{color}" opacity="0.15"/>'
+                )
+                # 메인 원
+                svg_lines.append(
+                    f'<circle cx="{x:.0f}" cy="{y:.0f}" r="{node_r}" '
+                    f'fill="white" stroke="{color}" stroke-width="3"/>'
+                )
+                # 이름
+                svg_lines.append(
+                    f'<text x="{x:.0f}" y="{y-6:.0f}" text-anchor="middle" '
+                    f'font-size="13" font-weight="900" fill="#191970">{name}</text>'
+                )
+                # 역할
+                svg_lines.append(
+                    f'<text x="{x:.0f}" y="{y+10:.0f}" text-anchor="middle" '
+                    f'font-size="10" fill="{color}" font-weight="700">{role_kr}</text>'
+                )
+
+            svg_lines.append('</svg>')
+
+            # 범례
+            legend_items = []
+            used_types = {e[2] for e in edges}
+            for rtype in ["love","ally","mentor","rival","hostile","neutral"]:
+                if rtype in used_types:
+                    rs = rel_style[rtype]
+                    legend_items.append(
+                        f'<span style="display:inline-flex;align-items:center;gap:4px;margin-right:12px;">'
+                        f'<svg width="24" height="6"><line x1="0" y1="3" x2="24" y2="3" '
+                        f'stroke="{rs["color"]}" stroke-width="2.5" '
+                        f'stroke-dasharray="{rs["dash"] if rs["dash"] != "0" else ""}"/></svg>'
+                        f'<span style="font-size:0.78rem;color:#444">{rs["label"]}</span></span>'
+                    )
+
+            svg_html = "\n".join(svg_lines)
+            legend_html = "".join(legend_items)
+
+            st.markdown(
+                f'<div style="text-align:center">{svg_html}</div>'
+                f'<div style="text-align:center;margin-top:8px;padding:8px 0">{legend_html}</div>',
+                unsafe_allow_html=True
+            )
+
+        render_relationship_map(chars)
+
         # Structure 진행 버튼
         st.markdown("---")
         st.success("✅ Character Bible 완료. Structure Build 진행 가능.")
