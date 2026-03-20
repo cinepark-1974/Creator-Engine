@@ -2952,11 +2952,15 @@ elif st.session_state.view == "project" and st.session_state.cur:
         diagnosis = bc.get("idea_type_diagnosis", "")
         action = bc.get("idea_type_action", "")
         type_color = {"STORY": "var(--g)", "MOOD": "var(--navy)", "HYBRID": "#FF8C00"}.get(idea_type, "var(--dim)")
+        action_html = (
+            f'<div style="margin-top:.5rem;padding:.4rem .7rem;background:#FFF8E1;'
+            f'border-radius:6px;font-size:.85rem;font-weight:700;color:#8B6914">→ {action}</div>'
+        ) if action else ""
         st.markdown(
             f'<div class="callout" style="border-left:4px solid {type_color}">'
             f'<div class="cl" style="color:{type_color}">아이디어 유형: {idea_type}</div>'
             f'<div style="margin:.3rem 0;font-size:.9rem">{diagnosis}</div>'
-            f'{"<div style=\"margin-top:.5rem;padding:.4rem .7rem;background:#FFF8E1;border-radius:6px;font-size:.85rem;font-weight:700;color:#8B6914\">→ " + action + "</div>" if action else ""}'
+            f'{action_html}'
             f'</div>',
             unsafe_allow_html=True
         )
