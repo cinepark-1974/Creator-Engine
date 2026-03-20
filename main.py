@@ -10,7 +10,8 @@ import re
 from datetime import datetime
 import prompt as P
 
-ANTHROPIC_MODEL = "claude-sonnet-4-6"
+ANTHROPIC_MODEL = "claude-sonnet-4-6"           # 구조 작업 — 비용 효율
+ANTHROPIC_MODEL_OPUS = "claude-opus-4-6"        # 캐릭터 바이블 · 트리트먼트 · 톤 문서 — 최고 품질
 
 # ─── Page Config ───
 st.set_page_config(
@@ -1218,7 +1219,7 @@ def call_character_bible_single(char_data, all_chars_names, core_data, genre, fm
 {P.CHAR_BIBLE_RULES}"""
 
         response = client.messages.create(
-            model=ANTHROPIC_MODEL, max_tokens=16000, temperature=0.3,
+            model=ANTHROPIC_MODEL_OPUS, max_tokens=16000, temperature=0.3,
             system=system_prompt,
             messages=[{"role": "user", "content": user_prompt}]
         )
@@ -1236,7 +1237,7 @@ def call_character_bible_single(char_data, all_chars_names, core_data, genre, fm
                 "클라이맥스 상태 2문장", "클라이맥스 상태 1문장"
             )
             response = client.messages.create(
-                model=ANTHROPIC_MODEL, max_tokens=16000, temperature=0.3,
+                model=ANTHROPIC_MODEL_OPUS, max_tokens=16000, temperature=0.3,
                 system=system_prompt,
                 messages=[{"role": "user", "content": retry_prompt}]
             )
@@ -1697,14 +1698,14 @@ Goal: {gns.get("goal","")} / Need: {gns.get("need","")} / Strategy: {gns.get("st
 """
 
         response = client.messages.create(
-            model=ANTHROPIC_MODEL, max_tokens=16000, temperature=0.4,
+            model=ANTHROPIC_MODEL_OPUS, max_tokens=16000, temperature=0.4,
             system=system_prompt,
             messages=[{"role": "user", "content": user_prompt}]
         )
         if response.stop_reason == "max_tokens":
             retry = user_prompt.replace("2500~4000자", "2000~3000자").replace("4000~6000자", "3000~4000자")
             response = client.messages.create(
-                model=ANTHROPIC_MODEL, max_tokens=16000, temperature=0.4,
+                model=ANTHROPIC_MODEL_OPUS, max_tokens=16000, temperature=0.4,
                 system=system_prompt,
                 messages=[{"role": "user", "content": retry}]
             )
@@ -1835,7 +1836,7 @@ def call_tone_document(core_data, structure_data, scene_data, treatment_data, ch
 {P.TONE_DOC_SCHEMA}"""
 
         response = client.messages.create(
-            model=ANTHROPIC_MODEL, max_tokens=16000, temperature=0.3,
+            model=ANTHROPIC_MODEL_OPUS, max_tokens=16000, temperature=0.3,
             system=system_prompt,
             messages=[{"role": "user", "content": user_prompt}]
         )
@@ -1848,7 +1849,7 @@ def call_tone_document(core_data, structure_data, scene_data, treatment_data, ch
                 "이 작품에서 절대 하지 말아야 할 규칙 3개"
             )
             response = client.messages.create(
-                model=ANTHROPIC_MODEL, max_tokens=16000, temperature=0.3,
+                model=ANTHROPIC_MODEL_OPUS, max_tokens=16000, temperature=0.3,
                 system=system_prompt,
                 messages=[{"role": "user", "content": retry_prompt}]
             )
