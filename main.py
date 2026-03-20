@@ -1,5 +1,5 @@
 """
-👖 BLUE JEANS Creator Engine v1.2
+👖 BLUE JEANS Creative Development Engine v1.2
 아이디어 → 기획개발 패키지
 단일 페이지 · 사이드바 없음 · 2단계 Brainstorm
 """
@@ -772,6 +772,7 @@ def call_brainstorm_cards(idea, genre, market, fmt, research=None):
 {{
   "idea_type": "story|mood|hybrid",
   "idea_type_diagnosis": "",
+  "idea_type_action": "",
   "idea_cards": [
     {{
       "id": 1,
@@ -807,7 +808,8 @@ def call_brainstorm_cards(idea, genre, market, fmt, research=None):
 - top3는 3개
 - total_score는 6개 점수 평균, 소수점 1자리
 - scores 각 항목은 0.0~10.0
-- idea_type_diagnosis는 1문장
+- idea_type_diagnosis: 이 아이디어의 현재 상태를 이 이야기에만 해당하는 구체적 언어로 1문장. "~이 필요하다" 같은 추상 진단 금지. 예: "주인공의 욕망은 선명하지만 적대자가 없어 갈등이 발생하지 않는다"
+- idea_type_action: idea_type_diagnosis에 대한 즉각적 처방 1문장. 반드시 "~하라" 형태로. 예: "주인공이 원하는 것을 빼앗는 구체적 인물 또는 시스템을 설정하라"
 - 각 카드의 logline_seed는 1문장, 50자 이내
 - protagonist는 1문장, 30자 이내
 - conflict는 1문장, 40자 이내
@@ -2946,10 +2948,15 @@ elif st.session_state.view == "project" and st.session_state.cur:
         ba = project.get("brainstorm_analysis", {})
 
         # ── 아이디어 유형 ──
+        idea_type = bc.get("idea_type", "").upper()
+        diagnosis = bc.get("idea_type_diagnosis", "")
+        action = bc.get("idea_type_action", "")
+        type_color = {"STORY": "var(--g)", "MOOD": "var(--navy)", "HYBRID": "#FF8C00"}.get(idea_type, "var(--dim)")
         st.markdown(
-            f'<div class="callout">'
-            f'<div class="cl">아이디어 유형: {bc.get("idea_type", "").upper()}</div>'
-            f'{bc.get("idea_type_diagnosis", "")}'
+            f'<div class="callout" style="border-left:4px solid {type_color}">'
+            f'<div class="cl" style="color:{type_color}">아이디어 유형: {idea_type}</div>'
+            f'<div style="margin:.3rem 0;font-size:.9rem">{diagnosis}</div>'
+            f'{"<div style=\"margin-top:.5rem;padding:.4rem .7rem;background:#FFF8E1;border-radius:6px;font-size:.85rem;font-weight:700;color:#8B6914\">→ " + action + "</div>" if action else ""}'
             f'</div>',
             unsafe_allow_html=True
         )
