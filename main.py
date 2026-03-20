@@ -1,5 +1,5 @@
 """
-👖 BLUE JEANS Creative Development Engine v1.2
+👖 BLUE JEANS Creator Engine v1.2
 아이디어 → 기획개발 패키지
 단일 페이지 · 사이드바 없음 · 2단계 Brainstorm
 """
@@ -1058,11 +1058,42 @@ def call_core_build_main(idea, genre, market, fmt, selected_concept, research=No
     "주인공↔조력자: 관계 1문장",
     "주인공↔거울: 관계 1문장",
     "확장 캐릭터 간 핵심 관계: 1문장씩"
-  ]
+  ],
+  "attraction_design": {{
+    "opening_hook": {{
+      "type": "A1(In Medias Res) / A2(충격적 사건) / A3(결함 드러남) 중 선택",
+      "description": "첫 장면 구체적 묘사 — 어떤 장면으로 시작하는가 2~3문장",
+      "forbidden_check": "설명/일상/내레이션으로 시작하지 않는다는 확인 1문장"
+    }},
+    "twist_point": {{
+      "expected_direction": "관객이 예상할 전개 1문장",
+      "betrayal": "그 예상을 깨는 배반 포인트 1문장 — 이 이야기만의 방향",
+      "why_more_true": "배반이 단순 반전이 아니라 더 진실된 방향인 이유 1문장"
+    }},
+    "water_cooler_moment": {{
+      "scene_or_setup": "관객이 다음 날 누군가에게 말하고 싶어지는 장면 또는 설정 1문장",
+      "why_memorable": "왜 기억에 남는가 1문장"
+    }},
+    "korean_specificity": [
+      "이 이야기의 한국적 구체성 — 추상어 금지, 공간/제도/관계로 표현 (3개)"
+    ],
+    "villain_logic": "빌런이 자신만의 논리 안에서 옳다고 믿는 이유 1문장",
+    "emotional_explosion": {{
+      "suppression": "어떤 감정을 언제까지 억누르는가 1문장",
+      "explosion_moment": "어느 장면에서 터지는가 1문장"
+    }},
+    "forbidden_directions": [
+      "이 이야기가 절대 가면 안 되는 방향 3개 — 뻔해지는 순간들"
+    ]
+  }}
 }}
 
 규칙:
 - logline_pack 각 버전은 관점만 다르고 같은 이야기를 가리켜야 한다.
+- attraction_design은 이 이야기의 매력 설계도다. 가장 구체적으로 작성할 것.
+- attraction_design.opening_hook.description은 실제 첫 장면을 그릴 수 있을 만큼 구체적으로.
+- attraction_design.water_cooler_moment는 오징어게임의 달고나, 기생충의 냄새처럼 누군가에게 말하고 싶어지는 것.
+- attraction_design.korean_specificity는 추상어(가난, 차별, 압박) 금지. 반드시 구체적 명사(반지하, 수능, 연습생 계약서)로.
 - goal_need_strategy는 이 작품의 서사 엔진이다. 가장 정밀하게 작성할 것.
 - characters는 필수 4명(protagonist/antagonist/ally/mirror). extended_characters는 이야기가 필요로 하는 만큼 0~4명 추가 (최대 총 8명). 영화는 4~5명, 미니시리즈는 6~8명이 적정. 각 인물의 goal이 서로 달라야 한다.
 - extended_characters의 role은 자유. catalyst(촉매자), subplot_lead(서브플롯 리드), mentor(멘토), rival(라이벌), informant(정보원), love_interest(연인) 등 이야기에 맞는 역할명을 직접 지정.
@@ -1545,11 +1576,30 @@ def call_scene_design(core_data, story_data, diag_data, genre, fmt):
         )
         storyline_json = json.dumps(storyline, ensure_ascii=False)
 
+        # ── 매력 설계도 추출 ──
+        ad = core_data.get("attraction_design", {})
+        scene_attraction_block = ""
+        if ad:
+            oh = ad.get("opening_hook", {})
+            tp = ad.get("twist_point", {})
+            wc = ad.get("water_cooler_moment", {})
+            ee = ad.get("emotional_explosion", {})
+            fd = ad.get("forbidden_directions", [])
+            scene_attraction_block = f"""
+[⚡ 매력 설계도 — 장면 설계 최우선 명령]
+첫 장면 유형: {oh.get("type", "")}
+첫 장면 (scene_no 1 반드시 이것으로): {oh.get("description", "")}
+배반 포인트: {tp.get("betrayal", "")}
+Water Cooler Moment (반드시 key_scenes 안에 포함): {wc.get("scene_or_setup", "")}
+감정 폭발 장면: {ee.get("explosion_moment", "")}
+절대 금지 방향: {" / ".join(fd)}
+"""
+
         user_prompt = f"""[Core]
 로그라인: {lp.get("washed","")}
 Goal: {gns.get("goal","")} / Need: {gns.get("need","")} / Strategy: {gns.get("strategy","")}
 캐릭터: {chars_simple}
-
+{scene_attraction_block}
 [Storyline]
 {storyline_json}
 
@@ -1666,6 +1716,25 @@ def call_treatment_beats(core_data, story_data, scene_data, genre, fmt, act_numb
         # ── B-Story 컨텍스트 구성 ──
         b_story_context = _build_b_story_context(core_data)
 
+        # ── 매력 설계도 추출 ──
+        attraction_design = core_data.get("attraction_design", {})
+        attraction_block = ""
+        if attraction_design:
+            oh = attraction_design.get("opening_hook", {})
+            tp = attraction_design.get("twist_point", {})
+            wc = attraction_design.get("water_cooler_moment", {})
+            ee = attraction_design.get("emotional_explosion", {})
+            fd = attraction_design.get("forbidden_directions", [])
+            attraction_block = f"""
+[⚡ 매력 설계도 — 최우선 명령. 반드시 반영하라]
+첫 장면 유형: {oh.get("type", "")}
+첫 장면: {oh.get("description", "")}
+배반 포인트: {tp.get("betrayal", "")} (관객 예상: {tp.get("expected_direction", "")})
+Water Cooler Moment: {wc.get("scene_or_setup", "")}
+감정 억압 → 폭발: {ee.get("suppression", "")} → {ee.get("explosion_moment", "")}
+절대 금지 방향: {" / ".join(fd)}
+"""
+
         # ── 시스템 프롬프트 (fmt + b_story 전달) ──
         system_prompt = P.build_system_treatment(genre, act_label, fmt=fmt, b_story_context=b_story_context)
 
@@ -1681,6 +1750,7 @@ def call_treatment_beats(core_data, story_data, scene_data, genre, fmt, act_numb
 Goal: {gns.get("goal","")} / Need: {gns.get("need","")} / Strategy: {gns.get("strategy","")}
 캐릭터: {chars_simple}
 {series_info}
+{attraction_block}
 [Synopsis]
 {json.dumps(syn, ensure_ascii=False)}
 
@@ -3276,6 +3346,110 @@ elif st.session_state.view == "core" and st.session_state.cur:
             st.markdown("#### 🔗 관계도")
             for r in rel:
                 st.markdown(f"- {r}")
+
+        # ── 매력 설계도 (Attraction Design) ──
+        ad = core.get("attraction_design", {})
+        if ad:
+            st.markdown("---")
+            st.markdown('<div class="section-header">⚡ 매력 설계도 <span class="en">ATTRACTION DESIGN</span></div>', unsafe_allow_html=True)
+            st.caption("이 이야기가 멈출 수 없게 만드는 핵심 설계 — Writer/Series/Novel Engine에 자동 전달됩니다.")
+
+            # 첫 장면
+            oh = ad.get("opening_hook", {})
+            if oh:
+                hook_type = oh.get("type", "")
+                hook_desc = oh.get("description", "")
+                hook_check = oh.get("forbidden_check", "")
+                st.markdown(
+                    f'<div class="card" style="border-left:4px solid var(--y)">'
+                    f'<div class="cl">🎬 첫 장면 — OPENING HOOK</div>'
+                    f'<div style="font-size:.75rem;color:var(--navy);font-weight:700;margin-bottom:.4rem">[{hook_type}]</div>'
+                    f'<p style="line-height:1.7;margin:.3rem 0">{hook_desc}</p>'
+                    f'<div style="font-size:.75rem;color:var(--g);margin-top:.4rem">✓ {hook_check}</div>'
+                    f'</div>',
+                    unsafe_allow_html=True
+                )
+
+            # 배반 포인트
+            tp = ad.get("twist_point", {})
+            if tp:
+                c1, c2 = st.columns(2)
+                with c1:
+                    st.markdown(
+                        f'<div class="ri"><div class="rl">👀 관객이 예상하는 전개</div>'
+                        f'{tp.get("expected_direction", "")}</div>',
+                        unsafe_allow_html=True
+                    )
+                with c2:
+                    st.markdown(
+                        f'<div class="ri" style="border-left:3px solid var(--y)">'
+                        f'<div class="rl">💥 배반 포인트 — 이 이야기만의 방향</div>'
+                        f'{tp.get("betrayal", "")}</div>',
+                        unsafe_allow_html=True
+                    )
+                if tp.get("why_more_true"):
+                    st.markdown(
+                        f'<div class="callout"><div class="cl">배반이 더 진실된 이유</div>'
+                        f'{tp["why_more_true"]}</div>',
+                        unsafe_allow_html=True
+                    )
+
+            # Water Cooler Moment
+            wc = ad.get("water_cooler_moment", {})
+            if wc:
+                st.markdown(
+                    f'<div class="card" style="background:var(--light-bg)">'
+                    f'<div class="cl">💬 Water Cooler Moment — 말하고 싶어지는 장면</div>'
+                    f'<p style="font-size:.95rem;font-weight:700;margin:.3rem 0">{wc.get("scene_or_setup","")}</p>'
+                    f'<div style="font-size:.8rem;color:var(--dim)">{wc.get("why_memorable","")}</div>'
+                    f'</div>',
+                    unsafe_allow_html=True
+                )
+
+            # 한국 구체성 + 빌런 논리
+            c1, c2 = st.columns(2)
+            with c1:
+                ks = ad.get("korean_specificity", [])
+                if ks:
+                    ks_html = "<br>".join([f"• {k}" for k in ks])
+                    st.markdown(
+                        f'<div class="ri"><div class="rl">🇰🇷 한국 구체성</div>{ks_html}</div>',
+                        unsafe_allow_html=True
+                    )
+            with c2:
+                vl = ad.get("villain_logic", "")
+                if vl:
+                    st.markdown(
+                        f'<div class="ri"><div class="rl">🖤 빌런의 논리</div>{vl}</div>',
+                        unsafe_allow_html=True
+                    )
+
+            # 감정 폭발 설계
+            ee = ad.get("emotional_explosion", {})
+            if ee:
+                c1, c2 = st.columns(2)
+                with c1:
+                    st.markdown(
+                        f'<div class="ri"><div class="rl">🔒 감정 억압 구간</div>'
+                        f'{ee.get("suppression","")}</div>',
+                        unsafe_allow_html=True
+                    )
+                with c2:
+                    st.markdown(
+                        f'<div class="ri" style="border-left:3px solid var(--r)">'
+                        f'<div class="rl">💣 폭발 장면</div>'
+                        f'{ee.get("explosion_moment","")}</div>',
+                        unsafe_allow_html=True
+                    )
+
+            # 금지 방향
+            fd = ad.get("forbidden_directions", [])
+            if fd:
+                fd_html = " &nbsp;|&nbsp; ".join([f'<span style="color:var(--r)">✗ {f}</span>' for f in fd])
+                st.markdown(
+                    f'<div class="ri"><div class="rl">🚫 절대 가면 안 되는 방향</div>{fd_html}</div>',
+                    unsafe_allow_html=True
+                )
 
         st.markdown("---")
 
