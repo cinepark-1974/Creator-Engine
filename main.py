@@ -1042,17 +1042,29 @@ def call_core_build_main(idea, genre, market, fmt, selected_concept, research=No
       "dialogue_tone": ""
     }}
   ],
+  "extended_characters": [
+    {{
+      "role": "역할명 (catalyst/subplot_lead/mentor/rival/informant/love_interest 등 자유)",
+      "name": "",
+      "description": "이 인물이 이야기에 왜 필요한가 1문장",
+      "goal": "",
+      "flaw": "",
+      "dialogue_tone": ""
+    }}
+  ],
   "relationship_map": [
     "주인공↔적대자: 관계 1문장",
     "주인공↔조력자: 관계 1문장",
-    "주인공↔거울: 관계 1문장"
+    "주인공↔거울: 관계 1문장",
+    "확장 캐릭터 간 핵심 관계: 1문장씩"
   ]
 }}
 
 규칙:
 - logline_pack 각 버전은 관점만 다르고 같은 이야기를 가리켜야 한다.
 - goal_need_strategy는 이 작품의 서사 엔진이다. 가장 정밀하게 작성할 것.
-- characters는 정확히 4명. 각 인물의 goal이 서로 달라야 한다.
+- characters는 필수 4명(protagonist/antagonist/ally/mirror). extended_characters는 이야기가 필요로 하는 만큼 0~4명 추가 (최대 총 8명). 영화는 4~5명, 미니시리즈는 6~8명이 적정. 각 인물의 goal이 서로 달라야 한다.
+- extended_characters의 role은 자유. catalyst(촉매자), subplot_lead(서브플롯 리드), mentor(멘토), rival(라이벌), informant(정보원), love_interest(연인) 등 이야기에 맞는 역할명을 직접 지정.
 - world_build의 conflict_points는 세계관이 만들어내는 갈등이어야 한다.
 """
 
@@ -1241,15 +1253,17 @@ def call_character_bible_single(char_data, all_chars_names, core_data, genre, fm
 
 
 def call_character_bible(core_data, genre, fmt):
-    """캐릭터 바이블 — 캐릭터별 분할 호출 후 합산"""
+    """캐릭터 바이블 — characters + extended_characters 모두 처리"""
     chars = core_data.get("characters", [])
-    all_names = [c.get("name", f"캐릭터{i+1}") for i, c in enumerate(chars)]
+    ext_chars = core_data.get("extended_characters", [])
+    all_chars = chars + ext_chars
+    all_names = [c.get("name", f"캐릭터{i+1}") for i, c in enumerate(all_chars)]
 
     result_chars = []
-    for i, ch in enumerate(chars):
+    for i, ch in enumerate(all_chars):
         name = ch.get("name", f"캐릭터{i+1}")
         role = ch.get("role", "")
-        st.info(f"📖 {i+1}/{len(chars)} — {name} ({role}) 바이블 생성 중...")
+        st.info(f"📖 {i+1}/{len(all_chars)} — {name} ({role}) 바이블 생성 중...")
         char_result = call_character_bible_single(ch, all_names, core_data, genre, fmt)
         if char_result:
             result_chars.append(char_result)
@@ -1268,7 +1282,7 @@ def call_structure_story(core_data, genre, market, fmt):
         client = get_client()
         gns = core_data.get("goal_need_strategy", {})
         lp = core_data.get("logline_pack", {})
-        chars = core_data.get("characters", [])
+        chars = core_data.get("characters", []) + core_data.get("extended_characters", [])
 
         system_prompt = P.build_system_structure_story()
 
@@ -1340,7 +1354,7 @@ def call_structure_diagnosis(core_data, story_data, genre, fmt):
     try:
         client = get_client()
         gns = core_data.get("goal_need_strategy", {})
-        chars = core_data.get("characters", [])
+        chars = core_data.get("characters", []) + core_data.get("extended_characters", [])
 
         system_prompt = P.build_system_structure_diagnosis()
 
@@ -1376,7 +1390,7 @@ Goal: {gns.get("goal","")} / Need: {gns.get("need","")} / Strategy: {gns.get("st
   "character_arcs": [
     {{
       "name": "캐릭터 이름",
-      "role": "protagonist|antagonist|ally|mirror",
+      "role": "protagonist|antagonist|ally|mirror|catalyst|subplot_lead",
       "act1_state": "1막에서의 상태/태도 1문장",
       "turning_point": "변화를 촉발하는 사건 1문장",
       "act3_state": "3막에서의 변화된 상태 1문장",
@@ -1396,7 +1410,7 @@ Goal: {gns.get("goal","")} / Need: {gns.get("need","")} / Strategy: {gns.get("st
 규칙:
 - beat_sheet는 15비트 전체 (Opening Image ~ Final Image)
 - beat status는 반드시 있음/약함/없음 중 하나
-- character_arcs는 Core Build의 4인 캐릭터 전원
+- character_arcs는 Core Build의 캐릭터 전원
 - relationship_changes는 핵심 관계 3~4쌍
 - 모든 필드 1문장 이내로 압축
 """
@@ -1519,7 +1533,7 @@ def call_scene_design(core_data, story_data, diag_data, genre, fmt):
         client = get_client()
         gns = core_data.get("goal_need_strategy", {})
         lp = core_data.get("logline_pack", {})
-        chars = core_data.get("characters", [])
+        chars = core_data.get("characters", []) + core_data.get("extended_characters", [])
         storyline = story_data.get("storyline", [])
 
         system_prompt = P.build_system_scene_design(genre)
@@ -1613,7 +1627,7 @@ def call_treatment_beats(core_data, story_data, scene_data, genre, fmt, act_numb
         client = get_client()
         gns = core_data.get("goal_need_strategy", {})
         lp = core_data.get("logline_pack", {})
-        chars = core_data.get("characters", [])
+        chars = core_data.get("characters", []) + core_data.get("extended_characters", [])
         syn = story_data.get("synopsis_1p", {})
         storyline = story_data.get("storyline", [])
 
@@ -2078,8 +2092,9 @@ def generate_docx(project):
 
         # ── 캐릭터 CHARACTER ──
         add_yellow_header("캐릭터", "CHARACTER")
-        role_labels = {"protagonist":"주인공","antagonist":"적대자","ally":"조력자","mirror":"거울"}
-        for ch in core.get("characters", []):
+        role_labels = {"protagonist":"주인공","antagonist":"적대자","ally":"조력자","mirror":"거울","catalyst":"촉매자","subplot_lead":"서브플롯 리드"}
+        all_core_chars = core.get("characters", []) + core.get("extended_characters", [])
+        for ch in all_core_chars:
             role = role_labels.get(ch.get("role",""), ch.get("role",""))
             name = ch.get("name", "")
 
@@ -2105,7 +2120,7 @@ def generate_docx(project):
         add_yellow_header("캐릭터 바이블", "CHARACTER BIBLE")
 
         for ch in char_bible.get("characters", []):
-            role_kr = {"protagonist":"주인공","antagonist":"적대자","ally":"조력자","mirror":"거울"}
+            role_kr = {"protagonist":"주인공","antagonist":"적대자","ally":"조력자","mirror":"거울","catalyst":"촉매자","subplot_lead":"서브플롯 리드"}
             role = role_kr.get(ch.get("role",""), ch.get("role",""))
             name = ch.get("name","")
             age = ch.get("age","")
@@ -3241,8 +3256,9 @@ elif st.session_state.view == "core" and st.session_state.cur:
 
         # Characters
         st.markdown("#### 🎭 캐릭터")
-        role_labels = {"protagonist":"주인공","antagonist":"적대자","ally":"조력자","mirror":"거울 캐릭터"}
-        for ch in core.get("characters", []):
+        role_labels = {"protagonist":"주인공","antagonist":"적대자","ally":"조력자","mirror":"거울","catalyst":"촉매자","subplot_lead":"서브플롯 리드"}
+        all_display_chars = core.get("characters", []) + core.get("extended_characters", [])
+        for ch in all_display_chars:
             role = role_labels.get(ch.get("role",""), ch.get("role",""))
             st.markdown(
                 f'<div class="card"><div class="cl">{role}: {ch.get("name","")}</div>'
@@ -3373,7 +3389,7 @@ elif st.session_state.view == "char_bible" and st.session_state.cur:
 
     if not project.get("char_bible"):
         if st.button("📖 Character Bible 생성", type="primary"):
-            with st.spinner("캐릭터 바이블 설계 중... (캐릭터당 약 30초, 4명 기준 약 2분)"):
+            with st.spinner("캐릭터 바이블 설계 중... (캐릭터당 약 30초, 4~8명 기준 약 2~4분)"):
                 result = call_character_bible(core, project["genre"], project["format"])
             if result:
                 project["char_bible"] = result
@@ -3383,8 +3399,8 @@ elif st.session_state.view == "char_bible" and st.session_state.cur:
     bible = project.get("char_bible", {})
     if bible:
         chars = bible.get("characters", [])
-        role_labels = {"protagonist":"주인공","antagonist":"적대자","ally":"조력자","mirror":"거울"}
-        role_emoji = {"protagonist":"🔥","antagonist":"🖤","ally":"💙","mirror":"🪞"}
+        role_labels = {"protagonist":"주인공","antagonist":"적대자","ally":"조력자","mirror":"거울","catalyst":"촉매자","subplot_lead":"서브플롯 리드"}
+        role_emoji = {"protagonist":"🔥","antagonist":"🖤","ally":"💙","mirror":"🪞","catalyst":"⚡","subplot_lead":"🌐"}
 
         for ch in chars:
             role = role_labels.get(ch.get("role",""), ch.get("role",""))
@@ -3568,7 +3584,7 @@ elif st.session_state.view == "structure" and st.session_state.cur:
         arcs = diag.get("character_arcs", [])
         if arcs:
             st.markdown("#### 🎭 캐릭터 변화표")
-            role_labels = {"protagonist":"주인공","antagonist":"적대자","ally":"조력자","mirror":"거울"}
+            role_labels = {"protagonist":"주인공","antagonist":"적대자","ally":"조력자","mirror":"거울","catalyst":"촉매자","subplot_lead":"서브플롯 리드"}
             for arc in arcs:
                 role = role_labels.get(arc.get("role",""), arc.get("role",""))
                 arc_type = arc.get("arc_type", "")
