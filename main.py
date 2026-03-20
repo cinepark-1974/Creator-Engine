@@ -1569,12 +1569,46 @@ Goal: {gns.get("goal","")} / Need: {gns.get("need","")} / Strategy: {gns.get("st
 
 
 # ─── 16비트 구조 정의 ───
-BEAT_STRUCTURE = P.BEAT_STRUCTURE
+def _get_series_act_mapping(fmt):
+    """미니시리즈의 에피소드를 3막에 매핑"""
+    bs = P.get_beat_structure(fmt)
+    eps = list(bs.keys())
+    n = len(eps)
+    if n <= 3:
+        return {1: eps[:1], 2: eps[1:2], 3: eps[2:]}
+    elif n <= 6:
+        return {1: eps[:2], 2: eps[2:4], 3: eps[4:]}
+    else:  # 8화
+        return {1: eps[:3], 2: eps[3:6], 3: eps[6:]}
+
+
+def _build_b_story_context(core_data):
+    """Core Build의 세계관/GNS에서 B-Story 컨텍스트 추출"""
+    wb = core_data.get("world_build", {})
+    gns = core_data.get("goal_need_strategy", {})
+    parts = []
+    # 시간축
+    time_ctx = wb.get("time", wb.get("시간", ""))
+    if time_ctx:
+        parts.append(f"B-Story 시간축: {time_ctx}")
+    # 공간/사회
+    space_ctx = wb.get("space", wb.get("공간", ""))
+    if space_ctx:
+        parts.append(f"B-Story 공간: {space_ctx}")
+    # 권력구조
+    power_ctx = wb.get("power_structure", wb.get("권력구조", ""))
+    if power_ctx:
+        parts.append(f"권력구조: {power_ctx}")
+    # Risk (실패 시 B-Story 영향)
+    risk = gns.get("risk", "")
+    if risk:
+        parts.append(f"실패 시 B-Story 결과: {risk}")
+    return "\n".join(parts) if parts else ""
 
 
 # ─── API Call: Treatment Build (16비트 줄글) ───
 def call_treatment_beats(core_data, story_data, scene_data, genre, fmt, act_number):
-    """Treatment Build: 막별 비트 줄글 생성"""
+    """Treatment Build: 막별 비트 줄글 생성 — 영화/시리즈 자동 분기"""
     try:
         client = get_client()
         gns = core_data.get("goal_need_strategy", {})
@@ -1583,7 +1617,21 @@ def call_treatment_beats(core_data, story_data, scene_data, genre, fmt, act_numb
         syn = story_data.get("synopsis_1p", {})
         storyline = story_data.get("storyline", [])
 
-        beats = BEAT_STRUCTURE[act_number]
+        is_series = P.is_series_format(fmt)
+
+        # ── 비트 목록 구성 ──
+        if is_series:
+            act_ep_map = _get_series_act_mapping(fmt)
+            bs = P.get_beat_structure(fmt)
+            all_beats = []
+            for ep_key in act_ep_map.get(act_number, []):
+                for beat_tuple in bs.get(ep_key, []):
+                    all_beats.append((beat_tuple[0], f"[{ep_key}] {beat_tuple[1]}", beat_tuple[2] if len(beat_tuple) > 2 else ""))
+            beats = all_beats
+        else:
+            bs = P.BEAT_STRUCTURE_FILM
+            beats = bs[act_number]
+
         act_labels = {1: "1막", 2: "2막", 3: "3막"}
         act_label = act_labels[act_number]
 
@@ -1598,16 +1646,26 @@ def call_treatment_beats(core_data, story_data, scene_data, genre, fmt, act_numb
             if scenes:
                 scene_ref = f"\n[Scene Design 참고]\n{json.dumps(scenes, ensure_ascii=False)}"
 
-        beat_list = "\n".join([f"Beat {b[0]}. {b[1]} — {b[2]}" for b in beats])
+        beat_list = "\n".join([f"Beat {b[0]}. {b[1]}" + (f" — {b[2]}" if len(b) > 2 and b[2] else "") for b in beats])
 
-        system_prompt = P.build_system_treatment(genre, act_label)
+        # ── B-Story 컨텍스트 구성 ──
+        b_story_context = _build_b_story_context(core_data)
+
+        # ── 시스템 프롬프트 (fmt + b_story 전달) ──
+        system_prompt = P.build_system_treatment(genre, act_label, fmt=fmt, b_story_context=b_story_context)
+
+        # ── 시리즈용 추가 정보 ──
+        series_info = ""
+        if is_series:
+            ep_list = act_ep_map.get(act_number, [])
+            series_info = f"\n[에피소드 구성] 이 {act_label}은 {', '.join(ep_list)}에 해당합니다. 각 에피소드의 마지막 비트는 반드시 클리프행어로 끝내세요.\n"
 
         user_prompt = f"""[작품 정보]
 로그라인: {lp.get("washed","")}
 장르: {genre} / 포맷: {fmt}
 Goal: {gns.get("goal","")} / Need: {gns.get("need","")} / Strategy: {gns.get("strategy","")}
 캐릭터: {chars_simple}
-
+{series_info}
 [Synopsis]
 {json.dumps(syn, ensure_ascii=False)}
 
@@ -2231,11 +2289,22 @@ def generate_docx(project):
                     beat_no = b.get("beat_no", "")
                     beat_name = b.get("beat_name", "")
                     narrative = b.get("narrative", "")
+                    episode = b.get("episode", "")
+                    event_s = b.get("event_summary", "")
+                    decision_s = b.get("decision_summary", "")
+                    consequence_s = b.get("consequence_summary", "")
+                    b_story = b.get("b_story_beat", "")
+                    cliff = b.get("cliffhanger", "")
 
-                    # 비트 번호 + 이름
+                    # 비트 번호 + 에피소드 태그 + 이름
                     p_beat = doc.add_paragraph()
                     p_beat.paragraph_format.space_before = Pt(12)
                     p_beat.paragraph_format.space_after = Pt(4)
+                    if episode:
+                        r_ep = p_beat.add_run(f"[{episode}] ")
+                        r_ep.font.size = Pt(9)
+                        r_ep.font.bold = True
+                        r_ep.font.color.rgb = NAVY
                     r_num = p_beat.add_run(f"Beat {beat_no}")
                     r_num.font.size = Pt(10)
                     r_num.font.bold = True
@@ -2244,6 +2313,29 @@ def generate_docx(project):
                     r_name.font.size = Pt(10)
                     r_name.font.bold = True
                     r_name.font.color.rgb = NAVY
+
+                    # 사건/선택/결과 요약 블록
+                    meta_parts = []
+                    if event_s:
+                        meta_parts.append(f"사건: {event_s}")
+                    if decision_s:
+                        meta_parts.append(f"선택: {decision_s}")
+                    if consequence_s:
+                        meta_parts.append(f"결과: {consequence_s}")
+                    if b_story:
+                        meta_parts.append(f"B-Story: {b_story}")
+                    if cliff:
+                        meta_parts.append(f"CLIFFHANGER: {cliff}")
+                    if meta_parts:
+                        p_meta = doc.add_paragraph()
+                        p_meta.paragraph_format.space_before = Pt(2)
+                        p_meta.paragraph_format.space_after = Pt(4)
+                        shading_meta = parse_xml(f'<w:shd {nsdecls("w")} w:fill="EEEEF6" w:val="clear"/>')
+                        p_meta.paragraph_format.element.get_or_add_pPr().append(shading_meta)
+                        r_meta = p_meta.add_run(" | ".join(meta_parts))
+                        r_meta.font.size = Pt(8)
+                        r_meta.font.color.rgb = RGBColor(0x4A, 0x4A, 0x5A)
+                        r_meta.font.italic = True
 
                     # 줄글 narrative
                     if narrative:
@@ -3747,15 +3839,41 @@ elif st.session_state.view == "treatment" and st.session_state.cur:
                 for b in act_data.get("beats", []):
                     beat_no = b.get("beat_no", "")
                     beat_name = b.get("beat_name", "")
+                    episode = b.get("episode", "")
                     narrative = b.get("narrative", "").replace("\n", "<br>")
                     char_count = len(b.get("narrative", ""))
+                    event_s = b.get("event_summary", "")
+                    decision_s = b.get("decision_summary", "")
+                    consequence_s = b.get("consequence_summary", "")
+                    status_c = b.get("status_change", "")
+                    b_story = b.get("b_story_beat", "")
+                    cliff = b.get("cliffhanger", "")
+
+                    ep_tag = f'<span style="background:var(--y);color:var(--n);padding:1px 6px;border-radius:3px;font-size:.7rem;margin-right:6px">{episode}</span>' if episode else ""
+
+                    meta_lines = []
+                    if event_s:
+                        meta_lines.append(f'<b>사건</b>: {event_s}')
+                    if decision_s:
+                        meta_lines.append(f'<b>선택</b>: {decision_s}')
+                    if consequence_s:
+                        meta_lines.append(f'<b>결과</b>: {consequence_s}')
+                    if status_c:
+                        meta_lines.append(f'<b>변화</b>: {status_c}')
+                    if b_story:
+                        meta_lines.append(f'<b>B-Story</b>: {b_story}')
+                    if cliff:
+                        meta_lines.append(f'<b style="color:var(--r)">CLIFFHANGER</b>: {cliff}')
+                    meta_html = "<br>".join(meta_lines)
+                    meta_block = f'<div style="background:var(--mist);padding:8px 10px;border-radius:6px;margin-top:8px;font-size:.78rem;line-height:1.6">{meta_html}</div>' if meta_lines else ""
 
                     st.markdown(
                         f'<div class="card">'
-                        f'<div class="cl">Beat {beat_no}. {beat_name}</div>'
+                        f'<div class="cl">{ep_tag}Beat {beat_no}. {beat_name}</div>'
                         f'<div style="line-height:2.0;font-size:.9rem;margin-top:.5rem">'
                         f'{narrative}'
                         f'</div>'
+                        f'{meta_block}'
                         f'<div style="text-align:right;font-size:.65rem;color:var(--dim);margin-top:.3rem">{char_count}자</div>'
                         f'</div>',
                         unsafe_allow_html=True
