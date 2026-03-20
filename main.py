@@ -1688,7 +1688,7 @@ Goal: {gns.get("goal","")} / Need: {gns.get("need","")} / Strategy: {gns.get("st
             messages=[{"role": "user", "content": user_prompt}]
         )
         if response.stop_reason == "max_tokens":
-            retry = user_prompt.replace("1500~2500자", "1000~1500자").replace("1500자 이상", "1000자 이상")
+            retry = user_prompt.replace("2500~4000자", "2000~3000자").replace("4000~6000자", "3000~4000자")
             response = client.messages.create(
                 model=ANTHROPIC_MODEL, max_tokens=16000, temperature=0.4,
                 system=system_prompt,
