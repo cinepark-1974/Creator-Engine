@@ -665,6 +665,16 @@ def get_client():
     return anthropic.Anthropic(api_key=st.secrets["ANTHROPIC_API_KEY"])
 
 
+def _build_project_locked_block(project: dict) -> str:
+    """프로젝트의 LOCKED/OPEN 항목으로 프롬프트 주입 블록 생성.
+    LOCKED 항목이 없으면 빈 문자열 반환."""
+    locked = project.get("locked_items", [])
+    open_items = project.get("open_items", [])
+    if not locked and not open_items:
+        return ""
+    return P.build_locked_block(locked, open_items)
+
+
 # ─── API Call: Research ───
 def call_research(idea, genre, market):
     try:
@@ -742,7 +752,7 @@ def call_research(idea, genre, market):
 
 
 # ─── API Call: Brainstorm Cards (1단계) ───
-def call_brainstorm_cards(idea, genre, market, fmt, research=None):
+def call_brainstorm_cards(idea, genre, market, fmt, research=None, locked_block=""):
     """1단계: 아이디어 카드 10개 + Top 3 생성 (토큰 집중)"""
     try:
         client = get_client()
@@ -766,6 +776,7 @@ def call_brainstorm_cards(idea, genre, market, fmt, research=None):
 장르: {genre}
 타겟: {market}
 포맷: {fmt}
+{locked_block}
 {research_block}
 
 [JSON 스키마]
@@ -858,7 +869,7 @@ def call_brainstorm_cards(idea, genre, market, fmt, research=None):
 
 
 # ─── API Call: Brainstorm Analysis (2단계) ───
-def call_brainstorm_analysis(idea, genre, market, fmt, top3_cards, research=None):
+def call_brainstorm_analysis(idea, genre, market, fmt, top3_cards, research=None, locked_block=""):
     """2단계: Top 3 기반 시장분석 + 차별화 + Gate A 채점"""
     try:
         client = get_client()
@@ -877,6 +888,7 @@ def call_brainstorm_analysis(idea, genre, market, fmt, top3_cards, research=None
 장르: {genre}
 타겟: {market}
 포맷: {fmt}
+{locked_block}
 
 [Top 3 컨셉 카드]
 {json.dumps(top3_cards, ensure_ascii=False)}
@@ -951,7 +963,7 @@ def call_brainstorm_analysis(idea, genre, market, fmt, top3_cards, research=None
 
 
 # ─── API Call: Core Build Main (1단계) ───
-def call_core_build_main(idea, genre, market, fmt, selected_concept, research=None):
+def call_core_build_main(idea, genre, market, fmt, selected_concept, research=None, locked_block=""):
     """Core Build 1단계: Logline + Intent + World + Character + Goal/Need/Strategy"""
     try:
         client = get_client()
@@ -971,6 +983,7 @@ def call_core_build_main(idea, genre, market, fmt, selected_concept, research=No
 [선정 컨셉]
 {json.dumps(selected_concept, ensure_ascii=False)}
 {research_block}
+{locked_block}
 
 [JSON 스키마]
 {{
@@ -1210,7 +1223,7 @@ def call_core_gate(core_data):
 
 
 # ─── API Call: Character Bible ───
-def call_character_bible_single(char_data, all_chars_names, core_data, genre, fmt):
+def call_character_bible_single(char_data, all_chars_names, core_data, genre, fmt, locked_block=""):
     """캐릭터 바이블 — 캐릭터 1인 단위 호출"""
     try:
         client = get_client()
@@ -1245,6 +1258,7 @@ def call_character_bible_single(char_data, all_chars_names, core_data, genre, fm
 
 [다른 캐릭터 이름 (관계별 태도 작성용)]
 {others_str}
+{locked_block}
 
 [JSON 스키마 — 이 캐릭터 1인분만 출력]
 {schema}
@@ -1286,7 +1300,7 @@ def call_character_bible_single(char_data, all_chars_names, core_data, genre, fm
         return None
 
 
-def call_character_bible(core_data, genre, fmt):
+def call_character_bible(core_data, genre, fmt, locked_block=""):
     """캐릭터 바이블 — characters + extended_characters 모두 처리"""
     chars = core_data.get("characters", [])
     ext_chars = core_data.get("extended_characters", [])
@@ -1298,7 +1312,7 @@ def call_character_bible(core_data, genre, fmt):
         name = ch.get("name", f"캐릭터{i+1}")
         role = ch.get("role", "")
         st.info(f"📖 {i+1}/{len(all_chars)} — {name} ({role}) 바이블 생성 중...")
-        char_result = call_character_bible_single(ch, all_names, core_data, genre, fmt)
+        char_result = call_character_bible_single(ch, all_names, core_data, genre, fmt, locked_block=locked_block)
         if char_result:
             result_chars.append(char_result)
         else:
@@ -1310,7 +1324,7 @@ def call_character_bible(core_data, genre, fmt):
 
 
 # ─── API Call: Structure Build Story (1단계) ───
-def call_structure_story(core_data, genre, market, fmt):
+def call_structure_story(core_data, genre, market, fmt, locked_block=""):
     """Structure 1단계: Synopsis 1P + Storyline"""
     try:
         client = get_client()
@@ -1323,6 +1337,7 @@ def call_structure_story(core_data, genre, market, fmt):
         user_prompt = f"""[Core Build 요약]
 로그라인: {lp.get("washed", lp.get("original", ""))}
 장르: {genre} / 타겟: {market} / 포맷: {fmt}
+{locked_block}
 Goal: {gns.get("goal","")}
 Need: {gns.get("need","")}
 Strategy: {gns.get("strategy","")}
@@ -1383,7 +1398,7 @@ Strategy: {gns.get("strategy","")}
 
 
 # ─── API Call: Structure Build Diagnosis + Character Arcs (2단계) ───
-def call_structure_diagnosis(core_data, story_data, genre, fmt):
+def call_structure_diagnosis(core_data, story_data, genre, fmt, locked_block=""):
     """Structure 2단계: 3막 구조 진단 + 15비트 + 캐릭터 관계 변화표"""
     try:
         client = get_client()
@@ -1394,6 +1409,7 @@ def call_structure_diagnosis(core_data, story_data, genre, fmt):
 
         user_prompt = f"""[입력]
 장르: {genre} / 포맷: {fmt}
+{locked_block}
 Goal: {gns.get("goal","")} / Need: {gns.get("need","")} / Strategy: {gns.get("strategy","")}
 
 [캐릭터]
@@ -1561,7 +1577,7 @@ Goal: {gns.get("goal","")} / Need: {gns.get("need","")} / Strategy: {gns.get("st
 
 
 # ─── API Call: Scene Design (장면화) ───
-def call_scene_design(core_data, story_data, diag_data, genre, fmt):
+def call_scene_design(core_data, story_data, diag_data, genre, fmt, locked_block=""):
     """Scene Design: 핵심 장면 15~18개 설계 (Show, don't tell)"""
     try:
         client = get_client()
@@ -1602,6 +1618,7 @@ Water Cooler Moment (반드시 key_scenes 안에 포함): {wc.get("scene_or_setu
 Goal: {gns.get("goal","")} / Need: {gns.get("need","")} / Strategy: {gns.get("strategy","")}
 캐릭터: {chars_simple}
 {scene_attraction_block}
+{locked_block}
 [Storyline]
 {storyline_json}
 
@@ -1674,7 +1691,7 @@ def _build_b_story_context(core_data):
 
 
 # ─── API Call: Treatment Build (16비트 줄글) ───
-def call_treatment_beats(core_data, story_data, scene_data, genre, fmt, act_number):
+def call_treatment_beats(core_data, story_data, scene_data, genre, fmt, act_number, locked_block=""):
     """Treatment Build: 막별 비트 줄글 생성 — 영화/시리즈 자동 분기"""
     try:
         client = get_client()
@@ -1751,6 +1768,7 @@ Water Cooler Moment: {wc.get("scene_or_setup", "")}
 장르: {genre} / 포맷: {fmt}
 Goal: {gns.get("goal","")} / Need: {gns.get("need","")} / Strategy: {gns.get("strategy","")}
 캐릭터: {chars_simple}
+{locked_block}
 {series_info}
 {attraction_block}
 [Synopsis]
@@ -1867,7 +1885,7 @@ def call_treatment_gate(treatment_data):
 
 
 # ─── API Call: Tone Document ───
-def call_tone_document(core_data, structure_data, scene_data, treatment_data, char_bible, genre, fmt):
+def call_tone_document(core_data, structure_data, scene_data, treatment_data, char_bible, genre, fmt, locked_block=""):
     """톤 & 연출 문서 — Writer Engine의 스타일 가이드"""
     try:
         client = get_client()
@@ -1903,6 +1921,7 @@ def call_tone_document(core_data, structure_data, scene_data, treatment_data, ch
 
 [Treatment 비트 구성]
 {treatment_summary}
+{locked_block}
 
 [JSON 스키마]
 {P.TONE_DOC_SCHEMA}"""
@@ -2697,6 +2716,41 @@ if st.session_state.view == "home":
                 )
             )
 
+        # ── LOCKED / OPEN 설정 ──
+        with st.expander("🔒 설정 잠금 (LOCKED / OPEN)", expanded=False):
+            st.caption(
+                "LOCKED = 파이프라인 전 과정에서 절대 변경 불가. "
+                "OPEN = AI가 자유롭게 창작 가능. "
+                "한 줄에 하나씩 입력하세요."
+            )
+            col_lock, col_open = st.columns(2)
+            with col_lock:
+                locked_input = st.text_area(
+                    "🔒 LOCKED (변경 불가)",
+                    height=150,
+                    placeholder=(
+                        "한 줄에 하나씩:\n"
+                        "서재중: 29세, 묘적사 현장 요원\n"
+                        "김도윤: 제국익문사 소속. 묘적사로 변경 금지\n"
+                        "기획의도: 20대 취업난이 재중의 입사 동기에 반영\n"
+                        "역사적 사건: EP2 시작 — 1947년 여운형 암살\n"
+                        "B-Story: 대선 D-47부터 선거일까지 카운트다운"
+                    )
+                )
+            with col_open:
+                open_input = st.text_area(
+                    "🟢 OPEN (창작 가능)",
+                    height=150,
+                    placeholder=(
+                        "한 줄에 하나씩:\n"
+                        "캐릭터 외형, 습관, 말투 디테일\n"
+                        "장면별 시각 연출과 감정 변화\n"
+                        "대사의 구체적 워딩\n"
+                        "B-Story 세부 전개\n"
+                        "장면 순서 내의 씬 배치"
+                    )
+                )
+
         with col2:
             genre_input = st.selectbox(
                 "🎬 장르",
@@ -2728,6 +2782,10 @@ if st.session_state.view == "home":
             market_final = market_custom if market_type == "직접 입력" else market_type
             project_id = f"p_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
 
+            # LOCKED/OPEN 파싱 (줄 단위)
+            locked_list = [line.strip() for line in locked_input.strip().split("\n") if line.strip()] if locked_input.strip() else []
+            open_list = [line.strip() for line in open_input.strip().split("\n") if line.strip()] if open_input.strip() else []
+
             st.session_state.projects[project_id] = {
                 "project_id": project_id,
                 "title": title_input or "새 프로젝트",
@@ -2735,6 +2793,8 @@ if st.session_state.view == "home":
                 "genre": genre_input,
                 "target_market": market_final,
                 "format": format_input,
+                "locked_items": locked_list,
+                "open_items": open_list,
                 "created_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
                 "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
                 "research": None,
@@ -2813,6 +2873,54 @@ elif st.session_state.view == "project" and st.session_state.cur:
         f'</div>',
         unsafe_allow_html=True
     )
+
+    # ─── LOCKED / OPEN 표시 + 편집 ───
+    locked = project.get("locked_items", [])
+    open_items = project.get("open_items", [])
+
+    if locked or open_items:
+        col_l, col_o = st.columns(2)
+        with col_l:
+            if locked:
+                locked_html = "".join(f"<li>{item}</li>" for item in locked)
+                st.markdown(
+                    f'<div style="background:#FFF3CD;padding:8px 12px;border-radius:6px;border-left:4px solid #FFCB05;font-size:.82rem">'
+                    f'<b>🔒 LOCKED</b> — 변경 불가<ul style="margin:4px 0 0 0;padding-left:18px">{locked_html}</ul></div>',
+                    unsafe_allow_html=True
+                )
+        with col_o:
+            if open_items:
+                open_html = "".join(f"<li>{item}</li>" for item in open_items)
+                st.markdown(
+                    f'<div style="background:#D4EDDA;padding:8px 12px;border-radius:6px;border-left:4px solid #2EC484;font-size:.82rem">'
+                    f'<b>🟢 OPEN</b> — 창작 가능<ul style="margin:4px 0 0 0;padding-left:18px">{open_html}</ul></div>',
+                    unsafe_allow_html=True
+                )
+
+    with st.expander("🔒 LOCKED / OPEN 편집", expanded=False):
+        edit_col1, edit_col2 = st.columns(2)
+        with edit_col1:
+            edited_locked = st.text_area(
+                "🔒 LOCKED (변경 불가)",
+                value="\n".join(locked),
+                height=120,
+                key="edit_locked",
+                placeholder="한 줄에 하나씩"
+            )
+        with edit_col2:
+            edited_open = st.text_area(
+                "🟢 OPEN (창작 가능)",
+                value="\n".join(open_items),
+                height=120,
+                key="edit_open",
+                placeholder="한 줄에 하나씩"
+            )
+        if st.button("💾 LOCKED/OPEN 저장", key="save_locked"):
+            project["locked_items"] = [l.strip() for l in edited_locked.strip().split("\n") if l.strip()]
+            project["open_items"] = [l.strip() for l in edited_open.strip().split("\n") if l.strip()]
+            project["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
+            st.success("저장 완료. 이후 생성되는 모든 단계에 반영됩니다.")
+            st.rerun()
 
     st.markdown("---")
 
@@ -2903,7 +3011,8 @@ elif st.session_state.view == "project" and st.session_state.cur:
                 project["genre"],
                 project["target_market"],
                 project["format"],
-                project.get("research")
+                project.get("research"),
+                locked_block=_build_project_locked_block(project)
             )
 
         if cards_result:
@@ -2929,7 +3038,8 @@ elif st.session_state.view == "project" and st.session_state.cur:
                         project["target_market"],
                         project["format"],
                         top3_data,
-                        project.get("research")
+                        project.get("research"),
+                        locked_block=_build_project_locked_block(project)
                     )
 
                 if analysis_result:
@@ -3188,7 +3298,8 @@ elif st.session_state.view == "project" and st.session_state.cur:
                                 project["target_market"],
                                 project["format"],
                                 top3_data,
-                                project.get("research")
+                                project.get("research"),
+                                locked_block=_build_project_locked_block(project)
                             )
                         if ar:
                             project["brainstorm_analysis"] = ar
@@ -3260,7 +3371,8 @@ elif st.session_state.view == "core" and st.session_state.cur:
                 core_result = call_core_build_main(
                     project["idea_text"], project["genre"],
                     project["target_market"], project["format"],
-                    selected_concept, project.get("research")
+                    selected_concept, project.get("research"),
+                    locked_block=_build_project_locked_block(project)
                 )
             if core_result:
                 project["core"] = core_result
@@ -3576,7 +3688,7 @@ elif st.session_state.view == "char_bible" and st.session_state.cur:
     if not project.get("char_bible"):
         if st.button("📖 Character Bible 생성", type="primary"):
             with st.spinner("캐릭터 바이블 설계 중... (캐릭터당 약 30초, 4~8명 기준 약 2~4분)"):
-                result = call_character_bible(core, project["genre"], project["format"])
+                result = call_character_bible(core, project["genre"], project["format"], locked_block=_build_project_locked_block(project))
             if result:
                 project["char_bible"] = result
                 project["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
@@ -3883,11 +3995,11 @@ elif st.session_state.view == "structure" and st.session_state.cur:
             st.error("Core Build가 없습니다.")
         else:
             with st.spinner("① 시놉시스 + 스토리라인... (20~30초)"):
-                story = call_structure_story(core, project["genre"], project["target_market"], project["format"])
+                story = call_structure_story(core, project["genre"], project["target_market"], project["format"], locked_block=_build_project_locked_block(project))
             if story:
                 project["structure_story"] = story
                 with st.spinner("② 구조 진단 + 캐릭터 변화표... (20~30초)"):
-                    diag = call_structure_diagnosis(core, story, project["genre"], project["format"])
+                    diag = call_structure_diagnosis(core, story, project["genre"], project["format"], locked_block=_build_project_locked_block(project))
                 if diag:
                     project["structure_diag"] = diag
                     with st.spinner("③ Gate D 채점... (10초)"):
@@ -4072,7 +4184,7 @@ elif st.session_state.view == "scene_design" and st.session_state.cur:
             st.error("Structure Build가 없습니다.")
         else:
             with st.spinner("핵심 장면 설계 중... (약 30~40초)"):
-                sd = call_scene_design(core, story, diag, project["genre"], project["format"])
+                sd = call_scene_design(core, story, diag, project["genre"], project["format"], locked_block=_build_project_locked_block(project))
             if sd:
                 project["scene_design"] = sd
                 project["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
@@ -4175,11 +4287,11 @@ elif st.session_state.view == "treatment" and st.session_state.cur:
             st.error("Structure Build가 없습니다.")
         else:
             with st.spinner("① 1막 Treatment (Beat 1~6)... (약 40~50초)"):
-                act1 = call_treatment_beats(core, story, scene_data, project["genre"], project["format"], 1)
+                act1 = call_treatment_beats(core, story, scene_data, project["genre"], project["format"], 1, locked_block=_build_project_locked_block(project))
             with st.spinner("② 2막 Treatment (Beat 7~12)... (약 40~50초)"):
-                act2 = call_treatment_beats(core, story, scene_data, project["genre"], project["format"], 2)
+                act2 = call_treatment_beats(core, story, scene_data, project["genre"], project["format"], 2, locked_block=_build_project_locked_block(project))
             with st.spinner("③ 3막 Treatment (Beat 13~16)... (약 30~40초)"):
-                act3 = call_treatment_beats(core, story, scene_data, project["genre"], project["format"], 3)
+                act3 = call_treatment_beats(core, story, scene_data, project["genre"], project["format"], 3, locked_block=_build_project_locked_block(project))
 
             if act1 or act2 or act3:
                 project["treatment"] = {"act1": act1, "act2": act2, "act3": act3}
@@ -4383,7 +4495,8 @@ elif st.session_state.view == "tone_doc" and st.session_state.cur:
                     core, project.get("structure_story", {}),
                     project.get("scene_design", {}), treatment,
                     project.get("char_bible", {}),
-                    project["genre"], project["format"]
+                    project["genre"], project["format"],
+                    locked_block=_build_project_locked_block(project)
                 )
             if result:
                 project["tone_doc"] = result
