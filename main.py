@@ -1290,7 +1290,23 @@ def call_character_bible_single(char_data, all_chars_names, core_data, genre, fm
             )
         txt = "".join(b.text for b in response.content if hasattr(b, "text")).strip()
         st.session_state[f"last_char_bible_{role}_raw"] = txt
-        return safe_json_loads(txt)
+
+        # JSON 파싱 시도 — 실패 시 자동 재시도 1회
+        try:
+            return safe_json_loads(txt)
+        except json.JSONDecodeError:
+            st.warning(f"⚠️ {name} JSON 파싱 실패 — 자동 재시도 중...")
+            # 재시도: JSON 규칙을 더 강하게 강조
+            retry_system = system_prompt + "\n\n★ 최우선 규칙: 반드시 유효한 JSON만 출력. 대사 안의 따옴표는 작은따옴표만. 줄바꿈 금지. 역슬래시 금지. ★"
+            response2 = client.messages.create(
+                model=ANTHROPIC_MODEL_OPUS, max_tokens=16000, temperature=0.2,
+                system=retry_system,
+                messages=[{"role": "user", "content": user_prompt}]
+            )
+            txt2 = "".join(b.text for b in response2.content if hasattr(b, "text")).strip()
+            st.session_state[f"last_char_bible_{role}_raw"] = txt2
+            return safe_json_loads(txt2)
+
     except Exception as e:
         st.error(f"Character Bible ({name}) 생성 실패: {e}")
         raw = st.session_state.get(f"last_char_bible_{role}_raw", "")
@@ -1801,7 +1817,22 @@ Goal: {gns.get("goal","")} / Need: {gns.get("need","")} / Strategy: {gns.get("st
             )
         txt = "".join(b.text for b in response.content if hasattr(b, "text")).strip()
         st.session_state[f"last_treatment_act{act_number}_raw"] = txt
-        return safe_json_loads(txt)
+
+        # JSON 파싱 시도 — 실패 시 자동 재시도 1회
+        try:
+            return safe_json_loads(txt)
+        except json.JSONDecodeError:
+            st.warning(f"⚠️ Treatment {act_label} JSON 파싱 실패 — 자동 재시도 중...")
+            retry_system = system_prompt + "\n\n★ 최우선: 반드시 유효한 JSON만 출력. narrative 안에 쌍따옴표 절대 금지. 작은따옴표만. ★"
+            response2 = client.messages.create(
+                model=ANTHROPIC_MODEL_OPUS, max_tokens=16000, temperature=0.3,
+                system=retry_system,
+                messages=[{"role": "user", "content": user_prompt}]
+            )
+            txt2 = "".join(b.text for b in response2.content if hasattr(b, "text")).strip()
+            st.session_state[f"last_treatment_act{act_number}_raw"] = txt2
+            return safe_json_loads(txt2)
+
     except Exception as e:
         st.error(f"Treatment {act_label} 실패: {e}")
         raw = st.session_state.get(f"last_treatment_act{act_number}_raw", "")
@@ -1946,7 +1977,22 @@ def call_tone_document(core_data, structure_data, scene_data, treatment_data, ch
             )
         txt = "".join(b.text for b in response.content if hasattr(b, "text")).strip()
         st.session_state["last_tone_doc_raw"] = txt
-        return safe_json_loads(txt)
+
+        # JSON 파싱 시도 — 실패 시 자동 재시도 1회
+        try:
+            return safe_json_loads(txt)
+        except json.JSONDecodeError:
+            st.warning("⚠️ Tone Document JSON 파싱 실패 — 자동 재시도 중...")
+            retry_system = system_prompt + "\n\n★ 최우선: 반드시 유효한 JSON만 출력. 따옴표는 작은따옴표만. 줄바꿈·역슬래시 금지. ★"
+            response2 = client.messages.create(
+                model=ANTHROPIC_MODEL_OPUS, max_tokens=16000, temperature=0.2,
+                system=retry_system,
+                messages=[{"role": "user", "content": user_prompt}]
+            )
+            txt2 = "".join(b.text for b in response2.content if hasattr(b, "text")).strip()
+            st.session_state["last_tone_doc_raw"] = txt2
+            return safe_json_loads(txt2)
+
     except Exception as e:
         st.error(f"Tone Document 생성 실패: {e}")
         raw = st.session_state.get("last_tone_doc_raw", "")
