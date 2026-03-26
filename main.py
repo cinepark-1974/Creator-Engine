@@ -1004,10 +1004,17 @@ def call_core_build_main(idea, genre, market, fmt, selected_concept, research=No
   }},
   "goal_need_strategy": {{
     "goal": "주인공의 목적/욕망 1문장",
-    "need": "상실/결핍의 근원 1문장",
+    "need": "진짜 결핍 (본인은 모르는 것) 1문장",
     "strategy": "해결 전략/방법 1문장",
     "risk": "실패 시 잃는 것 1문장",
     "ending_payoff": "결말에서 G/N/S가 어떻게 회수되는가 1문장"
+  }},
+  "narrative_drive": {{
+    "desire_origin": "loss 또는 lack — 주인공의 욕망이 상실에서 시작되었는가, 결핍에서 시작되었는가",
+    "origin_detail": "구체적으로 무엇을 잃었는가(loss) 또는 무엇이 없었는가(lack) 1문장",
+    "arc_direction": "loss면 회복/복수/대체 중 택1, lack이면 획득/성장/증명 중 택1",
+    "resolution_strategy": "이 이야기만의 독특한 해결 방식 — 기존작과 뭐가 다른가 1문장",
+    "goal_need_gap": "Goal(외적 욕망)과 Need(내적 필요) 사이의 간극 1문장 — 이 간극이 이야기를 끌고 간다"
   }},
   "world_build": {{
     "time": "시간 배경",
@@ -1110,6 +1117,7 @@ def call_core_build_main(idea, genre, market, fmt, selected_concept, research=No
 - attraction_design.water_cooler_moment는 오징어게임의 달고나, 기생충의 냄새처럼 누군가에게 말하고 싶어지는 것.
 - attraction_design.korean_specificity는 추상어(가난, 차별, 압박) 금지. 반드시 구체적 명사(반지하, 수능, 연습생 계약서)로.
 - goal_need_strategy는 이 작품의 서사 엔진이다. 가장 정밀하게 작성할 것.
+- narrative_drive는 BLUE JEANS 고유 서사동력 프레임워크다. desire_origin이 loss인지 lack인지를 정확히 진단하라. 이것이 이야기 전체의 방향을 결정한다.
 - characters는 필수 4명(protagonist/antagonist/ally/mirror). extended_characters는 이야기가 필요로 하는 만큼 0~4명 추가 (최대 총 8명). 영화는 4~5명, 미니시리즈는 6~8명이 적정. 각 인물의 goal이 서로 달라야 한다.
 - extended_characters의 role은 자유. catalyst(촉매자), subplot_lead(서브플롯 리드), mentor(멘토), rival(라이벌), informant(정보원), love_interest(연인) 등 이야기에 맞는 역할명을 직접 지정.
 - world_build의 conflict_points는 세계관이 만들어내는 갈등이어야 한다.
@@ -1228,6 +1236,7 @@ def call_character_bible_single(char_data, all_chars_names, core_data, genre, fm
     try:
         client = get_client()
         gns = core_data.get("goal_need_strategy", {})
+        nd = core_data.get("narrative_drive", {})
         lp = core_data.get("logline_pack", {})
         wb = core_data.get("world_build", {})
 
@@ -1345,6 +1354,7 @@ def call_structure_story(core_data, genre, market, fmt, locked_block=""):
     try:
         client = get_client()
         gns = core_data.get("goal_need_strategy", {})
+        nd = core_data.get("narrative_drive", {})
         lp = core_data.get("logline_pack", {})
         chars = core_data.get("characters", []) + core_data.get("extended_characters", [])
 
@@ -1419,6 +1429,7 @@ def call_structure_diagnosis(core_data, story_data, genre, fmt, locked_block="")
     try:
         client = get_client()
         gns = core_data.get("goal_need_strategy", {})
+        nd = core_data.get("narrative_drive", {})
         chars = core_data.get("characters", []) + core_data.get("extended_characters", [])
 
         system_prompt = P.build_system_structure_diagnosis()
@@ -1427,6 +1438,7 @@ def call_structure_diagnosis(core_data, story_data, genre, fmt, locked_block="")
 장르: {genre} / 포맷: {fmt}
 {locked_block}
 Goal: {gns.get("goal","")} / Need: {gns.get("need","")} / Strategy: {gns.get("strategy","")}
+서사동력: {nd.get("desire_origin","")}({nd.get("origin_detail","")}) → {nd.get("arc_direction","")} / 해결전략: {nd.get("resolution_strategy","")}
 
 [캐릭터]
 {json.dumps(chars, ensure_ascii=False)}
@@ -1553,12 +1565,14 @@ def call_structure_prose(core_data, story_data):
         client = get_client()
         lp = core_data.get("logline_pack", {})
         gns = core_data.get("goal_need_strategy", {})
+        nd = core_data.get("narrative_drive", {})
         syn = story_data.get("synopsis_1p", {})
         storyline = story_data.get("storyline", [])
 
         user_prompt = f"""[작품 정보]
 로그라인: {lp.get("washed", lp.get("original",""))}
 Goal: {gns.get("goal","")} / Need: {gns.get("need","")} / Strategy: {gns.get("strategy","")}
+서사동력: {nd.get("desire_origin","")}({nd.get("origin_detail","")}) → {nd.get("arc_direction","")} / 해결전략: {nd.get("resolution_strategy","")}
 
 [시놉시스]
 {json.dumps(syn, ensure_ascii=False)}
@@ -1598,6 +1612,7 @@ def call_scene_design(core_data, story_data, diag_data, genre, fmt, locked_block
     try:
         client = get_client()
         gns = core_data.get("goal_need_strategy", {})
+        nd = core_data.get("narrative_drive", {})
         lp = core_data.get("logline_pack", {})
         chars = core_data.get("characters", []) + core_data.get("extended_characters", [])
         storyline = story_data.get("storyline", [])
@@ -1632,6 +1647,7 @@ Water Cooler Moment (반드시 key_scenes 안에 포함): {wc.get("scene_or_setu
         user_prompt = f"""[Core]
 로그라인: {lp.get("washed","")}
 Goal: {gns.get("goal","")} / Need: {gns.get("need","")} / Strategy: {gns.get("strategy","")}
+서사동력: {nd.get("desire_origin","")}({nd.get("origin_detail","")}) → {nd.get("arc_direction","")} / 해결전략: {nd.get("resolution_strategy","")}
 캐릭터: {chars_simple}
 {scene_attraction_block}
 {locked_block}
@@ -1712,6 +1728,7 @@ def call_treatment_beats(core_data, story_data, scene_data, genre, fmt, act_numb
     try:
         client = get_client()
         gns = core_data.get("goal_need_strategy", {})
+        nd = core_data.get("narrative_drive", {})
         lp = core_data.get("logline_pack", {})
         chars = core_data.get("characters", []) + core_data.get("extended_characters", [])
         syn = story_data.get("synopsis_1p", {})
@@ -1783,6 +1800,7 @@ Water Cooler Moment: {wc.get("scene_or_setup", "")}
 로그라인: {lp.get("washed","")}
 장르: {genre} / 포맷: {fmt}
 Goal: {gns.get("goal","")} / Need: {gns.get("need","")} / Strategy: {gns.get("strategy","")}
+서사동력: {nd.get("desire_origin","")}({nd.get("origin_detail","")}) → {nd.get("arc_direction","")} / 해결전략: {nd.get("resolution_strategy","")}
 캐릭터: {chars_simple}
 {locked_block}
 {series_info}
@@ -1922,6 +1940,7 @@ def call_tone_document(core_data, structure_data, scene_data, treatment_data, ch
         client = get_client()
         lp = core_data.get("logline_pack", {})
         gns = core_data.get("goal_need_strategy", {})
+        nd = core_data.get("narrative_drive", {})
         wb = core_data.get("world_build", {})
 
         # 캐릭터 이름/역할만 추출
@@ -2219,6 +2238,18 @@ def generate_docx(project):
         add_labeled("Strategy", gns.get("strategy", ""))
         add_labeled("Risk", gns.get("risk", ""))
         add_labeled("Ending Payoff", gns.get("ending_payoff", ""))
+
+        # ── 서사동력 NARRATIVE DRIVE ──
+        nd = core.get("narrative_drive", {})
+        if nd:
+            add_spacer(6)
+            add_sub_header("▎ 서사동력  ·  Narrative Drive")
+            origin = nd.get("desire_origin", "")
+            origin_kr = "상실(Loss)" if origin == "loss" else "결핍(Lack)" if origin == "lack" else origin
+            add_labeled("발생요인", f"{origin_kr} — {nd.get('origin_detail', '')}")
+            add_labeled("아크 방향", nd.get("arc_direction", ""))
+            add_labeled("해결전략", nd.get("resolution_strategy", ""))
+            add_labeled("Goal↔Need 간극", nd.get("goal_need_gap", ""))
 
         # ── 세계관 WORLD ──
         add_yellow_header("세계관", "WORLD BUILDING")
@@ -3458,6 +3489,21 @@ elif st.session_state.view == "core" and st.session_state.cur:
         cr, ce = st.columns(2)
         cr.markdown(f'<div class="callout" style="border-left-color:var(--r)"><div class="cl" style="color:var(--r)">RISK</div>{gns.get("risk","")}</div>', unsafe_allow_html=True)
         ce.markdown(f'<div class="callout" style="border-left-color:var(--g)"><div class="cl" style="color:var(--g)">ENDING PAYOFF</div>{gns.get("ending_payoff","")}</div>', unsafe_allow_html=True)
+
+        # Narrative Drive (BJND)
+        nd = core.get("narrative_drive", {})
+        if nd and nd.get("desire_origin"):
+            origin = nd.get("desire_origin", "")
+            origin_kr = "상실(Loss)" if origin == "loss" else "결핍(Lack)" if origin == "lack" else origin
+            st.markdown(
+                f'<div class="callout" style="border-left-color:#9B59B6">'
+                f'<div class="cl" style="color:#9B59B6">🔮 서사동력 — Narrative Drive</div>'
+                f'<b>{origin_kr}</b>: {nd.get("origin_detail","")}<br>'
+                f'아크: {nd.get("arc_direction","")} · 해결전략: {nd.get("resolution_strategy","")}<br>'
+                f'<span style="font-size:.8rem;color:#666">Goal↔Need 간극: {nd.get("goal_need_gap","")}</span>'
+                f'</div>',
+                unsafe_allow_html=True
+            )
 
         # Project Intent (소재 · 장르 · 시장분석)
         st.markdown("#### 📋 기획의도 — 왜 이 작품을 기획하는가")
