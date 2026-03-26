@@ -2448,6 +2448,7 @@ def generate_docx(project):
                     consequence_s = b.get("consequence_summary", "")
                     b_story = b.get("b_story_beat", "")
                     cliff = b.get("cliffhanger", "")
+                    villain = b.get("villain_beat", "")
 
                     # 비트 번호 + 에피소드 태그 + 이름
                     p_beat = doc.add_paragraph()
@@ -2477,6 +2478,8 @@ def generate_docx(project):
                         meta_parts.append(f"결과: {consequence_s}")
                     if b_story:
                         meta_parts.append(f"B-Story: {b_story}")
+                    if villain:
+                        meta_parts.append(f"빌런: {villain}")
                     if cliff:
                         meta_parts.append(f"CLIFFHANGER: {cliff}")
                     if meta_parts:
@@ -4380,6 +4383,7 @@ elif st.session_state.view == "treatment" and st.session_state.cur:
                     status_c = b.get("status_change", "")
                     b_story = b.get("b_story_beat", "")
                     cliff = b.get("cliffhanger", "")
+                    villain = b.get("villain_beat", "")
 
                     ep_tag = f'<span style="background:var(--y);color:var(--n);padding:1px 6px;border-radius:3px;font-size:.7rem;margin-right:6px">{episode}</span>' if episode else ""
 
@@ -4394,6 +4398,8 @@ elif st.session_state.view == "treatment" and st.session_state.cur:
                         meta_lines.append(f'<b>변화</b>: {status_c}')
                     if b_story:
                         meta_lines.append(f'<b>B-Story</b>: {b_story}')
+                    if villain:
+                        meta_lines.append(f'<b>빌런</b>: {villain}')
                     if cliff:
                         meta_lines.append(f'<b style="color:var(--r)">CLIFFHANGER</b>: {cliff}')
                     meta_html = "<br>".join(meta_lines)
