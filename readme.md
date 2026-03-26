@@ -1,147 +1,168 @@
-# 👖 BLUE JEANS · Creator Engine v1.2
+# 👖 BLUE JEANS · Creator Engine v1.8
 
 > **아이디어 한 줄 → 헐리우드 수준 기획개발 패키지**
 >
-> 9단계 AI 파이프라인으로 로그라인, 캐릭터 바이블, 시놉시스, 장면 설계, 트리트먼트, 톤 문서까지 자동 생성
+> BLUE JEANS PICTURES 고유의 3축 설계 + 9단계 AI 파이프라인
 
 ---
 
 ## 3-Engine Pipeline
 
 ```
-[1] Creator Engine  → 아이디어 → 기획개발 패키지 (현재)
-[2] Writer Engine   → 기획개발 → 시나리오 초고   (개발 예정)
-[3] Rewrite Engine  → 시나리오 → 리라이트 완성   (운영 중)
+[1] Creator Engine  → 아이디어 → 기획개발 패키지   (현재)
+[2] Writer Engine   → 기획개발 → 시나리오 초고     (운영 중)
+[3] Rewrite Engine  → 시나리오 → 리라이트 완성     (운영 중)
+    Series Engine   → 기획개발 → 시리즈 시나리오   (운영 중)
+    Novel Engine    → 기획개발 → 소설              (운영 중)
 ```
+
+Creator Engine의 출력물이 Writer / Series / Rewrite / Novel Engine의 입력이 됩니다.
+Creator Engine이 좋아야 모든 하위 엔진의 품질이 올라갑니다.
+
+---
+
+## BLUE JEANS 3축 — 이 엔진의 정체성
+
+다른 AI 스크립팅 도구와 BLUE JEANS Creator Engine이 다른 이유.
+
+### ① 주인공 서사동력 (BJND — Blue Jeans Narrative Drive)
+```
+욕망(Desire) ← 발생요인(Origin: Loss vs Lack) → 해결전략(Resolution)
+```
+- **상실(Loss)**: 가졌던 것을 잃었다 → 회복/복수/대체
+- **결핍(Lack)**: 처음부터 없었다 → 획득/성장/증명
+- 발생요인이 이야기 전체의 구조, 아크, 감정 곡선을 결정합니다
+- Core Build 단계에서 진단 → 전 파이프라인에 전파
+
+### ② 빌런 설계 (Villain 4 Questions)
+```
+① 흥미로운가?  ② 다크 미러인가?  ③ 계획을 뒤엎는가?  ④ 이기고 있는가?
+```
+- 빌런이 매번 실패하면 클라이맥스에서 아무도 긴장하지 않는다 (Patriot Games 규칙)
+- Structure Diagnosis에서 비트별 빌런 승률 추적
+- Treatment 매 비트에 `villain_beat` 필드로 적대자 행동 + 승/패 기록
+
+### ③ 장르적 재미 (ATTRACTION + Genre Rule Pack v2)
+```
+Opening Hook · 배반 규칙 · Water Cooler Moment · 한국 구체성 · 감정 억압→폭발
++ 장르별 12필드 Rule Pack (core/opening/items/hooks/punches/fails...)
+```
+- 9장르 × 12필드 = Writer Engine과 동일한 장르 언어
+- Scene Design, Treatment, Core Build에 자동 주입
 
 ---
 
 ## 9단계 파이프라인
 
 ```
-① 아이디어 입력
-② Brainstorm (컨셉 카드 10개 + 시장 분석 + Gate A)
-③ Core Build (Logline Pack + 기획의도 + GNS + 세계관 + 캐릭터 + Gate B/C)
-④ Character Bible (백스토리 · 비밀 · 말투 규칙 · 대사 샘플 · 관계 태도 · 변화 궤적)
-⑤ Structure Build (Synopsis 1P + Storyline 8시퀀스 + 3막 진단 + 15Beat + Gate D)
-⑥ Scene Design (핵심 장면 15~18개 · Show/don't tell · 극적 아이러니 · 핵심 대사)
-⑦ Treatment Build (16비트 줄글 트리트먼트 · 1막/2막/3막 분할 생성 · 40~50페이지 + Gate E)
-⑧ Tone Document (카메라 · 색감 · 페이싱 · 대사 규칙 · 모티프 · 금기 · 참고 작품)
-⑨ Export (기획개발보고서 DOCX — 노란 헤더 + 한영 병기 기획서 스타일)
-```
-
-### Gate 시스템
-
-| Gate | 위치 | 통과 기준 |
-|------|------|---------|
-| Gate A | Brainstorm 후 | 평균 7.0 이상 |
-| Gate B+C | Core 후 | 평균 7.0 이상 |
-| Gate D | Structure 후 | 평균 7.0 이상 |
-| Gate E | Treatment 후 | 영화적읽힘 / 씬감정일치 / 비트충실도 / 초고직행 |
-
----
-
-## 프로젝트 구조
-
-```
-bjcde/
-├── main.py                    # 메인 앱 (4,200+ 줄)
-├── requirements.txt           # Python 의존성
-├── .streamlit/
-│   ├── config.toml            # 테마 설정 (라이트모드)
-│   └── secrets.toml           # API 키 (로컬 전용, .gitignore)
-├── README.md
-└── MANUAL.md                  # 운영 매뉴얼
+① 아이디어 입력 + LOCKED/OPEN 설정
+② Brainstorm (컨셉 카드 10개 + 시장 분석 + Gate A)           [Sonnet]
+③ Core Build (Logline Pack + GNS + 서사동력 + 세계관 + 캐릭터 + Gate B/C) [Sonnet]
+④ Character Bible (백스토리 · 전술 · 말투 · 대사 · 변화궤적)    [Opus]
+⑤ Structure Build (Synopsis + Storyline + 3막 진단 + 빌런 승률 + Gate D) [Sonnet]
+⑥ Scene Design (핵심 장면 15~18개 · 서브플롯 태그 · 매력 설계도) [Sonnet]
+⑦ Treatment Build (16비트 다중씬 트리트먼트 · 영화/시리즈 분기)   [Opus]
+⑧ Tone Document (카메라 · 색감 · 페이싱 · 대사 규칙 · 금기)     [Opus]
+⑨ Export (기획개발보고서 DOCX)
 ```
 
 ---
 
-## 시작하기
+## 핵심 기능
 
-### 1. 저장소 클론
+### 이중 모델 (Opus / Sonnet)
+| 단계 | 모델 | 이유 |
+|------|------|------|
+| Brainstorm · Core · Structure · Scene · Gate | Sonnet | 구조 작업 — 비용 효율 |
+| Character Bible · Treatment · Tone | **Opus** | 서사 품질 — 대사/묘사/감정 |
 
-```bash
-git clone https://github.com/cinepark-1974/creator-engine.git
-cd creator-engine
+Opus 호출 시 JSON 파싱 실패 → 자동 재시도 1회 (temperature 낮춤 + JSON 규칙 강화)
+
+### LOCKED / OPEN 시스템
+```
+🔒 LOCKED — 파이프라인 전 과정에서 절대 변경 불가
+   서재중: 29세, 묘적사 현장 요원
+   기획의도: 20대 취업난이 재중의 입사 동기에 반영
+   역사적 사건: EP2 시작 — 1947년 여운형 암살
+
+🟢 OPEN — AI가 자유롭게 창작 가능
+   캐릭터 외형, 습관, 말투 디테일
+   장면별 시각 연출과 감정 변화
+```
+- 프로젝트 생성 시 입력 + 프로젝트 뷰에서 편집 가능
+- 모든 API 호출에 자동 주입
+
+### 영화 / 미니시리즈 자동 분기
+| 포맷 | 비트 구조 | 분량 | 특수 기능 |
+|------|----------|------|----------|
+| 영화 | 16비트 3막 | 2500~4000자/비트 | — |
+| 미니시리즈 6화 | EP1~EP6 16비트 | 4000~6000자/비트 | 클리프행어 · B-Story 시간축 |
+| 미니시리즈 8화 | EP1~EP8 16비트 | 4000~6000자/비트 | 클리프행어 · B-Story 시간축 |
+
+### 유연한 캐릭터 (4~8인)
+- 필수 4인: protagonist / antagonist / ally / mirror
+- 확장 0~4인: `extended_characters` — 역할명 자유 (catalyst / subplot_lead / mentor / rival / informant 등)
+- 영화 4~5명, 미니시리즈 6~8명 적정
+
+### SCOPE MANDATE (1비트 = 다중 씬)
+```
+★ 1비트 = 1씬이 아니다. 1비트 = 3~5개 독립 씬이다. ★
+최소 2개 장소, 2명 이상 인물, 비트 안에서 시간 경과 필수.
 ```
 
-### 2. 패키지 설치
+---
 
-```bash
-pip install -r requirements.txt
+## 파일 구조
+
+```
+creator-engine/
+├── main.py              4,714줄  UI + API + JSON 파서 + DOCX 생성
+├── prompt.py            1,211줄  프롬프트 라이브러리 (BJND + V4Q + GENRE v2 + LOCKED)
+├── requirements.txt              streamlit · anthropic · python-docx · plotly
+├── .streamlit/config.toml        라이트 모드 테마
+├── README.md                     이 파일
+└── BLUE_JEANS_CREATOR_ENGINE_v1_8_제품명세서.md
 ```
 
-### 3. API 키 설정
+---
 
-`.streamlit/secrets.toml` 파일 생성:
+## 배포
 
-```toml
+```bash
+# GitHub: cinepark-1974/creator-engine
+# Streamlit Cloud 자동 배포
+
+# requirements.txt
+streamlit>=1.55.0
+anthropic>=0.80.0
+python-docx>=1.2.0
+plotly>=6.0.0
+
+# secrets (Streamlit Cloud)
 ANTHROPIC_API_KEY = "sk-ant-..."
 ```
 
-### 4. 로컬 실행
-
-```bash
-streamlit run main.py
-```
-
 ---
 
-## Streamlit Cloud 배포
+## 버전 이력
 
-1. GitHub 저장소에 push
-2. [share.streamlit.io](https://share.streamlit.io) 에서 저장소 연결
-3. **Advanced Settings > Secrets** 에 `ANTHROPIC_API_KEY = "sk-ant-..."` 등록
-4. Deploy
-
----
-
-## 기술 스택
-
-| 항목 | 스펙 |
-|------|------|
-| 프레임워크 | Streamlit 1.55+ |
-| AI 엔진 | Claude Sonnet 4.6 (Anthropic API) |
-| DOCX 생성 | python-docx 1.2+ |
-| 차트 | Plotly 6.0+ |
-| 테마 | 라이트모드 · Midnight Blue (#191970) + Stitch Yellow (#FFCB05) |
-| 폰트 | Paperlogy (헤더) + Playfair Display (타이틀) + Pretendard (본문) |
-
----
-
-## API 비용 참고
-
-| 단계 | 호출 수 | 예상 토큰 (입력+출력) |
-|------|--------|-------------------|
-| Brainstorm | 3회 | ~15,000 |
-| Core Build | 2회 | ~12,000 |
-| Character Bible | 4회 (캐릭터당 1회) | ~20,000 |
-| Structure | 4회 | ~18,000 |
-| Scene Design | 1회 | ~10,000 |
-| Treatment | 3회 (막별 1회) + 2회 | ~35,000 |
-| Tone Document | 1회 | ~6,000 |
-| **합계** | **~20회** | **~116,000 토큰** |
-
----
-
-## Writer Engine 연동 (예정)
-
-Creator Engine 완료 시 생성되는 데이터:
-
-```
-project_data
-├── core (Logline / GNS / 세계관)
-├── char_bible (캐릭터 바이블 — Writer Engine 일관성의 핵심)
-├── structure (Synopsis / Storyline / 3막 / 15Beat)
-├── scene_design (핵심 장면 15~18개)
-├── treatment (16비트 40P 줄글)
-└── tone_doc (톤 & 연출 가이드 — Writer Engine 톤 일관성의 핵심)
-```
+| 버전 | 주요 변경 |
+|------|---------|
+| v1.0 | 기본 9단계 파이프라인 |
+| v1.3 | Sorkin/Curtis 9원칙 · Genre Rules 8장르 · Hook/Punch · prompt.py 분리 |
+| v1.4 | 관객 심리 6원칙 · 서브플롯 설계 · Tactics=Character |
+| v1.5 | LOCKED 시스템 · 5단계 서술 구조 · 시리즈 비트(6/8화) · B-Story 자동 주입 |
+| v1.6 | SCOPE MANDATE(1비트=다중씬) · 영화/시리즈 분량 분기 |
+| v1.7 | ATTRACTION 6규칙 · Opus/Sonnet 이중 모델 · 유연 4~8 캐릭터 |
+| **v1.8** | **BJND 서사동력(Loss/Lack) · Villain 4Q + 승률 설계 · Genre Rule Pack v2(12필드) · JSON 자동 재시도** |
 
 ---
 
 ## 라이선스
 
-© 2026 BLUE JEANS PICTURES. All rights reserved.
+BLUE JEANS PICTURES · 내부 도구 · 비공개
 
-이 소프트웨어는 BLUE JEANS PICTURES의 내부 기획개발 도구입니다.
+---
+
+*기획 · 개발: Mr.MOON (BLUE JEANS PICTURES)*
+*AI 엔진 설계: Claude (Anthropic)*
