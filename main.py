@@ -521,9 +521,34 @@ def extract_json_object(text: str) -> str:
 
 
 def safe_json_loads(text: str):
-    """JSON 파싱 (강화된 복구 로직 — 4단계)"""
+    """JSON 파싱 (강화된 복구 로직 — 5단계)"""
     cleaned = extract_json_object(text)
     cleaned = re.sub(r",\s*([}\]])", r"\1", cleaned)
+
+    # 0단계: 문자열 값 내부의 raw 제어 문자 제거 (Invalid control character 방지)
+    # JSON 문자열 안에 raw \n, \r, \t가 있으면 파싱 실패함
+    def _sanitize_control_chars(s):
+        """JSON 문자열 값 내부의 제어 문자를 공백으로 치환"""
+        result = []
+        in_string = False
+        i = 0
+        while i < len(s):
+            c = s[i]
+            if c == '"' and (i == 0 or s[i-1] != '\\'):
+                in_string = not in_string
+                result.append(c)
+            elif in_string and c in '\n\r':
+                result.append(' ')
+            elif in_string and c == '\t':
+                result.append(' ')
+            elif in_string and ord(c) < 32 and c not in ('\n', '\r', '\t'):
+                result.append(' ')  # 기타 제어 문자
+            else:
+                result.append(c)
+            i += 1
+        return ''.join(result)
+
+    cleaned = _sanitize_control_chars(cleaned)
 
     # 1차: 그대로 파싱
     try:
