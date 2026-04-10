@@ -1,41 +1,23 @@
 """
-👖 BLUE JEANS Creator Engine v1.5 — Prompt Library
+👖 BLUE JEANS Creator Engine v1.9 — Prompt Library
 
-All system prompts, user prompt templates, Sorkin/Curtis principles,
-audience psychology 6 principles, subplot design, and LOCKED system.
+All system prompts, user prompt templates, BLUE JEANS 3축,
+Sorkin/Curtis 9원칙, audience psychology 6원칙, and LOCKED system.
 
-v1.5 변경사항:
-- LOCKED/OPEN 시스템 도입: 확정된 설정의 변형 방지
-- 매 스테이지 프롬프트에 LOCKED 검증 룰 삽입
-- build_locked_block() 함수 추가
-- 기존 모든 시스템 프롬프트에 LOCKED 준수 지시 추가
+BLUE JEANS 3축 (Mr.MOON 고유):
+  ① BJND 서사동력: 상실(Loss) vs 결핍(Lack) → 욕망 → 해결전략
+  ② Villain 4 Questions: 흥미 · 다크미러 · 계획파괴 · 승률
+  ③ ATTRACTION 6규칙 + Genre Rule Pack v2 (9장르 × 12필드)
 
-Sorkin/Curtis 9원칙:
-- BUT/EXCEPT 테스트: 로그라인에 역전이 있는가
-- Intention & Obstacle: 판돈이 높고 긴급하고 납득 가능한가
-- Tactics = Character: 장애물을 넘는 전술이 캐릭터를 정의한다
-- Probable Impossibility: 억지 우연 금지
-- Drop in the Middle: 첫 장면이 대화 중간에 관객을 던지는가
-- Unified Plot Test: 이 비트를 빼면 이야기가 작동하는가
-- Too Wet 금지: 캐릭터가 감정을 직접 말하지 않는다
-- Curtis 3% 법칙: 3%만 빗나가면 정반대 영화
-- Curtis 감정 연쇄: A장면 감정 → B장면 전제
+Foundation (헐리우드 표준):
+  Sorkin/Curtis 9원칙 + 관객심리 6원칙 + Planting & Payoff + 서브플롯
 
-관객 심리 6원칙 (v1.4):
-- Dramatic Irony: 관객이 더 많이 안다
-- Information Gap: 호기심의 간극
-- Zeigarnik Effect: 미완성이 기억에 남는다
-- Pattern & Violation: 패턴을 만들고 깨뜨려라
-- Delayed Gratification: 지연된 보상
-- Mystery Box: 열리지 않은 상자
-
-서브플롯 (v1.4):
-- B-Story = 테마의 통로
-
-LOCKED 시스템 (v1.5):
-- LOCKED 항목: 절대 변경 불가 (캐릭터 소속, 핵심 관계, 세계관 규칙, 기획의도 등)
-- OPEN 항목: 창작 가능 범위
-- 매 스테이지에서 LOCKED 검증 수행
+v1.9 변경사항:
+- Planting & Payoff 시스템 도입
+- Core Build에 planting_payoff 설계 (character/relationship/world × 3쌍)
+- Scene Design에 plant_payoff_tag 필드
+- Treatment Beat에 plant_payoff 체크 필드
+- SORKIN_CURTIS 17개 키 (16 + planting_payoff)
 """
 
 import json
@@ -491,6 +473,27 @@ SORKIN_CURTIS = {
         "- 서브플롯이 메인과 합류하지 않고 따로 끝나면 가지치기다.\n"
         "- 서브플롯의 해결이 주인공의 최종 선택에 영향을 줘야 한다."
     ),
+    # ── Planting & Payoff (v1.9 추가) ──
+    "planting_payoff": (
+        "[Planting & Payoff — 심고 회수하라]\n"
+        "1막에 심은 것이 3막에서 새로운 의미로 회수되어야 한다.\n"
+        "- Plant = 대사 한 줄, 소품, 습관, 장소, 이미지. 처음엔 별 의미 없어 보인다.\n"
+        "- Payoff = 그것이 클라이맥스 또는 결말에서 돌아올 때, 관객이 '아!' 하는 순간.\n"
+        "- 좋은 Plant: 관객이 심어진 줄 모른다. Payoff 순간에 비로소 깨닫는다.\n"
+        "- 나쁜 Plant: 너무 눈에 띄어서 관객이 '저건 나중에 쓰이겠군' 하고 예측한다.\n"
+        "규칙:\n"
+        "- 모든 이야기에 최소 3개의 Plant-Payoff 쌍이 있어야 한다.\n"
+        "  ① 캐릭터 Plant: 주인공의 습관/대사/소품 → 클라이맥스에서 반전 의미\n"
+        "  ② 관계 Plant: 인물 간 사소한 상호작용 → 결정적 순간에 신뢰/배신의 근거\n"
+        "  ③ 세계관 Plant: 세계의 규칙/장소/사물 → 해결의 열쇠 또는 비극의 원인\n"
+        "- Plant는 1막에 심고, Payoff는 2막 후반~3막에서 회수한다.\n"
+        "- 회수되지 않는 Plant는 관객의 무의식에 미해결로 남아 불만족을 만든다.\n"
+        "- Plant 없이 등장하는 Payoff는 데우스 엑스 마키나다. 금지.\n"
+        "예시:\n"
+        "- 〈기생충〉: 1막 반지하의 냄새 → 3막 '냄새' 대사가 살인의 촉발\n"
+        "- 〈올드보이〉: 만두 → 최종 반전의 열쇠\n"
+        "- 〈차이나타운〉: 'Forget it, Jake. It's Chinatown.' → 1막의 농담이 3막의 비극"
+    ),
 }
 
 
@@ -688,6 +691,8 @@ Brainstorm에서 선정된 컨셉을 기반으로 Core Build를 수행한다.
 {NARRATIVE_DRIVE}
 
 {ATTRACTION_RULES}
+
+{SORKIN_CURTIS["planting_payoff"]}
 
 {JSON_OUTPUT_RULES_STRICT}
 
@@ -897,6 +902,8 @@ Structure Build 결과를 기반으로 핵심 장면(Key Scene)을 설계한다.
 - SETPIECE: 장르의 정체성을 정의하는 대형 장면. 관객이 이 영화를 기억할 때 떠올리는 장면.
 
 {SORKIN_CURTIS["subplot_design"]}
+
+{SORKIN_CURTIS["planting_payoff"]}
 
 {JSON_OUTPUT_RULES}
 - 각 필드 1~2문장, 40자 이내.
@@ -1151,6 +1158,7 @@ TREATMENT_BEAT_SCHEMA_TEMPLATE = """{{
             "dramatic_irony": "관객이 먼저 아는 정보 (없으면 빈 문자열)",
             "open_question": "열리는 새 질문 1문장",
             "villain_beat": "이 비트에서 적대자가 한 구체적 행동 + 승/패 (빌런이 이겼는가?) — 적대자가 없는 비트면 빈 문자열",
+            "plant_payoff": "이 비트에서 심는 것(plant) 또는 회수하는 것(payoff) 1문장. 없으면 빈 문자열",
             "locked_check": "LOCKED 항목 준수 여부 — 'OK' 또는 위반 항목 명시"
         }}
     ]
@@ -1168,6 +1176,8 @@ TREATMENT_BEAT_RULES_TEMPLATE = """규칙:
 - cliffhanger: 에피소드 마지막 비트에만. 다음 화 즉시 재생하게 만드는 질문/위협/반전.
 - villain_beat: 적대자가 이 비트에서 구체적으로 무엇을 했는가 + 승/패. 직접 등장 안 해도 영향 느껴야 함.
   ★ 클라이맥스 전까지 적대자가 계속 이기고 있어야 한다. 빌런이 매번 실패하면 긴장감 사라진다. ★
+- plant_payoff: 1막 비트에서 심은 것(plant)이 3막 비트에서 회수(payoff)되어야 한다.
+  Core Build의 planting_payoff 설계를 참고하라. 회수 없는 plant는 관객의 불만족을 만든다. Plant 없는 payoff는 데우스 엑스 마키나다.
 - Too Wet 금지: 감정 직접 서술 금지. 행동으로.
 - 1분짜리 장면 하나를 상세히 묘사해서 분량을 채우지 마라. 비트는 7~20분의 스크린타임을 커버한다.
 - ★ locked_check: 매 비트 작성 후 LOCKED 항목 준수 여부를 확인하라. 위반 시 수정. ★"""
@@ -1196,6 +1206,7 @@ SCENE_DESIGN_SCHEMA = """{
             "hook": "이 장면 끝에서 관객을 다음 장면으로 끌어당기는 질문/위협/기대 1문장",
             "punch": "이 장면에서 가장 강한 순간 — 온도가 급변하는 대사/행동/침묵 1문장",
             "is_setpiece": "Y 또는 N — 장르를 정의하는 대표 장면인가",
+            "plant_payoff_tag": "plant(심기) / payoff(회수) / 빈 문자열 — plant이면 무엇을 심는지, payoff이면 무엇을 회수하는지 1문장",
             "connection": "다음 장면 연결 에너지 1문장"
         }
     ],
@@ -1226,6 +1237,7 @@ SCENE_DESIGN_RULES = """규칙:
 - mystery_box: '이 장면에서 일부러 안 보여주는 것'을 명시. 안 보여주는 것이 보여주는 것보다 강하다
 - subplot_tag: 서브플롯 씬에 B 태그. 메인+서브 교차 씬에 A+B. 서브플롯 씬이 전체의 20~30% 되도록
 - 서브플롯이 메인플롯의 테마를 다른 각도에서 비춰야 한다. 테마와 무관한 서브플롯은 삭제
+- plant_payoff_tag: Core Build의 planting_payoff 설계를 참고하여, 이 장면이 plant(심기)인지 payoff(회수)인지 태그. 최소 3개 plant + 최소 3개 payoff가 전체 장면에 분포해야 한다. plant는 1막에 집중, payoff는 2막 후반~3막에 집중.
 - ★ LOCKED 블록의 캐릭터 소속과 관계를 장면 설계에서도 준수하라. ★"""
 
 # ─── 보조 함수 시스템 프롬프트 ───
