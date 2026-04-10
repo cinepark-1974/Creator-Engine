@@ -1131,6 +1131,15 @@ def call_core_build_main(idea, genre, market, fmt, selected_concept, research=No
     }},
     "forbidden_directions": [
       "이 이야기가 절대 가면 안 되는 방향 3개 — 뻔해지는 순간들"
+    ],
+    "planting_payoff": [
+      {{
+        "type": "character / relationship / world 중 선택",
+        "plant": "1막에 심는 것 — 대사/소품/습관/장소/이미지 1문장",
+        "plant_scene": "어느 장면에서 심는가 (Beat 번호 또는 상황)",
+        "payoff": "2막 후반~3막에서 회수 — 새로운 의미로 돌아오는 순간 1문장",
+        "payoff_scene": "어느 장면에서 회수하는가 (Beat 번호 또는 상황)"
+      }}
     ]
   }}
 }}
@@ -1141,6 +1150,7 @@ def call_core_build_main(idea, genre, market, fmt, selected_concept, research=No
 - attraction_design.opening_hook.description은 실제 첫 장면을 그릴 수 있을 만큼 구체적으로.
 - attraction_design.water_cooler_moment는 오징어게임의 달고나, 기생충의 냄새처럼 누군가에게 말하고 싶어지는 것.
 - attraction_design.korean_specificity는 추상어(가난, 차별, 압박) 금지. 반드시 구체적 명사(반지하, 수능, 연습생 계약서)로.
+- attraction_design.planting_payoff는 최소 3개. type별 최소 1개씩 (character/relationship/world). Plant 없는 Payoff(데우스 엑스 마키나) 금지.
 - goal_need_strategy는 이 작품의 서사 엔진이다. 가장 정밀하게 작성할 것.
 - narrative_drive는 BLUE JEANS 고유 서사동력 프레임워크다. desire_origin이 loss인지 lack인지를 정확히 진단하라. 이것이 이야기 전체의 방향을 결정한다.
 - characters는 필수 4명(protagonist/antagonist/ally/mirror). extended_characters는 이야기가 필요로 하는 만큼 0~4명 추가 (최대 총 8명). 영화는 4~5명, 미니시리즈는 6~8명이 적정. 각 인물의 goal이 서로 달라야 한다.
@@ -2505,6 +2515,7 @@ def generate_docx(project):
                     b_story = b.get("b_story_beat", "")
                     cliff = b.get("cliffhanger", "")
                     villain = b.get("villain_beat", "")
+                    pp = b.get("plant_payoff", "")
 
                     # 비트 번호 + 에피소드 태그 + 이름
                     p_beat = doc.add_paragraph()
@@ -2536,6 +2547,8 @@ def generate_docx(project):
                         meta_parts.append(f"B-Story: {b_story}")
                     if villain:
                         meta_parts.append(f"빌런: {villain}")
+                    if pp:
+                        meta_parts.append(f"Plant/Payoff: {pp}")
                     if cliff:
                         meta_parts.append(f"CLIFFHANGER: {cliff}")
                     if meta_parts:
@@ -4455,6 +4468,7 @@ elif st.session_state.view == "treatment" and st.session_state.cur:
                     b_story = b.get("b_story_beat", "")
                     cliff = b.get("cliffhanger", "")
                     villain = b.get("villain_beat", "")
+                    pp = b.get("plant_payoff", "")
 
                     ep_tag = f'<span style="background:var(--y);color:var(--n);padding:1px 6px;border-radius:3px;font-size:.7rem;margin-right:6px">{episode}</span>' if episode else ""
 
@@ -4471,6 +4485,8 @@ elif st.session_state.view == "treatment" and st.session_state.cur:
                         meta_lines.append(f'<b>B-Story</b>: {b_story}')
                     if villain:
                         meta_lines.append(f'<b>빌런</b>: {villain}')
+                    if pp:
+                        meta_lines.append(f'<b>🌱 Plant/Payoff</b>: {pp}')
                     if cliff:
                         meta_lines.append(f'<b style="color:var(--r)">CLIFFHANGER</b>: {cliff}')
                     meta_html = "<br>".join(meta_lines)
