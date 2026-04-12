@@ -659,12 +659,38 @@ COMEDY_RULES = """
 - ★ Rule of Three: 패턴을 2번 세우고 3번째에 깨뜨린다. 코미디의 가장 기본 리듬.
   예: 1번째 '5분만' → 2번째 '5분만' → 3번째 '5분만..은 아니고 한 시간'
 
-[4. 코미디 대사 규칙]
+[4. 코미디 대사 규칙 — 대사가 코미디의 절반이다]
+코미디 대사는 '웃긴 말'이 아니라 '웃긴 구조'다.
+
+[4-1. 기본 원칙]
 - 짧다. 건조하다. 설명하지 않는다.
 - ❌ "아 진짜 이거 너무 웃기지 않아? 하하하" → 웃기다고 말하면 안 웃김
 - ✅ "5분이요." (3시간 후) "아직 5분이에요." → 상황이 대사를 웃기게 만든다
 - 캐릭터마다 코믹 리듬이 다르다: 빠른 사람 vs 느린 사람의 조합이 웃긴다
 - Straight Man(진지한 사람) + Funny Man(상황을 만드는 사람) 조합이 필수
+
+[4-2. 코미디 대사 7기법 — sample_lines에 반드시 반영]
+① Misdirection (기대 전복): 관객이 예상하는 답 대신 전혀 다른 답
+   예: '왜 아직 여기 있어요?' '주차장이 막혀서요.' (진짜 이유는 다른 데 있다)
+② Callback (반복 회수): 이전에 나온 대사/상황을 나중에 다시 써서 더 크게 웃김
+   예: 1막 '5분만' → 2막 '5분만' → 3막 '...그건 안 돼요'
+③ Topper (한 술 더): 상대 대사 위에 더 웃긴 대사를 얹는 것. 대화가 에스컬레이션.
+   예: A '이거 최악이야' B '아뇨, 이게 최악이에요' (더 큰 문제를 보여줌)
+④ Deadpan (무표정 진지): 미친 상황에서 완전히 진지하게 말하기. 코미디의 최강 무기.
+   예: (불타는 주방 앞에서) '환기가 필요하겠네요.'
+⑤ Status Flip (지위 역전): 높은 사람이 낮아지고 낮은 사람이 올라가는 순간의 대사
+   예: 사장 '내가 18년 경력이야!' 알바 '그래서 이렇게 된 거예요.'
+⑥ Comic Specificity (구체적 숫자/명사): 구체적일수록 웃기다
+   예: ❌ '많이 지원했어' ✅ '24번 지원했어. 23번 불합격이면 프로야.'
+⑦ Non-sequitur (엉뚱한 반응): 질문에 전혀 다른 맥락으로 답하기
+   예: '지금 상황이 어떻게 된 거야?' '우동 식었어요.'
+
+[4-3. sample_lines 작성 시]
+- sample_lines의 3개 대사(normal/angry/vulnerable)가 모두 코미디 톤이어야 한다.
+- normal: 캐릭터의 기본 코믹 리듬을 보여주는 대사 (Deadpan 또는 Misdirection)
+- angry: 분노하는데 웃긴 대사 (Status Flip 또는 Comic Specificity)
+- vulnerable: 약해지는 순간인데 여전히 캐릭터다운 대사 (웃기면서 아픈 대사)
+- ★ 드라마처럼 진지한 sample_lines를 쓰면 Writer Engine이 진지한 대사만 쓴다. 여기서 결정된다.
 
 [5. 코미디 감정 — 웃음 뒤의 진심]
 - 좋은 코미디는 웃다가 울게 한다. 나쁜 코미디는 웃기기만 한다.
@@ -788,6 +814,12 @@ def build_system_char_bible(genre: str, fmt: str, others_str: str) -> str:
 - backstory에 코믹 모순을 심어라: 캐릭터가 생각하는 자기 vs 실제 자기.
 - sample_lines의 대사는 건조하고 짧게. 웃기려고 떠드는 대사 금지.
   가장 웃긴 대사 = 진지한 상황에서 진지하게 말하는데 상황이 웃긴 것.
+- ★ sample_lines 3개(normal/angry/vulnerable)가 모두 코미디 톤이어야 한다.
+  코미디 대사 7기법 중 최소 2개 사용: Misdirection(기대 전복) / Callback(반복 회수) / Topper(한 술 더) / Deadpan(무표정 진지) / Status Flip(지위 역전) / Comic Specificity(구체적 숫자) / Non-sequitur(엉뚱한 반응)
+  예 normal: '5분이면 끝나요.' (3시간 후) '아직 5분이에요.'  ← Deadpan + Comic Specificity
+  예 angry: '23번 지원해서 23번 떨어진 사람한테 지금 뭐라는 거예요.'  ← Comic Specificity + Status Flip
+  예 vulnerable: '어머니가 이 정장 사려고 치킨집 담보 잡았거든요. 근데 기름때가...'  ← 웃기면서 아픈
+  드라마처럼 진지한 sample_lines를 쓰면 Writer Engine이 끝까지 진지하게 쓴다. 여기서 결정된다.
 - tactics에서 최소 1개는 코믹 전술이어야 한다 (효율 집착, 규칙 맹신, 과잉 자신감 등).
 - antagonist는 무섭지 않고 웃겨야 한다. 자기만의 미친 논리가 있는 인물.
 - Straight Man(진지한 인물)과 Funny Man(상황을 만드는 인물) 역할을 구분하라.
@@ -1017,6 +1049,7 @@ def build_system_treatment(genre: str, act_label: str, fmt: str = "", b_story_co
 □ Rule of Three가 작동하고 있는가? (패턴 2번 → 3번째 깨짐)
 □ 거짓말/오해/착각이 이 비트에서 더 커졌는가? (눈덩이 원칙)
 □ 대사가 건조하고 짧은가? (웃기려고 떠드는 대사 금지)
+□ 대사에 코미디 7기법 중 최소 1개가 쓰였는가? (Misdirection/Callback/Topper/Deadpan/Status Flip/Comic Specificity/Non-sequitur)
 □ 빌런/장애물 인물이 무섭지 않고 웃긴가? (자기만의 미친 논리)
 
 [코미디 비트 서술 규칙]
