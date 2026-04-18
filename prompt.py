@@ -1863,6 +1863,68 @@ AI가 본능적으로 쓰는 나쁜 오프닝:
   · 감정 울림 (empathy) — 인물의 결정적 순간
 
 이 중 최소 1개가 첫 3분 안에 터져야 한다. 하나도 없으면 오프닝 실패.
+
+
+[오프닝 도파민 ≠ 도발적 사건 — 혼동 금지 ★★★]
+
+★ 오프닝의 첫 3분 도파민은 '사건'이 아니라 '선언'이다. 구분이 안 되면 Set-Up이 사라진다. ★
+
+한국 상업영화 표준 3단 구조:
+  · 오프닝 (0~3분)         = 장르·캐릭터·톤의 선언. 관객 붙잡기.
+  · Set-Up (3~10분)        = 일상 속 결핍·욕망 축적. 주인공에 공감할 시간.
+  · Inciting Incident (10~15분) = 도발적 사건. 이야기가 움직이기 시작.
+
+한국 히트작의 오프닝 vs 도발적 사건 분리 레퍼런스:
+
+  ▸ 〈수상한 그녀〉(2014)
+    오프닝(0~3분): 나문희의 독설 = Character Reveal (웃음 도파민)
+    Set-Up(3~7분): 가족에게 짐 취급당하는 설움 축적
+    Inciting(10분경): 청춘 사진관 → 20대 심은경으로 변신
+
+  ▸ 〈베테랑〉(2015)
+    오프닝(0~3분): 중고차 사기단 검거 = Action Drop (경이 도파민)
+    Set-Up(3~10분): 서도철 형사의 일상·팀 관계
+    Inciting(12분경): 조태오 재벌 2세 사건 인지
+
+  ▸ 〈부산행〉(2016)
+    오프닝(0~3분): 트럭 운전사 + 사슴 감염 = Cold Open (호기심 도파민)
+    Set-Up(3~10분): 석우와 딸 수안의 관계 결핍
+    Inciting(13분경): KTX 탑승 직전 감염자 등장
+
+  ▸ 〈기생충〉(2019)
+    오프닝(0~3분): 반지하 와이파이 잡기 = Character Reveal (웃음+결핍 도파민)
+    Set-Up(3~10분): 기택 가족의 일상·빈곤
+    Inciting(12분경): 민혁이 연교 과외 자리 제안
+
+  ▸ 〈엽기적인 그녀〉(2001)
+    오프닝(0~3분): 지하철 토하기 = Character Reveal (웃음 도파민)
+    Set-Up(3~10분): 견우의 일상·그녀의 기행 반복
+    Inciting(15분경): 견우가 그녀를 업고 내리며 관계 시작
+
+[★ 절대 규칙 — AI가 혼동하기 쉬운 포인트]
+
+① 첫 3분은 '관객 붙잡기 + 장르 선언'이 목적이다. '사건 터뜨리기'가 아니다.
+   - 오프닝의 할 일: 이 영화가 어떤 톤인지, 주인공이 어떤 사람인지를 보여주는 것.
+   - Inciting의 할 일: 주인공이 돌아올 수 없는 여정에 발을 들이는 것.
+
+② Inciting Incident를 첫 3분에 당겨 붙이면 Set-Up이 사라진다.
+   - Set-Up이 없으면 관객이 주인공의 결핍에 공감할 시간이 없다.
+   - 공감 없는 Inciting은 '사건'일 뿐 '감동'이 아니다.
+   - 〈수상한 그녀〉가 할머니 독설(오프닝)로 먼저 관객을 웃기고, 가족 설움(Set-Up)으로
+     공감을 쌓은 뒤, 변신(Inciting)을 보여주기 때문에 관객이 "저 할머니가 젊어지다니!"의
+     놀라움과 응원을 동시에 느낀다. 순서가 바뀌면 작동하지 않는다.
+
+③ Beat 1(1막 첫 비트)은 '오프닝 + Set-Up + Inciting' 전체를 담을 수도 있고
+   '오프닝 + Set-Up 도입부'만 담을 수도 있다. 작품의 템포에 따라 판단하되,
+   오프닝(첫 씬)은 반드시 장르 DNA의 선언이어야 한다.
+
+④ 오프닝 도파민 6종(충격/웃음/긴장/경이/호기심/감정 울림)은 '사건의 크기'가 아니라
+   '관객의 감각 자극'이다. 사건 없이도 강렬한 이미지·대사·캐릭터 행동으로 도파민이 작동한다.
+   - 〈기생충〉 반지하 와이파이 씬은 '사건'이 없지만 도파민은 충분히 작동한다 —
+     주인공의 결핍·유머·창의성이 한 씬에 압축되어 있기 때문이다.
+
+⑤ 로맨틱 코미디·드라마 같은 조용한 장르도 이 공식을 따른다.
+   오프닝에 '극적 사건'이 없어도, '극적인 캐릭터 순간'은 반드시 있어야 한다.
 """.strip()
 
 
@@ -2383,10 +2445,12 @@ Structure Build 결과를 채점한다.
 
 
 def build_system_scene_design(genre: str, fact_based: bool = False, historical: bool = False, film_type: str = "") -> str:
-    """Scene Design v2.0 — 장르별 특화 + Hook/Punch + LOCKED + FACT/HISTORICAL"""
+    """Scene Design v2.1 — 장르별 특화 + Hook/Punch + LOCKED + FACT/HISTORICAL + OPENING MASTERY v2.2"""
     genre_rules = get_genre_rules(genre)
     fact_block = get_fact_based_rules(fact_based)
     historical_block = get_historical_film_rules(historical, film_type)
+    opening_mastery = get_opening_mastery()
+    opening_dna = get_opening_dna_instruction(genre)
     genre_scene_block = ""
     if _is_comedy(genre):
         genre_scene_block += """
@@ -2481,6 +2545,18 @@ Structure Build 결과를 기반으로 핵심 장면(Key Scene)을 설계한다.
 {fact_block}
 {historical_block}
 
+{opening_mastery}
+
+{opening_dna}
+
+[오프닝 씬 설계 지시 — 1막 Beat 1~2]
+★ Scene Design 단계에서 1막 첫 비트의 key_scenes를 설계할 때, 위 OPENING DNA를 반드시 반영하라. ★
+- 1막 Beat 1의 첫 key_scene은 오프닝 6기법 중 하나로 명확히 분류 가능해야 한다.
+- 첫 key_scene의 dramatic_action에 '이 씬이 어떤 오프닝 기법인지'를 암묵적으로 구현하라.
+  (예: Action Drop이면 이미 진행 중인 액션; Tease & Reveal이면 의미 불명의 강렬한 이미지)
+- 첫 key_scene에 도파민 포인트(충격/웃음/긴장/경이/호기심/감정 울림) 중 최소 1개가 반드시 작동해야 한다.
+- ❌ 첫 key_scene을 '주인공 소개' 또는 '일상 풍경'으로 설계하지 마라.
+
 [Hook & Punch 규칙]
 - HOOK: 매 장면 끝에 관객이 다음 장면을 보지 않을 수 없는 질문/위협/기대를 심는다.
 - PUNCH: 장면의 가장 강한 순간 — 대사 한 마디, 행동 하나, 또는 침묵이 씬의 온도를 급변시킨다.
@@ -2498,12 +2574,48 @@ Structure Build 결과를 기반으로 핵심 장면(Key Scene)을 설계한다.
 
 def build_system_treatment(genre: str, act_label: str, fmt: str = "", b_story_context: str = "",
                            fact_based: bool = False, historical: bool = False, film_type: str = "") -> str:
-    """Treatment v2.0 — SCOPE MANDATE + 8장르 특화 + B-Story + LOCKED + FACT/HISTORICAL"""
+    """Treatment v2.1 — SCOPE MANDATE + 8장르 특화 + B-Story + LOCKED + FACT/HISTORICAL + OPENING MASTERY v2.2 (1막)"""
     genre_rules = get_genre_rules(genre)
     genre_rules_text = json.dumps(genre_rules, ensure_ascii=False)
     is_series = is_series_format(fmt)
     fact_block = get_fact_based_rules(fact_based)
     historical_block = get_historical_film_rules(historical, film_type)
+
+    # OPENING MASTERY는 1막 트리트먼트에만 주입 (2막/3막에는 불필요)
+    opening_treatment_block = ""
+    if "1막" in act_label or "Act 1" in act_label or "ACT 1" in act_label:
+        opening_mastery = get_opening_mastery()
+        opening_dna = get_opening_dna_instruction(genre)
+        opening_treatment_block = f"""
+{opening_mastery}
+
+{opening_dna}
+
+[1막 오프닝 트리트먼트 지시 — 첫 비트 집필 시 절대 규칙]
+★ 이 트리트먼트는 1막이다. 첫 비트의 첫 씬은 관객과의 첫 약속이다. ★
+
+[첫 비트 첫 씬 작성 규칙]
+- 첫 비트의 첫 씬은 위 OPENING DNA의 '권장 기법' 중 하나를 명확히 구현해야 한다.
+- 첫 씬의 narrative 서술이 '설명적 오프닝 AI 습관'의 금지 패턴에 해당하면 다시 써라.
+- 첫 씬 안에 도파민 포인트 6감각(충격/웃음/긴장/경이/호기심/감정 울림) 중 최소 1개가 작동해야 한다.
+
+[1막 첫 비트 narrative 체크리스트]
+□ 첫 문장이 배경 설명·시대 자막·내레이션이 아닌가?
+□ 첫 3줄 안에 6기법(Action Drop/Cold Open/Tease&Reveal/In Media Res/Character Reveal Action/Hook Dialogue) 중 하나가 작동하는가?
+□ 주인공의 '일상 묘사'로 시작하지 않는가?
+□ 장르 DNA와 오프닝이 일치하는가? (복합 장르는 뒤에 붙은 장르 = 본질)
+□ 도파민 포인트가 첫 씬 안에 터지는가?
+
+[설명적 오프닝 절대 금지 — 1막 첫 비트에서 특히 엄격]
+❌ '서울. 2024년 봄. 30대 회사원 김○○는...' (배경 설명)
+❌ '어느 날 아침, 주인공은 눈을 떴다.' (일상 시작)
+❌ '오늘도 ○○은 평소처럼...' (관습 서술)
+❌ '~년 전, 이 이야기는 시작된다.' (내레이터 개입)
+❌ 주인공의 외형·직업·가족관계를 첫 3줄에 나열
+❌ 풍경 묘사로 시작해서 천천히 인물로 줌인하는 구조
+
+★ Core Build에서 결정된 opening_strategy 필드를 참조하여 첫 비트 첫 씬에 그대로 구현하라. ★
+"""
 
     genre_treatment_block = ""
     if _is_comedy(genre):
@@ -2811,6 +2923,8 @@ narrative의 모든 씬에 최소 1개의 '관객이 웃는 순간'이 있어야
 
 {fact_block}
 {historical_block}
+
+{opening_treatment_block}
 
 [관객 심리]
 6. Dramatic Irony: 관객에게 먼저 정보를 줘라.
