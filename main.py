@@ -1915,6 +1915,17 @@ def call_treatment_meta(act1, act2, act3, core_data):
                 for b in act_data.get("beats", []):
                     all_beats.append(f"Beat {b.get('beat_no','')}. {b.get('beat_name','')}")
 
+        # v2.1: 캐릭터 목록 추출 (이름 교차검증용)
+        chars = core_data.get("characters", []) + core_data.get("extended_characters", [])
+        char_registry = []
+        for c in chars:
+            name = c.get("name", "")
+            role = c.get("role", "")
+            age = c.get("age", "")
+            if name:
+                char_registry.append(f"{name}({age}, {role})")
+        char_registry_str = " / ".join(char_registry) if char_registry else "(캐릭터 정보 없음)"
+
         response = client.messages.create(
             model=ANTHROPIC_MODEL, max_tokens=2000, temperature=0.3,
             system=P.SYSTEM_TREATMENT_META,
@@ -1922,6 +1933,9 @@ def call_treatment_meta(act1, act2, act3, core_data):
 {json.dumps(all_beats, ensure_ascii=False)}
 
 [로그라인] {core_data.get("logline_pack",{}).get("washed","")}
+
+[★ 등장 캐릭터 레지스트리 — 감독 포인트에서 이름을 쓸 때 반드시 이 목록의 이름만 사용할 것]
+{char_registry_str}
 
 [JSON 스키마]
 {{
@@ -1931,7 +1945,16 @@ def call_treatment_meta(act1, act2, act3, core_data):
   "director_notes": ["감독용 포인트 1", "감독용 포인트 2", "감독용 포인트 3"],
   "investor_summary": "투자자용 요약 3~4문장"
 }}
-규칙: emotion_curve 16개 포인트. tension 1~10. director_notes 3개."""}]
+
+규칙:
+- emotion_curve 16개 포인트. tension 1~10. director_notes 3개.
+- ★ director_notes에 캐릭터 이름을 언급할 때 반드시 위 [등장 캐릭터 레지스트리]의 이름만 사용하라.
+- ★ 캐릭터의 역할(주인공/적대자/조력자 등)과 나이에 맞지 않는 연출 지시를 절대 하지 마라.
+  예: 9세 아이에게 '구조적 폭탄', '위협감', '주도권' 같은 어른 연출 지시를 붙이면 안 된다.
+- ★ 감독 포인트에서 특정 비트의 연출을 지시할 때는 해당 비트의 실제 주체(누가 그 행동을 하는가)와
+  일치하는 이름을 써라. 비트 이름에서 임의로 인물명을 추출하면 안 된다.
+- ★ 클라이맥스 질문의 주체가 누구인지(주인공인지, 적대자인지, 조력자인지) 반드시 확인한 후 이름을 지정하라.
+"""}]
         )
         txt = "".join(b.text for b in response.content if hasattr(b, "text")).strip()
         return safe_json_loads(txt)
