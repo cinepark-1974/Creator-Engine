@@ -1042,6 +1042,14 @@ def call_core_build_main(idea, genre, market, fmt, selected_concept, research=No
     "resolution_strategy": "이 이야기만의 독특한 해결 방식 — 기존작과 뭐가 다른가 1문장",
     "goal_need_gap": "Goal(외적 욕망)과 Need(내적 필요) 사이의 간극 1문장 — 이 간극이 이야기를 끌고 간다"
   }},
+  "opening_strategy": {{
+    "opening_type": "Action Drop / Cold Open / Tease & Reveal / In Media Res / Character Reveal Action / Hook Dialogue 중 택1 — 시스템 프롬프트의 오프닝 DNA 매핑에 따른 권장 기법을 우선하되, 작품 특성에 맞게 택1",
+    "opening_intent": "이 오프닝으로 무엇을 잡는가 — 캐릭터 / 세계 / 사건 / 톤 / 테마 중 1~2개 구체화",
+    "dopamine_point": "첫 3분 안에 관객이 느낄 구체적 감각 — 충격 / 웃음 / 긴장 / 경이 / 호기심 / 감정 울림 중 1개 선택 + 어떤 방식으로 터뜨리는가 1문장",
+    "opening_to_act1_link": "오프닝과 1막 본편의 연결 논리 — 동일 시점 진입 / 플래시백 회수 / 톤 브리지 / 병렬 구조 중 어떤 방식인가 1문장",
+    "opening_hook_line": "오프닝의 기억에 남을 한 줄 대사 또는 한 이미지 — 실제 시나리오에 쓸 수 있는 수준으로 구체적으로",
+    "genre_dna_check": "이 오프닝이 장르 DNA 자가검증 질문에 어떻게 대답하는가 — 예) 호러면 '첫 3분 안에 공포의 규칙/흔적이 심어졌는가?'에 어떻게 YES인가 1문장"
+  }},
   "world_build": {{
     "time": "시간 배경",
     "space": "공간 배경",
@@ -1687,12 +1695,32 @@ Water Cooler Moment (반드시 key_scenes 안에 포함): {wc.get("scene_or_setu
 절대 금지 방향: {" / ".join(fd)}
 """
 
+        # ── 오프닝 전략 추출 (v2.2 신규) ──
+        os_data = core_data.get("opening_strategy", {})
+        opening_strategy_block = ""
+        if os_data:
+            opening_strategy_block = f"""
+[🎬 오프닝 전략 — S#1 절대 명령 (v2.2)]
+오프닝 타입: {os_data.get("opening_type", "")}
+오프닝 의도: {os_data.get("opening_intent", "")}
+도파민 포인트: {os_data.get("dopamine_point", "")}
+1막 연결 방식: {os_data.get("opening_to_act1_link", "")}
+훅 라인/이미지: {os_data.get("opening_hook_line", "")}
+장르 DNA 체크: {os_data.get("genre_dna_check", "")}
+
+★ S#1(scene_no 1)은 반드시 위 '오프닝 타입'에 부합하는 장면이어야 한다. ★
+★ S#1의 dramatic_action, visual_direction, key_line에 '훅 라인/이미지'가 구체적으로 드러나야 한다. ★
+★ S#1의 emotional_beat는 '도파민 포인트'에 명시된 감각(충격/웃음/긴장/경이/호기심/감정 울림)을 만드는 방향이어야 한다. ★
+★ S#1을 '평범한 일상 소개' '풍경 묘사 후 인물 줌인' '주인공 배경 설명'으로 열면 실패다. 첫 장면에서 장르 DNA가 선언되어야 한다. ★
+"""
+
         user_prompt = f"""[Core]
 로그라인: {lp.get("washed","")}
 Goal: {gns.get("goal","")} / Need: {gns.get("need","")} / Strategy: {gns.get("strategy","")}
 서사동력: {nd.get("desire_origin","")}({nd.get("origin_detail","")}) → {nd.get("arc_direction","")} / 해결전략: {nd.get("resolution_strategy","")}
 캐릭터: {chars_simple}
 {scene_attraction_block}
+{opening_strategy_block}
 {locked_block}
 [Storyline]
 {storyline_json}
@@ -1831,6 +1859,38 @@ Water Cooler Moment: {wc.get("scene_or_setup", "")}
 절대 금지 방향: {" / ".join(fd)}
 """
 
+        # ── 오프닝 전략 블록 (v2.2 신규) — 1막일 때만 Beat 1 강제 규칙 적용 ──
+        os_data = core_data.get("opening_strategy", {})
+        opening_strategy_block = ""
+        if os_data and act_number == 1:
+            opening_strategy_block = f"""
+[🎬 오프닝 전략 — Beat 1 절대 명령 (v2.2)]
+오프닝 타입: {os_data.get("opening_type", "")}
+오프닝 의도: {os_data.get("opening_intent", "")}
+도파민 포인트: {os_data.get("dopamine_point", "")}
+1막 연결 방식: {os_data.get("opening_to_act1_link", "")}
+훅 라인/이미지: {os_data.get("opening_hook_line", "")}
+장르 DNA 체크: {os_data.get("genre_dna_check", "")}
+
+★ Beat 1 (1막 첫 비트) 작성 규칙 — 절대 지킬 것 ★
+1. 비트의 첫 3줄 안에 오프닝 타입에 해당하는 장면이 즉시 시작되어야 한다.
+   - Action Drop: 이미 진행 중인 행동으로 시작
+   - Cold Open: 본편과 다른 시점/장면으로 시작
+   - Tease & Reveal: 수수께끼 이미지로 시작
+   - In Media Res: 미래의 결정적 순간으로 시작
+   - Character Reveal Action: 주인공의 정의적 행동으로 시작
+   - Hook Dialogue: 강렬한 한 줄 대사로 시작
+2. '훅 라인/이미지'는 Beat 1 narrative에 구체적으로 실제 장면으로 등장해야 한다.
+3. '도파민 포인트'에 명시된 감각(충격/웃음/긴장/경이/호기심/감정 울림)이 Beat 1 안에서 최소 1회 터져야 한다.
+4. 절대 금지 AI 오프닝 습관:
+   ❌ '서울. 2024년 봄.' 같은 배경 설명 시작
+   ❌ '어느 날 아침, 주인공은 눈을 떴다.' 일상 시작
+   ❌ '오늘도 ○○은 평소처럼...' 관습 서술
+   ❌ 주인공의 외형·직업·가족관계를 첫 3줄에 나열
+   ❌ 풍경 묘사로 시작해서 인물로 줌인하는 구조
+5. Beat 1의 마지막 문장은 Beat 2로 넘어가는 연결 장치가 되어야 한다(오프닝→1막 연결 방식 준수).
+"""
+
         # ── 시스템 프롬프트 (fmt + b_story 전달) ──
         system_prompt = P.build_system_treatment(genre, act_label, fmt=fmt, b_story_context=b_story_context,
                                                    fact_based=fact_based, historical=historical, film_type=film_type)
@@ -1850,6 +1910,7 @@ Goal: {gns.get("goal","")} / Need: {gns.get("need","")} / Strategy: {gns.get("st
 {locked_block}
 {series_info}
 {attraction_block}
+{opening_strategy_block}
 [Synopsis]
 {json.dumps(syn, ensure_ascii=False)}
 
@@ -2320,6 +2381,17 @@ def generate_docx(project):
             add_labeled("아크 방향", nd.get("arc_direction", ""))
             add_labeled("해결전략", nd.get("resolution_strategy", ""))
             add_labeled("Goal↔Need 간극", nd.get("goal_need_gap", ""))
+
+        # ── 오프닝 전략 OPENING STRATEGY (v2.2 신규) ──
+        os_data = core.get("opening_strategy", {})
+        if os_data:
+            add_yellow_header("오프닝 전략", "OPENING STRATEGY")
+            add_labeled("오프닝 타입", os_data.get("opening_type", ""))
+            add_labeled("오프닝 의도", os_data.get("opening_intent", ""))
+            add_labeled("도파민 포인트", os_data.get("dopamine_point", ""))
+            add_labeled("1막 연결 방식", os_data.get("opening_to_act1_link", ""))
+            add_labeled("훅 라인/이미지", os_data.get("opening_hook_line", ""))
+            add_labeled("장르 DNA 체크", os_data.get("genre_dna_check", ""))
 
         # ── 세계관 WORLD ──
         add_yellow_header("세계관", "WORLD BUILDING")
