@@ -988,12 +988,13 @@ def call_brainstorm_analysis(idea, genre, market, fmt, top3_cards, research=None
 
 
 # ─── API Call: Core Build Main (1단계) ───
-def call_core_build_main(idea, genre, market, fmt, selected_concept, research=None, locked_block=""):
+def call_core_build_main(idea, genre, market, fmt, selected_concept, research=None, locked_block="",
+                          fact_based=False, historical=False, film_type=""):
     """Core Build 1단계: Logline + Intent + World + Character + Goal/Need/Strategy"""
     try:
         client = get_client()
 
-        system_prompt = P.build_system_core(genre)
+        system_prompt = P.build_system_core(genre, fact_based=fact_based, historical=historical, film_type=film_type)
 
         research_block = ""
         if research:
@@ -1266,7 +1267,8 @@ def call_core_gate(core_data):
 
 
 # ─── API Call: Character Bible ───
-def call_character_bible_single(char_data, all_chars_names, core_data, genre, fmt, locked_block=""):
+def call_character_bible_single(char_data, all_chars_names, core_data, genre, fmt, locked_block="",
+                                 fact_based=False, historical=False, film_type=""):
     """캐릭터 바이블 — 캐릭터 1인 단위 호출"""
     try:
         client = get_client()
@@ -1284,7 +1286,8 @@ def call_character_bible_single(char_data, all_chars_names, core_data, genre, fm
         other_names = [n for n in all_chars_names if n != name]
         others_str = ", ".join(other_names) if other_names else "없음"
 
-        system_prompt = P.build_system_char_bible(genre, fmt, others_str)
+        system_prompt = P.build_system_char_bible(genre, fmt, others_str,
+                                                    fact_based=fact_based, historical=historical, film_type=film_type)
 
         schema = P.CHAR_BIBLE_SCHEMA.replace("ROLE_PLACEHOLDER", role).replace("NAME_PLACEHOLDER", name)
 
@@ -1360,7 +1363,8 @@ def call_character_bible_single(char_data, all_chars_names, core_data, genre, fm
         return None
 
 
-def call_character_bible(core_data, genre, fmt, locked_block=""):
+def call_character_bible(core_data, genre, fmt, locked_block="",
+                         fact_based=False, historical=False, film_type=""):
     """캐릭터 바이블 — characters + extended_characters 모두 처리"""
     chars = core_data.get("characters", [])
     ext_chars = core_data.get("extended_characters", [])
@@ -1372,7 +1376,8 @@ def call_character_bible(core_data, genre, fmt, locked_block=""):
         name = ch.get("name", f"캐릭터{i+1}")
         role = ch.get("role", "")
         st.info(f"📖 {i+1}/{len(all_chars)} — {name} ({role}) 바이블 생성 중...")
-        char_result = call_character_bible_single(ch, all_names, core_data, genre, fmt, locked_block=locked_block)
+        char_result = call_character_bible_single(ch, all_names, core_data, genre, fmt, locked_block=locked_block,
+                                                    fact_based=fact_based, historical=historical, film_type=film_type)
         if char_result:
             result_chars.append(char_result)
         else:
@@ -1384,7 +1389,8 @@ def call_character_bible(core_data, genre, fmt, locked_block=""):
 
 
 # ─── API Call: Structure Build Story (1단계) ───
-def call_structure_story(core_data, genre, market, fmt, locked_block=""):
+def call_structure_story(core_data, genre, market, fmt, locked_block="",
+                          fact_based=False, historical=False, film_type=""):
     """Structure 1단계: Synopsis 1P + Storyline"""
     try:
         client = get_client()
@@ -1393,7 +1399,7 @@ def call_structure_story(core_data, genre, market, fmt, locked_block=""):
         lp = core_data.get("logline_pack", {})
         chars = core_data.get("characters", []) + core_data.get("extended_characters", [])
 
-        system_prompt = P.build_system_structure_story()
+        system_prompt = P.build_system_structure_story(fact_based=fact_based, historical=historical, film_type=film_type)
 
         user_prompt = f"""[Core Build 요약]
 로그라인: {lp.get("washed", lp.get("original", ""))}
@@ -1459,7 +1465,8 @@ Strategy: {gns.get("strategy","")}
 
 
 # ─── API Call: Structure Build Diagnosis + Character Arcs (2단계) ───
-def call_structure_diagnosis(core_data, story_data, genre, fmt, locked_block=""):
+def call_structure_diagnosis(core_data, story_data, genre, fmt, locked_block="",
+                              fact_based=False, historical=False, film_type=""):
     """Structure 2단계: 3막 구조 진단 + 15비트 + 캐릭터 관계 변화표"""
     try:
         client = get_client()
@@ -1467,7 +1474,7 @@ def call_structure_diagnosis(core_data, story_data, genre, fmt, locked_block="")
         nd = core_data.get("narrative_drive", {})
         chars = core_data.get("characters", []) + core_data.get("extended_characters", [])
 
-        system_prompt = P.build_system_structure_diagnosis()
+        system_prompt = P.build_system_structure_diagnosis(fact_based=fact_based, historical=historical, film_type=film_type)
 
         user_prompt = f"""[입력]
 장르: {genre} / 포맷: {fmt}
@@ -1642,7 +1649,8 @@ Goal: {gns.get("goal","")} / Need: {gns.get("need","")} / Strategy: {gns.get("st
 
 
 # ─── API Call: Scene Design (장면화) ───
-def call_scene_design(core_data, story_data, diag_data, genre, fmt, locked_block=""):
+def call_scene_design(core_data, story_data, diag_data, genre, fmt, locked_block="",
+                      fact_based=False, historical=False, film_type=""):
     """Scene Design: 핵심 장면 15~18개 설계 (Show, don't tell)"""
     try:
         client = get_client()
@@ -1652,7 +1660,7 @@ def call_scene_design(core_data, story_data, diag_data, genre, fmt, locked_block
         chars = core_data.get("characters", []) + core_data.get("extended_characters", [])
         storyline = story_data.get("storyline", [])
 
-        system_prompt = P.build_system_scene_design(genre)
+        system_prompt = P.build_system_scene_design(genre, fact_based=fact_based, historical=historical, film_type=film_type)
 
         chars_simple = json.dumps(
             [{"name": c.get("name",""), "role": c.get("role","")} for c in chars],
@@ -1758,7 +1766,8 @@ def _build_b_story_context(core_data):
 
 
 # ─── API Call: Treatment Build (16비트 줄글) ───
-def call_treatment_beats(core_data, story_data, scene_data, genre, fmt, act_number, locked_block=""):
+def call_treatment_beats(core_data, story_data, scene_data, genre, fmt, act_number, locked_block="",
+                          fact_based=False, historical=False, film_type=""):
     """Treatment Build: 막별 비트 줄글 생성 — 영화/시리즈 자동 분기"""
     try:
         client = get_client()
@@ -1823,7 +1832,8 @@ Water Cooler Moment: {wc.get("scene_or_setup", "")}
 """
 
         # ── 시스템 프롬프트 (fmt + b_story 전달) ──
-        system_prompt = P.build_system_treatment(genre, act_label, fmt=fmt, b_story_context=b_story_context)
+        system_prompt = P.build_system_treatment(genre, act_label, fmt=fmt, b_story_context=b_story_context,
+                                                   fact_based=fact_based, historical=historical, film_type=film_type)
 
         # ── 시리즈용 추가 정보 ──
         series_info = ""
@@ -1969,7 +1979,8 @@ def call_treatment_gate(treatment_data):
 
 
 # ─── API Call: Tone Document ───
-def call_tone_document(core_data, structure_data, scene_data, treatment_data, char_bible, genre, fmt, locked_block=""):
+def call_tone_document(core_data, structure_data, scene_data, treatment_data, char_bible, genre, fmt, locked_block="",
+                        fact_based=False, historical=False, film_type=""):
     """톤 & 연출 문서 — Writer Engine의 스타일 가이드"""
     try:
         client = get_client()
@@ -1993,7 +2004,8 @@ def call_tone_document(core_data, structure_data, scene_data, treatment_data, ch
                 for b in act.get("beats", []):
                     treatment_summary += f"Beat {b.get('beat_no','')}: {b.get('beat_name','')}. "
 
-        system_prompt = P.build_system_tone_document(genre, fmt)
+        system_prompt = P.build_system_tone_document(genre, fmt,
+                                                       fact_based=fact_based, historical=historical, film_type=film_type)
 
         user_prompt = f"""[로그라인]
 {lp.get("washed","")}
@@ -2896,6 +2908,25 @@ if st.session_state.view == "home":
                  "웹툰", "웹소설", "숏폼", "다큐멘터리", "애니메이션"]
             )
 
+            st.markdown("##### 🏛️ 특수 규칙")
+            fact_based_input = st.checkbox(
+                "실화 배경 작품",
+                value=False,
+                help="실제 사건/인물/시대를 배경으로 하는 작품. 실명 비사용 + 사실성 균형, 명예훼손·인격권 차단 규칙이 자동 적용됨."
+            )
+            historical_input = st.checkbox(
+                "역사영화",
+                value=False,
+                help="시대극/사극. 시대 언어의 균형, 공간의 주인공화, 선악 이원 구도 회피 등 역사영화 전용 규칙 적용."
+            )
+            film_type_input = ""
+            if historical_input:
+                film_type_input = st.selectbox(
+                    "역사영화 유형",
+                    ["정통", "팩션", "퓨전"],
+                    help="정통: 〈남한산성〉〈1987〉〈서울의 봄〉 / 팩션: 〈왕의 남자〉〈광해〉〈암살〉 / 퓨전: 〈조선명탐정〉〈전우치〉"
+                )
+
         if st.button("🚀 프로젝트 생성", use_container_width=True, disabled=not idea_input.strip()):
             market_final = market_custom if market_type == "직접 입력" else market_type
             project_id = f"p_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
@@ -2911,6 +2942,9 @@ if st.session_state.view == "home":
                 "genre": genre_input,
                 "target_market": market_final,
                 "format": format_input,
+                "fact_based": fact_based_input,
+                "historical": historical_input,
+                "film_type": film_type_input,
                 "locked_items": locked_list,
                 "open_items": open_list,
                 "created_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
@@ -3490,7 +3524,10 @@ elif st.session_state.view == "core" and st.session_state.cur:
                     project["idea_text"], project["genre"],
                     project["target_market"], project["format"],
                     selected_concept, project.get("research"),
-                    locked_block=_build_project_locked_block(project)
+                    locked_block=_build_project_locked_block(project),
+                    fact_based=project.get("fact_based", False),
+                    historical=project.get("historical", False),
+                    film_type=project.get("film_type", ""),
                 )
             if core_result:
                 project["core"] = core_result
@@ -3821,7 +3858,13 @@ elif st.session_state.view == "char_bible" and st.session_state.cur:
     if not project.get("char_bible"):
         if st.button("📖 Character Bible 생성", type="primary"):
             with st.spinner("캐릭터 바이블 설계 중... (캐릭터당 약 30초, 4~8명 기준 약 2~4분)"):
-                result = call_character_bible(core, project["genre"], project["format"], locked_block=_build_project_locked_block(project))
+                result = call_character_bible(
+                    core, project["genre"], project["format"],
+                    locked_block=_build_project_locked_block(project),
+                    fact_based=project.get("fact_based", False),
+                    historical=project.get("historical", False),
+                    film_type=project.get("film_type", ""),
+                )
             if result:
                 project["char_bible"] = result
                 project["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
@@ -4128,11 +4171,23 @@ elif st.session_state.view == "structure" and st.session_state.cur:
             st.error("Core Build가 없습니다.")
         else:
             with st.spinner("① 시놉시스 + 스토리라인... (20~30초)"):
-                story = call_structure_story(core, project["genre"], project["target_market"], project["format"], locked_block=_build_project_locked_block(project))
+                story = call_structure_story(
+                    core, project["genre"], project["target_market"], project["format"],
+                    locked_block=_build_project_locked_block(project),
+                    fact_based=project.get("fact_based", False),
+                    historical=project.get("historical", False),
+                    film_type=project.get("film_type", ""),
+                )
             if story:
                 project["structure_story"] = story
                 with st.spinner("② 구조 진단 + 캐릭터 변화표... (20~30초)"):
-                    diag = call_structure_diagnosis(core, story, project["genre"], project["format"], locked_block=_build_project_locked_block(project))
+                    diag = call_structure_diagnosis(
+                        core, story, project["genre"], project["format"],
+                        locked_block=_build_project_locked_block(project),
+                        fact_based=project.get("fact_based", False),
+                        historical=project.get("historical", False),
+                        film_type=project.get("film_type", ""),
+                    )
                 if diag:
                     project["structure_diag"] = diag
                     with st.spinner("③ Gate D 채점... (10초)"):
@@ -4317,7 +4372,13 @@ elif st.session_state.view == "scene_design" and st.session_state.cur:
             st.error("Structure Build가 없습니다.")
         else:
             with st.spinner("핵심 장면 설계 중... (약 30~40초)"):
-                sd = call_scene_design(core, story, diag, project["genre"], project["format"], locked_block=_build_project_locked_block(project))
+                sd = call_scene_design(
+                    core, story, diag, project["genre"], project["format"],
+                    locked_block=_build_project_locked_block(project),
+                    fact_based=project.get("fact_based", False),
+                    historical=project.get("historical", False),
+                    film_type=project.get("film_type", ""),
+                )
             if sd:
                 project["scene_design"] = sd
                 project["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
@@ -4420,11 +4481,29 @@ elif st.session_state.view == "treatment" and st.session_state.cur:
             st.error("Structure Build가 없습니다.")
         else:
             with st.spinner("① 1막 Treatment (Beat 1~6)... (약 40~50초)"):
-                act1 = call_treatment_beats(core, story, scene_data, project["genre"], project["format"], 1, locked_block=_build_project_locked_block(project))
+                act1 = call_treatment_beats(
+                    core, story, scene_data, project["genre"], project["format"], 1,
+                    locked_block=_build_project_locked_block(project),
+                    fact_based=project.get("fact_based", False),
+                    historical=project.get("historical", False),
+                    film_type=project.get("film_type", ""),
+                )
             with st.spinner("② 2막 Treatment (Beat 7~12)... (약 40~50초)"):
-                act2 = call_treatment_beats(core, story, scene_data, project["genre"], project["format"], 2, locked_block=_build_project_locked_block(project))
+                act2 = call_treatment_beats(
+                    core, story, scene_data, project["genre"], project["format"], 2,
+                    locked_block=_build_project_locked_block(project),
+                    fact_based=project.get("fact_based", False),
+                    historical=project.get("historical", False),
+                    film_type=project.get("film_type", ""),
+                )
             with st.spinner("③ 3막 Treatment (Beat 13~16)... (약 30~40초)"):
-                act3 = call_treatment_beats(core, story, scene_data, project["genre"], project["format"], 3, locked_block=_build_project_locked_block(project))
+                act3 = call_treatment_beats(
+                    core, story, scene_data, project["genre"], project["format"], 3,
+                    locked_block=_build_project_locked_block(project),
+                    fact_based=project.get("fact_based", False),
+                    historical=project.get("historical", False),
+                    film_type=project.get("film_type", ""),
+                )
 
             if act1 or act2 or act3:
                 project["treatment"] = {"act1": act1, "act2": act2, "act3": act3}
@@ -4635,7 +4714,10 @@ elif st.session_state.view == "tone_doc" and st.session_state.cur:
                     project.get("scene_design", {}), treatment,
                     project.get("char_bible", {}),
                     project["genre"], project["format"],
-                    locked_block=_build_project_locked_block(project)
+                    locked_block=_build_project_locked_block(project),
+                    fact_based=project.get("fact_based", False),
+                    historical=project.get("historical", False),
+                    film_type=project.get("film_type", ""),
                 )
             if result:
                 project["tone_doc"] = result
