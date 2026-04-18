@@ -1716,7 +1716,315 @@ def get_historical_film_rules(historical: bool, film_type: str = "") -> str:
 # GENRE OVERRIDE INTEGRATION (v2.0 8장르 완성)
 # ═══════════════════════════════════════════════════
 
-def _get_genre_override(genre: str) -> str:
+# ═══════════════════════════════════════════════════
+# OPENING MASTERY v2.2 (신규) — 첫 3분 도파민 설계
+# 장르 = 오프닝 DNA. 복합 장르는 "두 번째 장르 = 본질" 법칙.
+# 참고: 한국 상업영화 오프닝 6기법
+# ═══════════════════════════════════════════════════
+
+OPENING_MASTERY_MODULE = """
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+OPENING MASTERY — 첫 3분 도파민 설계
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+★ 오프닝은 관객과의 첫 약속이다. 이 약속이 장르와 일치하지 않으면 관객은 100분 내내 기대가 어긋난다. ★
+★ 2020년 이후 한국 관객은 첫 3분 안에 영화를 판단한다. 극장표 15,000원 + OTT 스킵 습관 + 숏폼 세대. ★
+★ 설명적 오프닝('2024년 봄. 30대 회사원 김형수는...')은 AI의 본능이지만 영화의 죽음이다. ★
+
+[오프닝 6기법 — Opening Types]
+
+① Action Drop — 이미 진행 중인 액션 안으로 떨어뜨리기
+   - 싸움·추격·총격·범죄가 이미 한창일 때 카메라가 켜진다
+   - 도착 과정·세팅 과정 생략. 관객을 Clock 안에 던진다.
+   - 레퍼런스: 〈베테랑〉 중고차 사기단 검거 / 〈범죄도시〉 마석도 조폭 진압 / 〈아저씨〉 전당포 오프닝
+
+② Cold Open — 본편과 다른 시점/장면으로 시작 후 본편 진입
+   - 과거 사건, 다른 인물의 관점, 또는 본편과 이질적인 장면으로 오픈
+   - 본편과의 연결은 나중에 밝혀진다
+   - 레퍼런스: 〈서울의 봄〉 12.12 뉴스 인서트 / 〈곡성〉 일본 낚시꾼 / 〈박쥐〉 병원 프롤로그
+
+③ Tease & Reveal — 수수께끼 이미지로 시작, 나중에 회수
+   - 의미 불명의 강렬한 이미지(소품·장소·인물)를 먼저 보여주고
+   - 영화 중후반에 그 이미지의 맥락이 드러난다
+   - 레퍼런스: 〈파묘〉 LA 비행기 / 〈검은 사제들〉 소녀 각막 / 〈살인의 추억〉 1986년 논두렁
+
+④ In Media Res — 미래의 결정적 순간 먼저, "어떻게 여기까지 왔나"
+   - 클라이맥스 직전 또는 결정적 전환점을 오프닝에 먼저 보여주고
+   - 플래시백으로 "어떻게 여기까지 왔는지" 역추적
+   - 레퍼런스: 〈아가씨〉 지하실 묶인 숙희 / 〈내부자들〉 손 잘린 안상구 / 〈황해〉 개 경주
+
+⑤ Character Reveal Action — 주인공을 정의하는 첫 행동/선택
+   - 주인공의 본질(도덕 축·결함·신념·전술)이 드러나는 한 장면
+   - 대사가 아니라 행동으로 캐릭터가 서명된다
+   - 레퍼런스: 〈범죄도시〉 마석도 1분 진압 / 〈기생충〉 반지하 와이파이 잡기 / 〈엽기적인 그녀〉 지하철 토하기
+
+⑥ Hook Dialogue — 강렬한 한 줄 대사로 시작
+   - 맥락 없이 던져지는 한 줄이 작품의 톤과 주제를 선언
+   - 다음 씬이 그 대사를 설명하거나 증명한다
+   - 레퍼런스: 〈내부자들〉 "어이가 없네" / 〈친구〉 "내가 니 시다바리가?" / 〈올드보이〉 "누구냐 넌"
+
+
+[장르 = 오프닝 DNA 매핑]
+
+★ 복합 장르 법칙: 두 번째 장르 = 작품의 본질. 오프닝은 본질 쪽의 DNA를 선언한다. ★
+★ 장르 이름의 맨 뒤에 붙은 장르가 본질이다. "로맨틱 코미디"는 코미디, "액션 스릴러"는 스릴러. ★
+  - 로맨틱 코미디 = 코미디 DNA (본질은 웃음, 로맨틱은 외피)
+  - 코믹 로맨스   = 로맨스 DNA (본질은 사랑, 코믹은 외피)
+  - 액션 스릴러   = 스릴러 DNA (본질은 긴장·정보 비대칭)
+  - 액션 코미디   = 코미디 DNA (본질은 웃음)
+  - 범죄 스릴러   = 스릴러 DNA (본질은 긴장)
+  - 호러 스릴러   = 스릴러 DNA (본질은 긴장, 순수 호러와 구분)
+  - SF 액션      = 액션 DNA (본질은 물리적 쾌감)
+  - SF 드라마    = 드라마 DNA (본질은 내면 변화)
+  - 판타지 로맨스 = 로맨스 DNA (본질은 사랑)
+  - 시대극 액션   = 액션 DNA (본질은 물리적 쾌감)
+  - 정통역사영화 = 드라마 DNA (본질은 인물의 역사적 선택)
+
+[장르별 오프닝 DNA]
+
+▸ 호러 / 공포 → 권장 기법: Tease & Reveal / Cold Open
+   - 첫 씬에 위협의 '흔적 또는 규칙 위반' (실체는 나중)
+   - 감각 순서: 소리 → 온도 → 냄새 → 그림자 → 실체
+   - ❌ 주인공 소개로 시작 ❌ 한가로운 일상 풍경
+   - ✅ 첫 3분 안에 관객이 "뭔가 이상하다"를 느낌
+   - 체크: 첫 3분 안에 공포의 규칙 또는 흔적이 심어졌는가?
+
+▸ 액션 → 권장 기법: Action Drop / Character Reveal Action
+   - 주인공이 이미 액션 중이거나, 액션을 선택하는 순간
+   - 첫 행동이 캐릭터 원형(정의형/복수형/타락형/각성형)을 선언
+   - ❌ 주인공이 운전·출근·사무 보는 풍경
+   - ✅ 첫 3분 안에 주인공의 주먹/총/발/칼이 물리적 행동 중
+   - 체크: 관객이 주인공의 '싸우는 방식'을 첫 씬에서 봤는가?
+
+▸ 스릴러 / 범죄 / 누아르 → 권장 기법: Cold Open / In Media Res / Tease & Reveal
+   - 정보 비대칭을 즉시 가동 (관객은 알고 주인공은 모르거나 그 반대)
+   - Clock 장치 암시 (시한·마감·예고)
+   - ❌ 평범한 도시 풍경으로 열기
+   - ✅ 첫 3분 안에 "누가 무엇을 아는가"의 간극이 작동
+   - 체크: 첫 3분 안에 Clock 또는 정보 비대칭이 작동했는가?
+
+▸ 드라마 → 권장 기법: Character Reveal Action / Hook Dialogue
+   - 주인공의 Want 또는 결핍이 행동으로 드러나는 순간
+   - 한 장면에 인물의 내면이 압축됨 (말하지 않고)
+   - ❌ 인물 상황을 내레이션으로 설명
+   - ✅ 첫 3분 안에 주인공이 '무엇을 원하는가' 또는 '무엇이 없는가'가 보임
+   - 체크: 첫 3분 안에 주인공의 Want/Need가 행동으로 드러났는가?
+
+▸ 로맨스 / 멜로 → 권장 기법: Character Reveal Action / Hook Dialogue
+   - 주인공의 '사랑에 대한 태도'가 첫 행동으로 노출
+   - 신체 감각·거리·시선의 언어가 첫 씬부터 작동
+   - ❌ 주인공의 일상 묘사 후 운명적 만남 준비
+   - ✅ 첫 3분 안에 주인공의 '관계 방식'(회피/갈망/방어)이 행동으로 보임
+   - 체크: 첫 3분 안에 로맨스의 신체 언어(거리/시선/접촉)가 작동했는가?
+
+▸ 코미디 → 권장 기법: Character Reveal Action / Hook Dialogue
+   - 주인공의 코믹 결함(comic flaw)을 즉시 노출
+   - 첫 대사 또는 첫 행동이 웃음 포인트
+   - ❌ 평범한 일상에서 서서히 코미디로 진입
+   - ✅ 첫 3분 안에 관객이 최소 1회 웃음 (첫 대사 또는 첫 상황)
+   - 체크: 첫 3분 안에 웃음 포인트 + 주인공의 코믹 결함이 드러났는가?
+
+▸ SF → 권장 기법: Cold Open / Tease & Reveal
+   - 이 세계의 핵심 규칙을 이미지로 암시 (설명 대사 금지)
+   - 일상화된 기술 — 인물은 놀라지 않음, 관객이 놀람
+   - ❌ '2045년 지구는...' 같은 강의식 오프닝
+   - ✅ 첫 3분 안에 세계 규칙이 '보여지는' 방식으로 제시
+   - 체크: 첫 3분 안에 이 세계의 핵심 규칙이 이미지로 제시되었는가?
+
+▸ 판타지 → 권장 기법: Cold Open / Tease & Reveal
+   - 초자연 첫 신호 (마법·신화·규칙의 증거)
+   - 일상 공간 옆의 이질적 균열
+   - ❌ 긴 세계관 내레이션
+   - ✅ 첫 3분 안에 마법 규칙의 첫 증거가 이미지로 제시
+   - 체크: 첫 3분 안에 마법/초자연의 첫 증거가 보였는가?
+
+
+[설명적 오프닝 AI 습관 — 절대 금지 패턴]
+
+AI가 본능적으로 쓰는 나쁜 오프닝:
+❌ '서울. 2024년 봄. 30대 회사원 김형수는...' (배경 설명)
+❌ '어느 날 아침, 주인공은 눈을 떴다.' (일상 시작)
+❌ '오늘도 ○○은 평소처럼...' (관습 서술)
+❌ '~년 전, 이 이야기는 시작된다.' (내레이터 개입)
+❌ 주인공의 외형·직업·가족관계를 첫 3줄에 나열
+❌ 풍경 묘사로 시작해서 천천히 인물로 줌인하는 구조
+
+이 습관은 소설·교과서의 문법이지 영화의 문법이 아니다. 첫 3줄에 반드시
+6기법 중 하나가 작동해야 한다.
+
+[도파민 포인트 — 첫 3분 안에 최소 1회]
+
+관객이 느껴야 할 감각 중 하나:
+  · 충격 (shock)      — 예상 밖의 이미지·사건
+  · 웃음 (laughter)   — 코믹 상황·대사
+  · 긴장 (tension)    — 위협·시간 압박·정보 비대칭
+  · 경이 (wonder)     — 처음 보는 이미지·세계
+  · 호기심 (mystery)  — 풀리지 않는 수수께끼
+  · 감정 울림 (empathy) — 인물의 결정적 순간
+
+이 중 최소 1개가 첫 3분 안에 터져야 한다. 하나도 없으면 오프닝 실패.
+""".strip()
+
+
+def get_opening_mastery() -> str:
+    """Opening Mastery 모듈 반환."""
+    return "\n\n" + OPENING_MASTERY_MODULE + "\n"
+
+
+def _resolve_opening_dna(genre: str) -> str:
+    """
+    복합 장르에서 '두 번째 장르(뒤에 붙은 장르) = 본질' 법칙으로 DNA 결정.
+    단일 장르면 그 장르의 DNA 반환.
+    반환값: "romance" / "thriller" / "action" / "drama" / "comedy" / "horror" / "sf" / "fantasy"
+    """
+    g = genre.lower().strip()
+    
+    # 복합 장르 우선 처리 — 뒤에 붙은 장르가 본질
+    # "로맨틱 코미디", "로맨스 코미디", "롬코" → 코미디 DNA (뒤가 코미디)
+    if "롬코" in g:
+        return "comedy"
+    if ("로맨틱" in g or "로맨스" in g or "멜로" in g) and "코미디" in g:
+        # 순서 확인: "코미디"가 뒤에 있으면 코미디 DNA
+        idx_roman = max(g.find("로맨틱"), g.find("로맨스"), g.find("멜로"))
+        idx_comedy = g.find("코미디")
+        if idx_comedy > idx_roman:
+            return "comedy"
+        else:
+            return "romance"
+    # "코믹 로맨스" → 로맨스 DNA (뒤가 로맨스)
+    if "코믹" in g and ("로맨스" in g or "멜로" in g):
+        return "romance"
+    # "액션 스릴러", "액션 범죄", "액션 누아르" → 스릴러 DNA
+    if "액션" in g and ("스릴러" in g or "범죄" in g or "누아르" in g):
+        return "thriller"
+    # "액션 코미디" → 코미디 DNA
+    if "액션" in g and "코미디" in g:
+        return "comedy"
+    # "호러 스릴러" → 스릴러 DNA (순수 호러와 구분)
+    if ("호러" in g or "공포" in g) and "스릴러" in g:
+        return "thriller"
+    # "SF 액션" → 액션 DNA
+    if ("sf" in g or "에스에프" in g) and "액션" in g:
+        return "action"
+    # "SF 드라마" → 드라마 DNA
+    if ("sf" in g or "에스에프" in g) and "드라마" in g:
+        return "drama"
+    # "판타지 로맨스" → 로맨스 DNA
+    if "판타지" in g and ("로맨스" in g or "멜로" in g):
+        return "romance"
+    # "시대극 액션", "사극 액션" → 액션 DNA
+    if ("시대극" in g or "사극" in g) and "액션" in g:
+        return "action"
+    
+    # 단일 장르 또는 명확한 본질 장르
+    if _is_horror(genre):
+        return "horror"
+    if _is_thriller(genre):
+        return "thriller"
+    if _is_action(genre):
+        return "action"
+    if _is_sf(genre):
+        return "sf"
+    if _is_fantasy(genre):
+        return "fantasy"
+    if _is_comedy(genre) and not _is_romance(genre):
+        return "comedy"
+    if _is_romance(genre):
+        return "romance"
+    if _is_drama(genre):
+        return "drama"
+    
+    # 기본값: 드라마 DNA
+    return "drama"
+
+
+def get_opening_dna_instruction(genre: str) -> str:
+    """
+    Core Build 단계에 주입할 '이 작품의 오프닝 DNA 지시문' 반환.
+    _resolve_opening_dna 결과를 받아 구체적 집필 지시로 변환.
+    """
+    dna = _resolve_opening_dna(genre)
+    
+    dna_map = {
+        "horror": {
+            "label": "호러 / 공포",
+            "recommended_types": "Tease & Reveal 또는 Cold Open",
+            "rule": "첫 3분 안에 위협의 '흔적 또는 규칙 위반'이 제시되어야 한다. 실체는 나중에. 감각 순서는 소리→온도→냄새→그림자→실체.",
+            "forbidden": "주인공 소개 / 한가로운 일상 풍경",
+            "dopamine": "긴장 또는 호기심 (뭔가 이상하다는 감각)",
+        },
+        "action": {
+            "label": "액션",
+            "recommended_types": "Action Drop 또는 Character Reveal Action",
+            "rule": "주인공이 이미 액션 중이거나, 액션을 선택하는 순간. 첫 행동이 주인공의 원형(정의형/복수형/타락형/각성형)을 선언해야 한다.",
+            "forbidden": "주인공이 운전·출근·사무 보는 풍경",
+            "dopamine": "충격 또는 경이 (주인공의 싸우는 방식)",
+        },
+        "thriller": {
+            "label": "스릴러 / 범죄 / 누아르",
+            "recommended_types": "Cold Open, In Media Res 또는 Tease & Reveal",
+            "rule": "정보 비대칭을 즉시 가동. Clock 장치 암시(시한·마감·예고). 관객과 주인공이 아는 것의 간극이 첫 씬부터 작동해야 한다.",
+            "forbidden": "평범한 도시 풍경 / 주인공의 일상",
+            "dopamine": "긴장 또는 호기심 (누가 무엇을 아는가)",
+        },
+        "drama": {
+            "label": "드라마",
+            "recommended_types": "Character Reveal Action 또는 Hook Dialogue",
+            "rule": "주인공의 Want 또는 결핍이 행동으로 드러나는 순간. 한 장면에 인물의 내면이 압축되어야 한다(말하지 않고 보여주기).",
+            "forbidden": "인물 상황을 내레이션으로 설명",
+            "dopamine": "감정 울림 (주인공의 Want/Need가 보이는 순간)",
+        },
+        "romance": {
+            "label": "로맨스 / 코믹 로맨스 / 멜로",
+            "recommended_types": "Character Reveal Action 또는 Hook Dialogue",
+            "rule": "주인공의 '사랑에 대한 태도'가 첫 행동으로 노출. 신체 감각·거리·시선의 언어가 첫 씬부터 작동해야 한다. 코믹 로맨스의 경우에도 코미디가 아니라 '로맨스의 신체 언어'가 오프닝의 본질. 코믹은 외피.",
+            "forbidden": "주인공의 일상 묘사 후 운명적 만남 준비",
+            "dopamine": "감정 울림 또는 호기심 (관계 방식의 첫 노출)",
+        },
+        "comedy": {
+            "label": "코미디 / 로맨틱 코미디 / 액션 코미디",
+            "recommended_types": "Character Reveal Action 또는 Hook Dialogue",
+            "rule": "주인공의 코믹 결함(comic flaw)을 즉시 노출. 첫 대사 또는 첫 행동이 웃음 포인트. 관객이 첫 3분 안에 최소 1회 웃어야 한다. 로맨틱 코미디의 경우에도 로맨스가 아니라 '코미디의 결함 드러내기'가 오프닝의 본질. 로맨틱은 외피.",
+            "forbidden": "평범한 일상에서 서서히 코미디로 진입",
+            "dopamine": "웃음 (첫 대사 또는 첫 상황)",
+        },
+        "sf": {
+            "label": "SF",
+            "recommended_types": "Cold Open 또는 Tease & Reveal",
+            "rule": "이 세계의 핵심 규칙을 이미지로 암시. 설명 대사 절대 금지. 인물들은 일상화된 기술에 놀라지 않음 — 관객이 놀람.",
+            "forbidden": "'2045년 지구는...' 강의식 오프닝",
+            "dopamine": "경이 또는 호기심 (처음 보는 세계의 작동 원리)",
+        },
+        "fantasy": {
+            "label": "판타지",
+            "recommended_types": "Cold Open 또는 Tease & Reveal",
+            "rule": "초자연의 첫 신호(마법·신화·규칙의 증거). 일상 공간 옆의 이질적 균열. 긴 세계관 내레이션 금지.",
+            "forbidden": "긴 세계관 내레이션 / 선택받은 자 소개",
+            "dopamine": "경이 또는 호기심 (마법 규칙의 첫 증거)",
+        },
+    }
+    
+    info = dna_map.get(dna, dna_map["drama"])
+    
+    return f"""
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+★ 이 작품의 오프닝 DNA — {info['label']}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[권장 기법] {info['recommended_types']}
+[핵심 규칙] {info['rule']}
+[절대 금지] {info['forbidden']}
+[도파민 포인트] {info['dopamine']}
+
+★ opening_strategy 필드를 작성할 때 이 DNA를 반드시 반영하라. ★
+★ 복합 장르인 경우 '두 번째 장르(뒤에 붙은 장르) = 본질' 법칙에 따라 위 DNA가 이미 결정되어 있다.
+   예: 로맨틱 코미디 → 코미디 DNA (로맨틱은 외피), 액션 스릴러 → 스릴러 DNA (액션은 외피),
+       코믹 로맨스 → 로맨스 DNA (코믹은 외피)
+""".strip() + "\n"
+
+
+
     """장르별 특화 규칙 통합 반환 (8장르 지원).
     롬코(로맨틱 코미디)면 코미디+로맨스 이중 활성화."""
     blocks = []
@@ -1783,16 +2091,41 @@ Brainstorm Top 3를 기반으로 시장성/차별화/타이밍을 분석하고 G
 """ + JSON_OUTPUT_RULES_STRICT
 
 
+def _get_genre_override(genre: str) -> str:
+    """장르별 특화 규칙 통합 반환 (8장르 지원).
+    롬코(로맨틱 코미디)면 코미디+로맨스 이중 활성화."""
+    blocks = []
+    if _is_comedy(genre):
+        blocks.append(COMEDY_RULES)
+    if _is_horror(genre):
+        blocks.append(HORROR_RULES)
+    if _is_romance(genre):
+        blocks.append(ROMANCE_RULES)
+    if _is_action(genre):
+        blocks.append(ACTION_RULES)
+    if _is_drama(genre):
+        blocks.append(DRAMA_RULES)
+    if _is_thriller(genre):
+        blocks.append(THRILLER_RULES)
+    if _is_sf(genre):
+        blocks.append(SF_RULES)
+    if _is_fantasy(genre):
+        blocks.append(FANTASY_RULES)
+    return "\n".join(blocks)
+
+
 def build_system_core(genre: str, fact_based: bool = False, historical: bool = False, film_type: str = "") -> str:
-    """Core Build 시스템 프롬프트 — 장르 인식 + Intention & Obstacle + LOCKED + FACT/HISTORICAL"""
+    """Core Build 시스템 프롬프트 — 장르 + LOCKED + FACT/HISTORICAL + OPENING MASTERY v2.2"""
     genre_rules = get_genre_rules(genre)
     genre_override_block = _get_genre_override(genre)
     fact_block = get_fact_based_rules(fact_based)
     historical_block = get_historical_film_rules(historical, film_type)
+    opening_mastery = get_opening_mastery()
+    opening_dna = get_opening_dna_instruction(genre)
     return f"""당신은 헐리우드 메이저 스튜디오의 Development Producer이자 Script Architect다.
 Brainstorm에서 선정된 컨셉을 기반으로 Core Build를 수행한다.
 로그라인을 고정하고, 기획의도와 주제를 정리하고, 세계관과 캐릭터를 설계하고,
-주인공의 Goal / Need / Strategy를 확정한다.
+주인공의 Goal / Need / Strategy를 확정하고, 이 작품의 오프닝 전략을 결정한다.
 
 {LOCKED_SYSTEM_RULES}
 
@@ -1817,6 +2150,10 @@ Brainstorm에서 선정된 컨셉을 기반으로 Core Build를 수행한다.
 {historical_block}
 
 {SORKIN_CURTIS["planting_payoff"]}
+
+{opening_mastery}
+
+{opening_dna}
 
 {JSON_OUTPUT_RULES_STRICT}
 
