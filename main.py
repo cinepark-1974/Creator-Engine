@@ -1,7 +1,11 @@
 """
-👖 BLUE JEANS Creative Development Engine v1.2
+👖 BLUE JEANS Creator Engine — Main Application
+
+버전 정보는 prompt.py의 ENGINE_VERSION / ENGINE_BUILD_DATE를 참조한다.
+(단일 소스 원칙 — 버전은 한 곳에서만 관리)
+
 아이디어 → 기획개발 패키지
-단일 페이지 · 사이드바 없음 · 2단계 Brainstorm
+단일 페이지 · 사이드바 최소 · 2단계 Brainstorm
 """
 
 import streamlit as st
@@ -9,6 +13,11 @@ import json
 import re
 from datetime import datetime
 import prompt as P
+
+# ─── 버전 정보 (prompt.py에서 단일 소스로 참조) ───
+ENGINE_VERSION = P.ENGINE_VERSION
+ENGINE_BUILD_DATE = P.ENGINE_BUILD_DATE
+ENGINE_FOOTER = f"© 2026 BLUE JEANS PICTURES · Creator Engine {ENGINE_VERSION}"
 
 ANTHROPIC_MODEL = "claude-sonnet-4-6"           # 구조 작업 — 비용 효율
 ANTHROPIC_MODEL_OPUS = "claude-opus-4-6"        # 캐릭터 바이블 · 트리트먼트 · 톤 문서 — 최고 품질
@@ -20,6 +29,23 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="collapsed"
 )
+
+# ─── Sidebar: Engine Info (버전 확인용) ───
+with st.sidebar:
+    st.markdown(f"""
+    <div style="padding:12px;background:#F0F2FF;border-radius:8px;border-left:3px solid #191970;font-family:'Pretendard',sans-serif;">
+        <div style="font-size:.72rem;color:#191970;font-weight:700;letter-spacing:.05em;margin-bottom:4px;">ENGINE INFO</div>
+        <div style="font-size:1.05rem;font-weight:700;color:#191970;">Creator Engine</div>
+        <div style="font-size:1.25rem;font-weight:900;color:#FFCB05;background:#191970;padding:2px 8px;border-radius:4px;display:inline-block;margin-top:4px;">
+            {ENGINE_VERSION}
+        </div>
+        <div style="font-size:.7rem;color:#666;margin-top:8px;">
+            Build: {ENGINE_BUILD_DATE}<br>
+            Status: {P.ENGINE_STATUS}
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+    st.caption("버전이 최신인지 확인하세요.")
 
 # ─── Custom CSS ───
 st.markdown("""
@@ -691,13 +717,12 @@ def get_client():
 
 
 def _build_project_locked_block(project: dict) -> str:
-    """프로젝트의 LOCKED/OPEN 항목으로 프롬프트 주입 블록 생성.
-    LOCKED 항목이 없으면 빈 문자열 반환."""
+    """프로젝트의 LOCKED 항목으로 프롬프트 주입 블록 생성.
+    v2.3: OPEN 필드 폐지. LOCKED 항목이 없으면 빈 문자열 반환."""
     locked = project.get("locked_items", [])
-    open_items = project.get("open_items", [])
-    if not locked and not open_items:
+    if not locked:
         return ""
-    return P.build_locked_block(locked, open_items)
+    return P.build_locked_block(locked)
 
 
 # ─── API Call: Research ───
@@ -2868,7 +2893,7 @@ def generate_docx(project):
     r_f1 = footer.add_run("© 2026 BLUE JEANS PICTURES\n")
     r_f1.font.size = Pt(8)
     r_f1.font.color.rgb = DIM
-    r_f2 = footer.add_run("Creator Engine v1.2")
+    r_f2 = footer.add_run(f"Creator Engine {ENGINE_VERSION}")
     r_f2.font.size = Pt(7)
     r_f2.font.color.rgb = DIM
 
@@ -2986,40 +3011,29 @@ if st.session_state.view == "home":
                 )
             )
 
-        # ── LOCKED / OPEN 설정 ──
-        with st.expander("🔒 설정 잠금 (LOCKED / OPEN)", expanded=False):
+        # ── LOCKED 설정 (v2.3: OPEN 필드 폐지) ──
+        with st.expander("🔒 설정 잠금 (LOCKED)", expanded=False):
             st.caption(
                 "LOCKED = 파이프라인 전 과정에서 절대 변경 불가. "
-                "OPEN = AI가 자유롭게 창작 가능. "
+                "여기에 명시되지 않은 모든 디테일은 엔진이 자유롭게 창작합니다. "
                 "한 줄에 하나씩 입력하세요."
             )
-            col_lock, col_open = st.columns(2)
-            with col_lock:
-                locked_input = st.text_area(
-                    "🔒 LOCKED (변경 불가)",
-                    height=150,
-                    placeholder=(
-                        "한 줄에 하나씩:\n"
-                        "서재중: 29세, 묘적사 현장 요원\n"
-                        "김도윤: 제국익문사 소속. 묘적사로 변경 금지\n"
-                        "기획의도: 20대 취업난이 재중의 입사 동기에 반영\n"
-                        "역사적 사건: EP2 시작 — 1947년 여운형 암살\n"
-                        "B-Story: 대선 D-47부터 선거일까지 카운트다운"
-                    )
+            locked_input = st.text_area(
+                "🔒 LOCKED (반드시 지킬 것만 명시)",
+                height=180,
+                placeholder=(
+                    "한 줄에 하나씩:\n"
+                    "장르: 로맨틱 코미디 (다른 장르 전환 금지)\n"
+                    "주인공: 강유진 (여, 미혼)\n"
+                    "핵심 관계: 아버지의 상속 조건\n"
+                    "공간: 쿠킹 클래스 (아이반 + 성인반)\n"
+                    "테마: 사람은 요리처럼 섞을 수 없다\n"
+                    "엔딩 방향: 한 명 선택 아닌 자기 발견"
                 )
-            with col_open:
-                open_input = st.text_area(
-                    "🟢 OPEN (창작 가능)",
-                    height=150,
-                    placeholder=(
-                        "한 줄에 하나씩:\n"
-                        "캐릭터 외형, 습관, 말투 디테일\n"
-                        "장면별 시각 연출과 감정 변화\n"
-                        "대사의 구체적 워딩\n"
-                        "B-Story 세부 전개\n"
-                        "장면 순서 내의 씬 배치"
-                    )
-                )
+            )
+            # v2.3: OPEN 필드 폐지 — 하위 호환성을 위해 빈 리스트 유지
+            open_input = ""
+
 
         with col2:
             genre_input = st.selectbox(
@@ -3071,9 +3085,9 @@ if st.session_state.view == "home":
             market_final = market_custom if market_type == "직접 입력" else market_type
             project_id = f"p_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
 
-            # LOCKED/OPEN 파싱 (줄 단위)
+            # LOCKED 파싱 (줄 단위). v2.3: OPEN 필드는 폐지되어 빈 리스트로 유지 (하위 호환성)
             locked_list = [line.strip() for line in locked_input.strip().split("\n") if line.strip()] if locked_input.strip() else []
-            open_list = [line.strip() for line in open_input.strip().split("\n") if line.strip()] if open_input.strip() else []
+            open_list = []  # v2.3: OPEN 필드 폐지
 
             st.session_state.projects[project_id] = {
                 "project_id": project_id,
@@ -3166,50 +3180,30 @@ elif st.session_state.view == "project" and st.session_state.cur:
         unsafe_allow_html=True
     )
 
-    # ─── LOCKED / OPEN 표시 + 편집 ───
+    # ─── LOCKED 표시 + 편집 (v2.3: OPEN 필드 폐지) ───
     locked = project.get("locked_items", [])
-    open_items = project.get("open_items", [])
+    open_items = project.get("open_items", [])  # 하위 호환성 - 기존 프로젝트 로딩 시에만 사용
 
-    if locked or open_items:
-        col_l, col_o = st.columns(2)
-        with col_l:
-            if locked:
-                locked_html = "".join(f"<li>{item}</li>" for item in locked)
-                st.markdown(
-                    f'<div style="background:#FFF3CD;padding:8px 12px;border-radius:6px;border-left:4px solid #FFCB05;font-size:.82rem">'
-                    f'<b>🔒 LOCKED</b> — 변경 불가<ul style="margin:4px 0 0 0;padding-left:18px">{locked_html}</ul></div>',
-                    unsafe_allow_html=True
-                )
-        with col_o:
-            if open_items:
-                open_html = "".join(f"<li>{item}</li>" for item in open_items)
-                st.markdown(
-                    f'<div style="background:#D4EDDA;padding:8px 12px;border-radius:6px;border-left:4px solid #2EC484;font-size:.82rem">'
-                    f'<b>🟢 OPEN</b> — 창작 가능<ul style="margin:4px 0 0 0;padding-left:18px">{open_html}</ul></div>',
-                    unsafe_allow_html=True
-                )
+    if locked:
+        locked_html = "".join(f"<li>{item}</li>" for item in locked)
+        st.markdown(
+            f'<div style="background:#FFF3CD;padding:8px 12px;border-radius:6px;border-left:4px solid #FFCB05;font-size:.82rem">'
+            f'<b>🔒 LOCKED</b> — 변경 불가<ul style="margin:4px 0 0 0;padding-left:18px">{locked_html}</ul></div>',
+            unsafe_allow_html=True
+        )
 
-    with st.expander("🔒 LOCKED / OPEN 편집", expanded=False):
-        edit_col1, edit_col2 = st.columns(2)
-        with edit_col1:
-            edited_locked = st.text_area(
-                "🔒 LOCKED (변경 불가)",
-                value="\n".join(locked),
-                height=120,
-                key="edit_locked",
-                placeholder="한 줄에 하나씩"
-            )
-        with edit_col2:
-            edited_open = st.text_area(
-                "🟢 OPEN (창작 가능)",
-                value="\n".join(open_items),
-                height=120,
-                key="edit_open",
-                placeholder="한 줄에 하나씩"
-            )
-        if st.button("💾 LOCKED/OPEN 저장", key="save_locked"):
+    with st.expander("🔒 LOCKED 편집", expanded=False):
+        st.caption("LOCKED = 반드시 지킬 것만 명시. 여기에 없는 것은 엔진이 자유롭게 창작합니다.")
+        edited_locked = st.text_area(
+            "🔒 LOCKED (변경 불가)",
+            value="\n".join(locked),
+            height=180,
+            key="edit_locked",
+            placeholder="한 줄에 하나씩"
+        )
+        if st.button("💾 LOCKED 저장", key="save_locked"):
             project["locked_items"] = [l.strip() for l in edited_locked.strip().split("\n") if l.strip()]
-            project["open_items"] = [l.strip() for l in edited_open.strip().split("\n") if l.strip()]
+            project["open_items"] = []  # v2.3: OPEN 필드 폐지 - 빈 리스트 유지
             project["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
             st.success("저장 완료. 이후 생성되는 모든 단계에 반영됩니다.")
             st.rerun()
@@ -3605,7 +3599,7 @@ elif st.session_state.view == "project" and st.session_state.cur:
 
     # ─── 푸터 ───
     st.markdown("---")
-    st.caption("© 2026 BLUE JEANS PICTURES · Creator Engine v1.2")
+    st.caption(ENGINE_FOOTER)
 
 
 # ═══════════════════════════════════════════════════
@@ -3972,7 +3966,7 @@ elif st.session_state.view == "core" and st.session_state.cur:
         )
 
     st.markdown("---")
-    st.caption("© 2026 BLUE JEANS PICTURES · Creator Engine v1.2")
+    st.caption(ENGINE_FOOTER)
 
 
 # ═══════════════════════════════════════════════════
@@ -4277,7 +4271,7 @@ elif st.session_state.view == "char_bible" and st.session_state.cur:
         )
 
     st.markdown("---")
-    st.caption("© 2026 BLUE JEANS PICTURES · Creator Engine v1.2")
+    st.caption(ENGINE_FOOTER)
 
 
 # ═══════════════════════════════════════════════════
@@ -4481,7 +4475,7 @@ elif st.session_state.view == "structure" and st.session_state.cur:
         st.markdown('<div style="text-align:center;padding:3rem 0;color:var(--dim)">🏗️ Structure Build를 실행하면 여기에 결과가 표시됩니다.</div>', unsafe_allow_html=True)
 
     st.markdown("---")
-    st.caption("© 2026 BLUE JEANS PICTURES · Creator Engine v1.2")
+    st.caption(ENGINE_FOOTER)
 
 
 # ═══════════════════════════════════════════════════
@@ -4587,7 +4581,7 @@ elif st.session_state.view == "scene_design" and st.session_state.cur:
         )
 
     st.markdown("---")
-    st.caption("© 2026 BLUE JEANS PICTURES · Creator Engine v1.2")
+    st.caption(ENGINE_FOOTER)
 
 
 # ═══════════════════════════════════════════════════
@@ -4822,7 +4816,7 @@ elif st.session_state.view == "treatment" and st.session_state.cur:
         )
 
     st.markdown("---")
-    st.caption("© 2026 BLUE JEANS PICTURES · Creator Engine v1.2")
+    st.caption(ENGINE_FOOTER)
 
 
 # ═══════════════════════════════════════════════════
@@ -4974,4 +4968,4 @@ elif st.session_state.view == "tone_doc" and st.session_state.cur:
         )
 
     st.markdown("---")
-    st.caption("© 2026 BLUE JEANS PICTURES · Creator Engine v1.2")
+    st.caption(ENGINE_FOOTER)

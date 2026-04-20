@@ -1,36 +1,120 @@
 """
-👖 BLUE JEANS Creator Engine v2.0 — Prompt Library
+👖 BLUE JEANS Creator Engine — Prompt Library
 
-All system prompts, user prompt templates, BLUE JEANS 3축,
-Sorkin/Curtis 9원칙, audience psychology 6원칙, LOCKED system,
-Fact-Based / Historical Film modules, Genre Override 8종.
+╔══════════════════════════════════════════════════════════╗
+║  VERSION: v2.3.0                                         ║
+║  BUILD DATE: 2026-04-20                                  ║
+║  STATUS: Production                                      ║
+╚══════════════════════════════════════════════════════════╝
 
-BLUE JEANS 3축 (Mr.MOON 고유):
-  ① BJND 서사동력: 상실(Loss) vs 결핍(Lack) → 욕망 → 해결전략
-  ② Villain 4 Questions: 흥미 · 다크미러 · 계획파괴 · 승률
+★ 버전 확인 방법 ★
+- 파일 최상단 VERSION 블록 확인
+- Streamlit UI 좌측 사이드바 하단 "Engine Info" 확인
+- README.md 최상단 확인
+세 곳의 버전이 일치해야 정상.
+
+─────────────────────────────────────────────────────────
+v2.3.0 주요 변경사항 (2026-04-20)
+─────────────────────────────────────────────────────────
+
+[Phase 1] BJND 파이프라인 강제 (4모듈)
+- BJND v1.0 용어 표준 공식화: Loss/Lack → Desire(Goal+Need) → Strategy → Cost
+- BJND_STRATEGY_SCENE_ENFORCER 신설 (Core의 BJND를 Scene/Treatment 강제 집행)
+- 막별 Cost 누적 단계 (1막 암시 / 2막 전반 균열 / 2막 후반 실재손상 / 3막 전환)
+- 3막 엔딩 Strategy 전환 규칙 (외적 선택형 엔딩 금지)
+- Core Build JSON 스키마에 cost 3축 + strategy_transformation 필드 추가
+
+[Phase 2] BJND 4축 자가 검증 (창작자 질문)
+- NECESSITY (Loss/Lack 필연성)
+- AUTHENTICITY (Strategy 인물 고유성) + 3중 검증 (치환/유기성/작가 서명)
+- EMPATHY (Cost 관객 공감력)
+- POTENCY (Strategy 전환 진폭)
+- Core Build JSON에 bjnd_four_axis_check + audience_scenes 필드
+
+[Phase 3] 창작자 감성 3요소
+- PHYSICALITY OF EMPATHY (관객의 몸이 반응하는가)
+- SILENCE DESIGN (침묵의 설계 — 3유형)
+- PLANT AESTHETICS (씨앗의 미학 — 3쌍 설계)
+- Core/Scene/Treatment 전역 주입
+
+[Phase 4] 기술 지원 7모듈
+- POV POLITICS (시선의 정치학)
+- GENRE FUN ALIVE (장르 재미 생존 자가 검증)
+- PROVOCATION ≠ DOPAMINE (자극과 도파민 구분)
+- ANTAGONIST BJND (적대자 BJND 4단 설계)
+- THEME-STRATEGY ALIGNMENT (테마-전략 방향 일치)
+- BRAINSTORM BJND DIVERSITY (3 컨셉 근본 다양성)
+- WORLD MIRRORS BJND (세계가 캐릭터를 비추는가)
+
+[Phase 5] OPEN 필드 폐지
+- LOCKED_SYSTEM_RULES에서 [OPEN 태그 규칙] 섹션 제거
+- "LOCKED에 없는 것은 창작 가능" 원칙으로 대체
+- build_locked_block 함수 단순화 (하위 호환성 유지)
+- main.py UI: LOCKED/OPEN 2열 → LOCKED 단일 필드
+
+─────────────────────────────────────────────────────────
+BLUE JEANS 3축 (Mr.MOON 고유)
+─────────────────────────────────────────────────────────
+  ① BJND 서사동력 (v1.0 표준):
+     Loss/Lack → Desire(Goal+Need) → Strategy → Cost
+  ② Villain 4 Questions:
+     흥미 · 다크미러 · 계획파괴 · 승률
   ③ ATTRACTION 6규칙 + Genre Rule Pack v2 (9장르 × 12필드)
 
-Foundation (헐리우드 표준):
-  Sorkin/Curtis 9원칙 + 관객심리 6원칙 + Planting & Payoff + 서브플롯
+─────────────────────────────────────────────────────────
+헐리우드 Foundation
+─────────────────────────────────────────────────────────
+  - 9원칙 + 관객심리 6원칙 + Planting & Payoff + 서브플롯
+  - OPENING MASTERY (6기법 + 장르 DNA + 복합장르 본질 법칙)
+  - 한국 상업영화 3단 구조 (오프닝 / Set-Up / Inciting Incident)
 
-v2.0 변경사항 (Writer Engine v2.2 역주입):
-- AI ESCAPE A1~A10 (기존 A1~A4 → 10개로 확장)
-  신규: A5 편의적 정보 전달 / A6 침묵 부재 / A7 대사 대칭 /
-       A8 관찰자 없는 숫자 / A9 원인 없는 결과 / A10 반복 루프
-- FACT_BASED_RULES 모듈 (실화 배경 작품 전용, 실명 비사용 + 사실성 균형)
-- HISTORICAL FILM RULES 4종 (정통/팩션/퓨전 3유형 분기 + BASE)
-- 장르 Override 8종 완성 (Writer Engine v2.2 동기화):
-  기존 COMEDY / HORROR / ROMANCE + 신규 ACTION / DRAMA / THRILLER / SF / FANTASY
-- _is_* 판별 함수 5종 추가 (action/drama/thriller/sf/fantasy)
-- Treatment/Core/Structure/Scene Design 각 단계에 FACT/HISTORICAL 주입 경로
+─────────────────────────────────────────────────────────
+버전 이력
+─────────────────────────────────────────────────────────
+  v1.0   기본 9단계 파이프라인
+  v1.3   9원칙 · Genre Rules 8장르 · Hook/Punch
+  v1.4   관객 심리 6원칙 · 서브플롯 설계
+  v1.5   LOCKED 시스템 · 시리즈 비트 · B-Story
+  v1.6   SCOPE MANDATE · 영화/시리즈 분량 분기
+  v1.7   ATTRACTION 6규칙 · Opus/Sonnet 이중 모델
+  v1.8   BJND · Villain 4Q + 승률 · Genre Rule Pack v2
+  v1.9   Planting & Payoff 시스템
+  v2.0   AI ESCAPE A1~A10 · FACT/HISTORICAL 모듈 · 장르 Override 8종
+  v2.1   캐릭터 교차검증 · Treatment Meta 이름 검증
+  v2.2   OPENING MASTERY · 6기법 · 장르 DNA · 복합장르 본질 법칙
+  v2.2.2 오프닝 ≠ 도발적 사건 · 한국 상업영화 3단 구조
+  v2.3.0 BJND v1.0 표준 · Cost 4번째 축 · 4축 자가검증 · 창작자 감성 3요소
+         · 기술 지원 7모듈 · OPEN 필드 폐지 · 18개 모듈 통합
 
-v1.9 유산:
-- Planting & Payoff 시스템
-- Core Build에 planting_payoff 설계 (character/relationship/world × 3쌍)
-- Scene Design에 plant_payoff_tag 필드
-- Treatment Beat에 plant_payoff 체크 필드
-- SORKIN_CURTIS 17개 키
+© 2026 BLUE JEANS PICTURES. All rights reserved.
 """
+
+# ═══════════════════════════════════════════════════
+# 엔진 메타데이터 (런타임 버전 확인용)
+# 수정 시 ENGINE_VERSION과 ENGINE_BUILD_DATE를 함께 갱신하세요.
+# ═══════════════════════════════════════════════════
+
+ENGINE_VERSION = "v2.3.0"
+ENGINE_BUILD_DATE = "2026-04-20"
+ENGINE_STATUS = "Production"
+
+def get_engine_info() -> str:
+    """엔진 버전 정보를 한 줄 문자열로 반환.
+    Streamlit 사이드바나 로그에 표시할 때 사용."""
+    return f"Creator Engine {ENGINE_VERSION} ({ENGINE_BUILD_DATE})"
+
+
+def get_engine_info_detail() -> dict:
+    """엔진 상세 정보 딕셔너리 반환.
+    UI 렌더링 및 DOCX 메타 삽입에 사용."""
+    return {
+        "version": ENGINE_VERSION,
+        "build_date": ENGINE_BUILD_DATE,
+        "status": ENGINE_STATUS,
+        "display": f"Creator Engine {ENGINE_VERSION}",
+        "signature": f"BLUE JEANS PICTURES · Creator Engine {ENGINE_VERSION} · {ENGINE_BUILD_DATE}",
+    }
+
 
 import json
 
@@ -52,12 +136,12 @@ LOCKED_SYSTEM_RULES = """
 - 확정된 플롯 포인트(사건 순서, 촉발 사건, 결말)를 재해석하거나 변형하지 마라.
 - 에피소드별 역사적 사건 도입부가 지정된 경우 반드시 포함하라.
 
-[OPEN 태그 규칙]
-사용자가 <OPEN>...</OPEN> 태그로 감싼 항목은 창작 가능하다.
-- 캐릭터 바이블의 외형, 습관, 말투 디테일 확장
+[LOCKED에 없는 것은 창작 가능]
+LOCKED 블록에 명시되지 않은 모든 디테일은 엔진이 자유롭게 창작한다.
+- 캐릭터 바이블의 외형·습관·말투 디테일
 - 장면별 시각 연출과 감정 변화
 - 대사의 구체적 워딩
-- B-Story의 세부 전개 (테마와 구조는 LOCKED일 수 있음)
+- B-Story의 세부 전개
 - 장면 순서 내의 씬 배치
 
 [LOCKED 검증 — 매 출력 전 반드시 수행]
@@ -79,7 +163,7 @@ LOCKED_SYSTEM_RULES = """
 
 def build_locked_block(locked_items: list = None, open_items: list = None) -> str:
     """
-    LOCKED/OPEN 블록을 생성한다.
+    LOCKED 블록을 생성한다. (v2.3부터 OPEN 필드는 폐지 — open_items는 하위 호환성을 위해 받지만 무시)
     
     사용 예:
         locked = [
@@ -89,11 +173,11 @@ def build_locked_block(locked_items: list = None, open_items: list = None) -> st
             "기획의도: 20대 취업난이 재중의 묘적사 입사 동기에 반영되어야 함.",
             "역사적 사건: EP2 시작 — 1947년 여운형 암살.",
         ]
-        open_items = [
-            "캐릭터 바이블의 외형, 습관, 말투 디테일은 자유롭게 확장 가능.",
-            "장면별 시각 연출과 감정 변화는 자유롭게 창작 가능.",
-        ]
-        block = build_locked_block(locked, open_items)
+        block = build_locked_block(locked)
+    
+    Note:
+        v2.3부터 OPEN 필드는 폐지되었다. LOCKED에 명시되지 않은 모든 것은 엔진이 자유롭게 창작한다.
+        기존 프로젝트의 open_items는 무시되므로 크래시 없이 하위 호환성을 유지한다.
     """
     result = ""
     
@@ -103,11 +187,7 @@ def build_locked_block(locked_items: list = None, open_items: list = None) -> st
             result += f"- {item}\n"
         result += "</LOCKED>\n\n"
     
-    if open_items:
-        result += "<OPEN>\n"
-        for item in open_items:
-            result += f"- {item}\n"
-        result += "</OPEN>\n\n"
+    # v2.3: OPEN 블록 생성 폐지. open_items 파라미터는 하위 호환성을 위해 받지만 무시한다.
     
     return result
 
