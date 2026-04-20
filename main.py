@@ -1040,7 +1040,44 @@ def call_core_build_main(idea, genre, market, fmt, selected_concept, research=No
     "origin_detail": "구체적으로 무엇을 잃었는가(loss) 또는 무엇이 없었는가(lack) 1문장",
     "arc_direction": "loss면 회복/복수/대체 중 택1, lack이면 획득/성장/증명 중 택1",
     "resolution_strategy": "이 이야기만의 독특한 해결 방식 — 기존작과 뭐가 다른가 1문장",
-    "goal_need_gap": "Goal(외적 욕망)과 Need(내적 필요) 사이의 간극 1문장 — 이 간극이 이야기를 끌고 간다"
+    "goal_need_gap": "Goal(외적 욕망)과 Need(내적 필요) 사이의 간극 1문장 — 이 간극이 이야기를 끌고 간다",
+    "cost": {{
+      "relation": "주인공의 Strategy가 주변 관계를 어떻게 망가뜨리는가 1문장 — 2막 후반에 누적되어 실재 손상이 될 것",
+      "self": "주인공의 Strategy가 주인공 자신을 어떻게 마모시키는가 1문장 — 3막에서 자기 자신과 직면하게 할 것",
+      "world": "주인공의 Strategy가 주인공이 지키려던 세계(공동체/직업/가치)를 어떻게 무너뜨리는가 1문장"
+    }},
+    "strategy_transformation": "3막에서 Strategy_1이 어떻게 Strategy_2로 전환되는가 1문장 — 외적 선택이 아닌 내적 전환으로 기술"
+  }},
+  "bjnd_four_axis_check": {{
+    "necessity": {{
+      "question": "이 인물이 왜 지금 이렇게 살아야만 했는가?",
+      "answer": "Lack/Loss의 필연성을 입증하는 1~2문장 — 막연한 설정이 아닌 구체적 사건/기억 기반",
+      "life_permeation": "이 Lack/Loss이 인물의 일상을 관통하는 3가지 방식 (각 1문장)"
+    }},
+    "authenticity": {{
+      "question": "이 Strategy는 이 인물이 아니면 불가능한가?",
+      "substitution_test": "이 Strategy를 다른 유명 작품 주인공에게 붙여도 성립하는가? PASS(다른 인물에게 붙일 수 없음) 또는 FAIL(누구나 쓸 수 있음)",
+      "organic_link": "직업 + Lack + Strategy를 한 문장으로 유기적으로 연결",
+      "author_justification": "왜 이 인물은 이런 방식으로 해결하려 하는가? 작가 시선이 담긴 1문장"
+    }},
+    "empathy": {{
+      "question": "관객이 이 인물의 Cost를 보며 자기 자신을 떠올릴 것인가?",
+      "universal_wound": "이 Cost가 건드리는 동시대 보편 상처 1문장",
+      "audience_mirror": "관객이 이 인물에서 자기를 발견할 지점 1문장",
+      "resonance_target": "특히 공감할 관객층 (예: 30대 여성 직장인, 40대 남성 아버지 등)"
+    }},
+    "potency": {{
+      "question": "이 인물의 Strategy 전환이 관객 마음에 얼마나 큰 흔적을 남길 것인가?",
+      "strategy_arc": "1막 Strategy_1 → 3막 Strategy_2, 한 문장 대비",
+      "signature_moment": "변화가 완성되는 결정적 한 순간 1문장",
+      "afterimage": "영화 끝난 뒤에도 관객이 떠올릴 잔상 이미지 1컷"
+    }},
+    "audience_scenes": {{
+      "laughter_scene": "관객이 웃을 장면 1~2개 구체 (로코/코미디 아닐 경우 빈 문자열)",
+      "heartache_scene": "관객이 가슴 먹먹해질 장면 1~2개 구체",
+      "self_reflection_scene": "관객이 '나였다면 어떻게 했을까'를 고민할 장면 1개 구체",
+      "memorable_line_or_image": "영화 끝난 후 관객 입에 남을 장면 1개"
+    }}
   }},
   "opening_strategy": {{
     "opening_type": "Action Drop / Cold Open / Tease & Reveal / In Media Res / Character Reveal Action / Hook Dialogue 중 택1 — 시스템 프롬프트의 오프닝 DNA 매핑에 따른 권장 기법을 우선하되, 작품 특성에 맞게 택1",
@@ -1714,6 +1751,9 @@ Water Cooler Moment (반드시 key_scenes 안에 포함): {wc.get("scene_or_setu
 ★ S#1을 '평범한 일상 소개' '풍경 묘사 후 인물 줌인' '주인공 배경 설명'으로 열면 실패다. 첫 장면에서 장르 DNA가 선언되어야 한다. ★
 """
 
+        # ── BJND 씬 레벨 집행 블록 (v2.3 신규) — Strategy/Cost를 씬에 강제 반영 ──
+        bjnd_scene_block = P.build_bjnd_scene_block(core_data)
+
         user_prompt = f"""[Core]
 로그라인: {lp.get("washed","")}
 Goal: {gns.get("goal","")} / Need: {gns.get("need","")} / Strategy: {gns.get("strategy","")}
@@ -1721,6 +1761,7 @@ Goal: {gns.get("goal","")} / Need: {gns.get("need","")} / Strategy: {gns.get("st
 캐릭터: {chars_simple}
 {scene_attraction_block}
 {opening_strategy_block}
+{bjnd_scene_block}
 {locked_block}
 [Storyline]
 {storyline_json}
@@ -1901,6 +1942,9 @@ Water Cooler Moment: {wc.get("scene_or_setup", "")}
             ep_list = act_ep_map.get(act_number, [])
             series_info = f"\n[에피소드 구성] 이 {act_label}은 {', '.join(ep_list)}에 해당합니다. 각 에피소드의 마지막 비트는 반드시 클리프행어로 끝내세요.\n"
 
+        # ── BJND 씬 레벨 집행 블록 (v2.3 신규) — 모든 막에 주입 (막별 Cost 단계 규칙 내장) ──
+        bjnd_scene_block = P.build_bjnd_scene_block(core_data)
+
         user_prompt = f"""[작품 정보]
 로그라인: {lp.get("washed","")}
 장르: {genre} / 포맷: {fmt}
@@ -1911,6 +1955,7 @@ Goal: {gns.get("goal","")} / Need: {gns.get("need","")} / Strategy: {gns.get("st
 {series_info}
 {attraction_block}
 {opening_strategy_block}
+{bjnd_scene_block}
 [Synopsis]
 {json.dumps(syn, ensure_ascii=False)}
 
