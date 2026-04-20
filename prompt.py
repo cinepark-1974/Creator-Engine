@@ -514,12 +514,27 @@ SORKIN_CURTIS = {
 # ═══════════════════════════════════════════════════
 
 NARRATIVE_DRIVE = """
-[BLUE JEANS 서사동력 — Narrative Drive]
+[BLUE JEANS 서사동력 — Narrative Drive (BJND v1.0)]
 
 ★ 이것은 BLUE JEANS PICTURES 고유의 서사 설계 프레임워크다. ★
-모든 이야기의 엔진은 3개의 축으로 작동한다:
+모든 이야기의 엔진은 4개의 축으로 작동한다:
 
-  욕망(Desire) ← 발생요인(Origin) → 해결전략(Resolution Strategy)
+  발생요인(Loss/Lack) → 욕망(Desire: Goal+Need) → 해결전략(Strategy) → 대가(Cost)
+
+[BJND 용어 표준 — 전 엔진 공통 어휘]
+
+  ① Loss(상실) / Lack(결핍) — 가졌다가 잃었는가, 처음부터 없었는가
+  ② Desire(욕망) — 외적 Goal(목적) + 내적 Need(필요)
+  ③ Strategy(해결방법) ★ 작가의 서명이 남는 축
+  ④ Cost(대가) — Strategy가 치르게 하는 것. 2막 위기의 원천.
+
+  보조 필드:
+    - Risk: Strategy 실패 시 잃는 것
+    - Ending Payoff: Strategy_1 → Strategy_2 전환
+    - Goal↔Need Gap: 외적 욕망과 내적 필요의 간극
+
+  이 용어들은 Creator / Writer / Rewrite / Series / Novel Engine에서
+  동일하게 사용되는 블루진 공통 어휘다. 혼용 금지.
 
 [1. 발생요인 진단 — 상실(Loss) vs 결핍(Lack)]
 주인공의 욕망이 어디서 시작되었는가? 이것이 이야기 전체의 방향을 결정한다.
@@ -550,22 +565,700 @@ NARRATIVE_DRIVE = """
   | 클라이맥스 선택 | 복수/집착 vs 놓아줌/수용 | 욕망 포기 vs 진짜 필요한 것 선택 |
   | 결말 | 과거와 화해 or 새 정체성 | Need를 충족하는 새 Goal 수용 |
 
-[3. 해결전략(Resolution Strategy) — 이 이야기만의 독특한 방식]
+[3. 해결전략(Strategy) — 이 이야기만의 독특한 방식 ★ 작가의 서명]
 해결전략은 "주인공이 장애물을 넘는 방식"이 아니라 "이 이야기가 관객에게 답을 주는 방식"이다.
 - 기존작과 같은 해결이면 기존작을 다시 보면 된다. 이 이야기만의 해결이 있어야 한다.
 - 해결전략은 테마의 구현이다. 테마가 "자유는 선택이다"이면 해결도 "선택"으로 끝나야 한다.
 - 해결전략이 창의적이지 않으면 이야기의 존재 이유가 없다.
 
-[4. 서사동력 설계 순서]
-① 주인공의 욕망(Desire)을 확정한다.
+[4. Cost(대가) — Strategy가 치르게 하는 것]
+모든 Strategy는 대가를 동반한다. Cost를 설계하지 않으면 2막이 공허해지고 3막 전환의 이유가 사라진다.
+
+  ■ Cost가 2막 위기를 만든다
+    - 주인공의 Strategy가 '작동하는 것 같지만' 사실 무언가를 파괴하고 있다.
+    - 이 파괴가 2막 중반까지 누적되어 미드포인트에서 터진다.
+    - Cost 없는 2막은 외부 사건의 나열이 되고, 있으면 내면의 드라마가 된다.
+
+  ■ Cost의 유형 3가지
+    ① 관계의 Cost: 이 Strategy가 주변 사람과의 관계를 조금씩 망가뜨린다
+    ② 자기 자신의 Cost: 이 Strategy가 주인공 자신을 조금씩 마모시킨다
+    ③ 세계의 Cost: 이 Strategy가 주인공이 지키려던 세계를 조금씩 무너뜨린다
+
+  ■ Cost 설계 예시
+    유진(쿠킹클래스): Strategy = "사람을 재료처럼 분류하기"
+      Cost ①: 진짜 친밀한 관계를 영원히 못 만듦
+      Cost ②: 자기 감정조차 읽지 못하게 됨
+      Cost ③: 자기 요리에서 '사람에 대한 사랑'이 빠져나감
+
+    재중(묘적사): Strategy = "아버지의 복수를 완수하기"
+      Cost ①: 동료들을 위험에 빠뜨림
+      Cost ②: 아버지와 같은 사람이 되어감
+      Cost ③: 묘적사가 지키려던 세계의 규칙을 스스로 위반
+
+  ■ Cost는 3막에서 해결되어야 한다
+    - 3막 클라이맥스에서 주인공이 Cost를 인정하고 새 Strategy로 이행하는 것이 Ending Payoff.
+    - Cost를 해결하지 않는 엔딩은 관객에게 허전함을 남긴다.
+
+[5. 서사동력 설계 순서]
+① 주인공의 욕망(Desire = Goal + Need)을 확정한다.
 ② 발생요인을 진단한다: 상실(Loss)인가 결핍(Lack)인가?
 ③ 발생요인에 따라 서사 구조, 캐릭터 아크, 감정 곡선의 방향이 결정된다.
-④ 해결전략을 설계한다: 이 이야기만의 독특한 답은 무엇인가?
-⑤ 전 과정에서 Goal(외적 욕망)과 Need(내적 필요)의 간극이 이야기를 끌고 간다.
+④ 해결전략(Strategy)을 설계한다: 이 이야기만의 독특한 답은 무엇인가?
+⑤ Cost를 설계한다: 이 Strategy가 치를 대가는 무엇인가?
+⑥ 전 과정에서 Goal(외적 욕망)과 Need(내적 필요)의 간극이 이야기를 끌고 간다.
+
+[★ BJND의 끝까지 관통 원칙 — v2.3 신규]
+BJND는 Core Build에서만 설계되는 것이 아니다. 모든 하위 단계에 강제 전파되어야 한다.
+  - Scene Design: 각 씬에 Strategy가 작동하는 방식이 드러나야 한다
+  - Treatment: 각 비트에 Cost가 누적되거나 Strategy가 전환되어야 한다
+  - 엔딩: Strategy_1 → Strategy_2의 전환이 반드시 구현되어야 한다
+BJND가 중간에 사라지면 기획서는 강한데 시나리오는 약한 결과가 나온다.
 """
 
 
-# ─── 매력 강제 규칙 (ATTRACTION RULES) ───
+# ═══════════════════════════════════════════════════
+# BJND STRATEGY SCENE ENFORCER (v2.3 신규)
+# Core Build의 BJND를 Scene Design과 Treatment에 강제 집행
+# ═══════════════════════════════════════════════════
+
+BJND_STRATEGY_SCENE_ENFORCER = """
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+BJND STRATEGY 씬 레벨 강제 집행 (v2.3)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+★ BJND는 Core Build에서만 설계되는 것이 아니다. ★
+★ 모든 씬에서 Strategy가 작동하는 방식이 구체적 행동으로 드러나야 한다. ★
+
+[문제 진단 — 왜 이 모듈이 필요한가]
+
+기존 엔진은 Core Build에서 Strategy를 1문장으로 설계한 뒤,
+Scene Design과 Treatment 단계에서 Strategy를 '참조'만 하고
+'강제 집행'하지 않았다. 그 결과:
+
+  - 기획서는 9점인데 시나리오는 7점이 나오는 현상
+  - Strategy가 1막에서만 작동하고 2막부터 사라짐
+  - 엔딩이 Core Build 설계를 배반하는 현상 (예: '고를 수 없음이 사랑'이라 
+    설계했는데 실제 엔딩은 '한 명 선택')
+
+이 모듈은 BJND를 끝까지 관통시킨다.
+
+[1. 매 씬에서 Strategy가 어떻게 드러나야 하는가]
+
+주인공의 Strategy가 '분류'라면 매 씬에서 '분류 행동'이 보여야 한다.
+주인공의 Strategy가 '복수'라면 매 씬에서 '복수 준비' 또는 '복수 지연'이 보여야 한다.
+주인공의 Strategy가 '획득'이라면 매 씬에서 '획득 시도' 또는 '획득 실패'가 보여야 한다.
+
+씬마다 최소 1개의 'Strategy 행동'이 작동해야 한다.
+없으면 그 씬은 BJND에서 유리된 씬이다.
+
+[2. Cost의 씬 레벨 누적]
+
+Core Build에서 설계한 Cost 3가지는 Scene/Treatment에서 누적되어야 한다.
+
+  ■ 1막 (Beats 1~4): Cost는 '암시'만 된다
+    - 주인공 주변 사람이 이상함을 감지
+    - 주인공 본인은 자각하지 못함
+  
+  ■ 2막 전반 (Beats 5~8): Cost가 '작은 균열'로 드러난다
+    - 관계의 미세한 어긋남
+    - 주인공이 당황하지만 Strategy를 고집함
+  
+  ■ 2막 후반 (Beats 9~11): Cost가 '실재 손상'으로 누적된다
+    - 누군가를 실제로 다치게 하거나 잃음
+    - 주인공이 Strategy를 더 강하게 밀어붙임 (역설)
+  
+  ■ 3막 (Beats 12~16): Cost가 '더 이상 부정할 수 없는 현실'이 된다
+    - 주인공이 자기 Strategy가 만든 파괴를 직면
+    - 새 Strategy로의 전환이 강제된다
+
+[3. Strategy 전환의 씬 레벨 설계 — 3막 엔딩 규칙]
+
+Core Build의 Ending Payoff가 'Strategy_1 → Strategy_2'라면,
+Treatment 3막은 다음 구조를 반드시 가져야 한다:
+
+  ① Strategy_1의 완전한 붕괴 씬 (Beat 12~13)
+     주인공이 Strategy_1로는 아무것도 해결할 수 없음을 깨닫는 순간
+  
+  ② Strategy_2의 첫 실행 씬 (Beat 14)
+     주인공이 처음으로 다른 방식을 시도하는 순간 (주저하며, 서툴게)
+  
+  ③ Strategy_2의 확정 씬 (Beat 15~16)
+     주인공이 Strategy_2로 자기 자신을 새로 정의하는 순간
+
+★ 엔딩 금지 패턴 ★
+Core Build의 Strategy 전환이 '외적 선택'이 아닌 '내적 전환'이면,
+엔딩을 '외적 선택'으로 단순화하지 마라.
+
+  예: 쿠킹클래스의 Ending Payoff = '고를 수 없음 자체가 사랑임을 깨달음'
+     → 엔딩은 반드시 '고를 수 없음을 선언하는 씬'이어야 한다.
+     → '한 명 선택' 엔딩은 BJND 배반이다. 금지.
+
+[4. 각 씬 작성 시 자가 검증 체크리스트]
+
+씬을 작성하기 전 다음을 자가 점검:
+  
+  □ 이 씬에서 주인공의 Strategy가 어떻게 작동하는가?
+  □ 이 씬이 Cost를 누적하는 씬인가, 아닌가?
+  □ 이 씬이 배치된 비트 구간(1막/2막전반/2막후반/3막)의 
+     Cost 단계와 일치하는가?
+  □ 이 씬의 끝에서 주인공은 자기 Strategy에 대해 
+     어떤 감각을 갖게 되는가? (자신감/균열/의심/붕괴/전환)
+
+네 가지 모두에 답이 없으면 씬을 재설계하라.
+
+[5. BJND 일관성 자가 진단 — Treatment 종료 후]
+
+Treatment 3막 완료 후 엔진은 스스로 진단:
+
+  ■ Coherence Check
+    - Core Build의 Strategy와 1막 행동이 일치하는가?
+    - Core Build의 Cost가 2막 후반에 실제로 누적되었는가?
+    - Core Build의 Ending Payoff가 3막에서 씬으로 구현되었는가?
+  
+  일치도 80% 미만이면 재생성 강제.
+""".strip()
+
+
+def get_bjnd_scene_enforcer() -> str:
+    """BJND 씬 레벨 강제 모듈 반환 (Scene Design / Treatment 주입용)"""
+    return "\n\n" + BJND_STRATEGY_SCENE_ENFORCER + "\n"
+
+
+def build_bjnd_scene_block(core_data: dict) -> str:
+    """Core Build의 BJND 데이터를 씬 작업용 블록으로 포맷팅.
+    Scene Design과 Treatment 빌더에서 호출하여 user_prompt에 주입한다."""
+    nd = core_data.get("narrative_drive", {}) if core_data else {}
+    gns = core_data.get("goal_need_strategy", {}) if core_data else {}
+    
+    desire_origin = nd.get("desire_origin", "")
+    origin_kr = "상실(Loss)" if desire_origin == "loss" else "결핍(Lack)" if desire_origin == "lack" else desire_origin
+    
+    # Cost 필드 추출 (v2.3 신규 - 없으면 빈 값)
+    cost_data = nd.get("cost", {})
+    cost_relation = cost_data.get("relation", "") if isinstance(cost_data, dict) else ""
+    cost_self = cost_data.get("self", "") if isinstance(cost_data, dict) else ""
+    cost_world = cost_data.get("world", "") if isinstance(cost_data, dict) else ""
+    
+    # Strategy 전환 정보
+    ending_payoff = gns.get("ending_payoff", "") or nd.get("resolution_strategy", "")
+    
+    return f"""
+[★ BJND 씬 레벨 집행 블록 — v2.3 ★]
+
+[Core Build 확정 BJND]
+발생요인: {origin_kr} — {nd.get('origin_detail', '')}
+Goal(외적 욕망): {gns.get('goal', '')}
+Need(내적 필요): {gns.get('need', '')}
+Strategy(해결전략): {gns.get('strategy', '')}
+해결 방식: {nd.get('resolution_strategy', '')}
+
+[Cost 3축 — 씬에서 누적되어야 함]
+관계의 Cost: {cost_relation or '(Core Build에서 미설계 — Treatment 생성 시 유추하여 누적 반영)'}
+자기 자신의 Cost: {cost_self or '(Core Build에서 미설계 — Treatment 생성 시 유추하여 누적 반영)'}
+세계의 Cost: {cost_world or '(Core Build에서 미설계 — Treatment 생성 시 유추하여 누적 반영)'}
+
+[Ending Payoff — 3막에 반드시 구현]
+{ending_payoff}
+
+★ 씬 작성 시 필수 준수 ★
+- 각 씬에서 주인공의 Strategy가 구체적 행동으로 드러나야 한다.
+- 비트 구간별 Cost 누적 단계 준수:
+  · 1막(Beats 1-4): Cost 암시
+  · 2막 전반(Beats 5-8): Cost 작은 균열
+  · 2막 후반(Beats 9-11): Cost 실재 손상 누적
+  · 3막(Beats 12-16): Cost 직면 + Strategy 전환
+- 엔딩은 반드시 위 'Ending Payoff'의 방향으로 수렴할 것.
+  Core Build 설계를 배반하는 외적 선택형 엔딩 금지.
+""".strip()
+
+
+# ═══════════════════════════════════════════════════
+# BJND 4축 자가 검증 모듈 (v2.3 신규)
+# Core Build 단계에서 엔진이 자기 설계를 창작자 관점에서 검증
+# 분석적 채점이 아닌 "작가의 질문"으로 구성
+# ═══════════════════════════════════════════════════
+
+BJND_FOUR_AXIS_VALIDATION = """
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+BJND 4축 자가 검증 — 창작자의 질문 (v2.3)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+★ 이것은 분석가의 채점이 아니다. 창작자의 자문이다. ★
+★ 엔진은 BJND를 설계한 후 다음 4축으로 스스로 묻고 답해야 한다. ★
+★ 답이 구체적으로 나오지 않으면 캐릭터를 재설계하라. ★
+
+━━━━━━━━━━━━━━━━━━━━━━━━━
+[축 1] NECESSITY — Loss/Lack의 필연성
+━━━━━━━━━━━━━━━━━━━━━━━━━
+
+핵심 질문: "이 인물이 왜 지금 이렇게 살아야만 했는가?"
+
+주인공의 Loss/Lack이 관객에게 '아, 그래서 저 사람이 저렇게 사는구나'를
+느끼게 해야 한다. 막연한 설정으로는 공감이 생기지 않는다.
+
+❌ 약한 Lack (재설계 필요):
+  '그녀는 외로운 사람이다'
+  '그는 가족이 없다'
+  '그녀는 사랑을 모른다'
+
+✅ 강한 Lack (합격):
+  '그녀는 7살 때 어머니가 앞치마를 두른 채 쓰러졌다. 그날 이후 집에서
+   요리 냄새가 나면 불안하다. 요리를 가르치지만 집에서는 안 한다.'
+  '그는 20살에 아버지를 잃었다. 아버지의 유품 중 USB 하나만 남았다.
+   그 USB를 아직 열어본 적이 없다.'
+
+자가 검증:
+  · 이 Loss/Lack이 인물의 삶 전체를 관통하는가?
+  · 이 Lack이 없었다면 인물은 완전히 다른 사람이 되었을까?
+  · 관객이 '그래서 저렇게 사는구나'를 구체적으로 느낄 수 있는가?
+
+━━━━━━━━━━━━━━━━━━━━━━━━━
+[축 2] AUTHENTICITY — Strategy의 인물 고유성 ★ 작가의 서명
+━━━━━━━━━━━━━━━━━━━━━━━━━
+
+핵심 질문: "이 Strategy는 이 인물이 아니면 불가능한가?"
+
+★ 이것이 블루진 엔진의 정체성이다. 누구나 쓸 수 있는 해결법이면 실패. ★
+★ 작가의 시선이 닿은 고유한 해결법이 있어야 이 이야기만의 서명이 된다. ★
+
+❌ 약한 Strategy (치환 가능 = 누구나 쓸 수 있음):
+  '그녀는 두 남자 중 한 명을 고르려 한다' (어떤 로코도 그렇다)
+  '그는 복수할 사람을 추적한다' (어떤 복수물도 그렇다)
+  '그는 진짜 자기를 찾아간다' (어떤 성장물도 그렇다)
+
+✅ 강한 Strategy (이 인물만의 해결):
+  '요리사인 그녀는 사람을 재료처럼 분류한다. "이 사람은 어떤 재료인가"로
+   판단하면 더 알아볼 필요 없이 "알았다"고 선언할 수 있다. 
+   재료는 그렇게 처음부터 정해진 존재니까.
+   → 직업(요리사) + Lack(친밀함 결핍) + Strategy(분류 전략)이
+      하나의 은유 시스템으로 엮여 있다.'
+
+3중 자가 검증 (모두 통과해야 합격):
+
+  검증 A — 치환 테스트:
+  이 Strategy를 다른 유명 작품 주인공에게 붙여도 성립하는가?
+    YES → 누구나 쓸 수 있는 평범한 전략. 재설계 필요.
+    NO  → 이 인물 고유의 전략. 합격.
+
+  검증 B — 유기성 테스트:
+  직업/배경 + Lack + Strategy가 한 문장으로 자연스럽게 연결되는가?
+    예: '요리사인 그녀는(직업) + 친밀함을 몰라서(Lack) + 
+         사람을 재료처럼 읽는다(Strategy)' → 1문장 연결 합격
+
+  검증 C — 작가 서명 테스트:
+  "왜 이 인물은 이런 방식으로 해결하려 하는가?"에 작가의 시선이 담긴
+  1문장 정당화가 가능한가?
+    예: '가까이 두면서도 상처받지 않으려고' → 한 문장 정당화 합격
+    예: '설명 못 해요' → 실패. 재설계.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━
+[축 3] EMPATHY — Cost의 관객 공감력
+━━━━━━━━━━━━━━━━━━━━━━━━━
+
+핵심 질문: "관객이 이 인물의 Cost를 보며 자기 자신을 떠올릴 것인가?"
+
+Cost가 개인적 비극으로만 그치면 안 된다. 동시대 관객의 보편적 상처를
+건드려야 공감이 생긴다. 남의 이야기가 아니라 내 이야기가 되어야 한다.
+
+❌ 약한 Cost (관객과 거리감):
+  '그녀는 재벌 딸이라 외로울 것이다' (특수 계층의 이야기)
+  '그는 초능력자라 이해받지 못한다' (판타지의 이야기)
+
+✅ 강한 Cost (관객이 자기를 발견):
+  '그녀는 사람들과 친해지려 할 때마다 "이 사람은 이런 사람이구나"로
+   끝내버린다. 더 이상 알면 상처받을까 봐.
+   → 관객: 아, 나도 그랬던 적이 있다.'
+
+자가 검증:
+  · 이 Cost가 건드리는 동시대 보편 상처는 무엇인가? (1문장)
+  · 관객이 이 인물에서 자기 자신을 발견할 지점은? (1문장)
+  · 특히 공감할 관객층은? (20대/30대/40대, 성별, 상황 등)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━
+[축 4] POTENCY — Strategy 전환의 변화 진폭
+━━━━━━━━━━━━━━━━━━━━━━━━━
+
+핵심 질문: "이 인물의 Strategy가 부서지고 새 Strategy로 이행하는 과정이
+           관객의 마음에 얼마나 큰 흔적을 남길 것인가?"
+
+변화가 크지 않으면 영화를 볼 이유가 없다. 변화가 외적이면 잊힌다.
+변화가 내적이고 진폭이 크면 관객의 마음에 영원히 남는다.
+
+❌ 약한 변화 (흔한 결말, 마음에 안 남음):
+  '외로웠던 그녀가 사랑을 찾았다'
+  '복수심에 불탔던 그가 용서했다'
+  '꿈을 찾아 떠난 그녀가 꿈을 이루었다'
+
+✅ 강한 변화 (관객 마음에 박힘):
+  '사람을 재료처럼 읽던 그녀(Strategy_1)가, 마지막 씬에서 민준의
+   이름을 가장 먼저 부른다. 이번엔 분류하지 않는다. 그냥 본다
+   (Strategy_2 = 읽기를 내려놓기).
+   → 저 단순한 행동이 그녀에게 얼마나 큰 여정이었는지 관객은 안다.'
+
+자가 검증:
+  · 1막의 이 인물 → 3막의 이 인물, 1문장 대비로 쓸 수 있는가?
+  · 변화가 완성되는 결정적 한 순간(signature_moment)은 어디인가?
+  · 영화 끝난 뒤에도 관객이 떠올릴 잔상 이미지 1컷이 있는가?
+
+━━━━━━━━━━━━━━━━━━━━━━━━━
+[종합 자가 진단 — 관객의 얼굴 그려보기]
+━━━━━━━━━━━━━━━━━━━━━━━━━
+
+4축을 모두 작성한 뒤 엔진은 스스로에게 묻는다:
+
+  1. 이 설계로 관객이 웃을 장면이 있는가? 어디인가? (1~2개 구체)
+  2. 이 설계로 관객이 가슴이 먹먹해질 장면이 있는가? 어디인가?
+  3. 이 설계로 관객이 '나였다면 어떻게 했을까'를 고민할 장면이 있는가?
+  4. 영화 끝난 후 관객의 입에 이 영화의 어떤 장면이 남을 것인가?
+
+이 4개 질문에 구체적 답이 나와야 캐릭터 설계가 완성된 것이다.
+추상적 답("감동적인 장면이 있을 것이다")이면 재설계.
+""".strip()
+
+
+def get_bjnd_four_axis() -> str:
+    """BJND 4축 자가 검증 모듈 반환 (Core Build 주입용)"""
+    return "\n\n" + BJND_FOUR_AXIS_VALIDATION + "\n"
+
+
+# ═══════════════════════════════════════════════════
+# PHASE 3 — 창작자 감성 3요소 (v2.3 신규)
+# 관객의 몸과 마음이 반응하도록 설계하는 미학적 원칙
+# ═══════════════════════════════════════════════════
+
+CREATOR_SENSIBILITY = """
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+창작자 감성 3요소 (v2.3)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+★ 기술적으로 정확한 씬이 아니라 관객의 몸과 마음이 반응하는 씬을 만든다. ★
+
+[요소 1] PHYSICALITY OF EMPATHY — 공감의 물리성
+
+씬은 '일어나는' 것이 아니라 '관객의 몸이 반응하는' 것이다.
+작가가 쓸 때 몸으로 느낀 것이 관객에게도 전달된다.
+
+모든 중요 씬은 관객에게 다음 중 최소 1개의 신체 반응을 만들어야 한다:
+  · 호흡 멎음 (긴장)
+  · 가슴 뜨거워짐 (감동)
+  · 눈 젖음 (슬픔)
+  · 웃음 터짐 (해방)
+  · 등골 서늘함 (공포)
+  · 배꼽 빠짐 (코미디 극치)
+  · 손바닥 땀 (스릴)
+
+씬 설계 시 자문: "이 장면에서 관객의 몸은 어떻게 반응하는가?"
+답할 수 없으면 그 씬은 기능만 있고 감각이 없는 씬이다.
+
+예시:
+❌ '재중이 USB를 열어본다. 충격받는다.'
+   → 사건만 있고 관객 몸 반응 없음
+✅ '재중의 손가락이 USB에 닿는다. 0.5초 멈춘다. 호흡이 얕아진다.
+    파일을 연다. 화면 불빛이 얼굴을 비춘다. 재중이 숨을 쉬지 않는다.
+    관객도 숨을 쉬지 않는다.'
+   → 호흡 멎음이라는 신체 반응이 설계됨
+
+[요소 2] SILENCE DESIGN — 침묵의 설계
+
+가장 중요한 감정은 대사로 하지 않는다. 침묵으로 전한다.
+침묵은 '대사가 없는 것'이 아니라 '의도된 무음'이다.
+Core Build에서 설계해 둔 '말하지 않는 순간' 3개가 작품 전체를 지탱한다.
+
+침묵의 3유형:
+  ■ 거부의 침묵: 인물이 답할 수 있지만 답하지 않는 순간
+    예: 유진이 아버지 전화를 받고 3초 응시 후 거절 누름
+  ■ 무력의 침묵: 인물이 답하고 싶지만 답하지 못하는 순간
+    예: 세웅의 노트를 본 유진이 입을 열었다 다문다
+  ■ 충만의 침묵: 말이 필요 없는 이해의 순간
+    예: 같은 우산 아래 두 사람. 비만 내린다
+
+씬 설계 시 자문:
+  · 이 씬에 반드시 있어야 할 침묵은 몇 초인가?
+  · 그 침묵 동안 관객이 무엇을 읽어내는가?
+  · 침묵이 인물의 어떤 내면을 드러내는가?
+
+침묵 없는 2시간 영화는 피로하다. 침묵이 있는 영화는 기억된다.
+
+[요소 3] PLANT AESTHETICS — 씨앗의 미학
+
+Plant & Payoff는 기법이 아니라 미학이다.
+1막에 심은 작은 디테일이 3막에 폭발하는 순간, 관객은
+"아, 저거였구나"의 쾌감을 느낀다. 이것이 작가가 주는 선물이다.
+
+최소 3쌍의 Plant & Payoff 설계:
+  ① 캐릭터 Plant: 인물의 작은 습관/소품이 결정적 순간에 의미를 얻음
+  ② 관계 Plant: 조연의 한 마디/행동이 주인공 선택의 열쇠가 됨
+  ③ 세계 Plant: 공간의 한 디테일/소품이 주제를 형상화함
+
+Plant의 원칙:
+  · 1막에서는 '의미 없어 보여야' 한다 (관객이 주의하지 않도록)
+  · 3막에서는 '의미 전체가 드러나야' 한다 (관객이 놀라도록)
+  · Plant 없는 Payoff = 데우스 엑스 마키나 (금지)
+  · Payoff 없는 Plant = 잃어버린 약속 (금지)
+
+예시:
+  Plant (S#1): 유진이 케이블타이로 간판을 묶음
+  Payoff (S#110): 유진이 계약서의 매듭을 푸는 씬
+  → 관객 쾌감: 유진은 '묶는 사람'에서 '푸는 사람'이 되었다
+
+씬 설계 시 자문: "이 씬에 나중에 회수될 씨앗이 있는가, 
+                 또는 앞서 심은 씨앗이 여기서 회수되는가?"
+""".strip()
+
+
+def get_creator_sensibility() -> str:
+    """창작자 감성 3요소 모듈 반환 (Core Build/Scene Design/Treatment 주입용)"""
+    return "\n\n" + CREATOR_SENSIBILITY + "\n"
+
+
+# ═══════════════════════════════════════════════════
+# PHASE 4 — 기술 지원 7모듈 (v2.3 신규)
+# Rewrite Engine에서 차용 또는 Creator 전용 신규
+# ═══════════════════════════════════════════════════
+
+POV_POLITICS = """
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+POV POLITICS — 시선의 정치학 (v2.3)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+모든 주요 씬에서 자문: "이 씬은 누구의 시선으로 서술되는가?"
+
+시선 선택은 작품의 윤리를 결정한다.
+같은 사건도 시선에 따라 완전히 다른 장면이 된다.
+
+  ■ 주인공 시선 (1인칭): 주인공의 불안/욕망이 중심. 관객 공감.
+  ■ 관찰자 시선 (조연 중): 주인공을 읽는 조연 중심. 관객 통찰.
+  ■ 카메라 중립 (객관): 두 인물의 거리/긴장이 중심. 관객 긴장.
+  ■ 관객 우월 시선 (Dramatic Irony): 관객은 알고 인물은 모름. 서스펜스 최대.
+
+예시 — 유진과 진호의 대화 씬:
+  · 유진 시선 → 유진의 불안이 전면에
+  · 진호 시선 → 유진을 읽어내는 진호의 관찰
+  · 카메라 중립 → 두 사람의 거리가 주제
+  · 관객 우월 → 관객만 아버지 전화의 진실을 안다
+
+★ 작품 전체에서 주인공 시선만 반복하면 관객이 피로해진다. ★
+★ 3가지 이상의 시선을 전략적으로 배치하라. ★
+""".strip()
+
+
+GENRE_FUN_ALIVE = """
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+GENRE FUN ALIVE — 장르 재미 생존 자가 검증 (v2.3)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+각 장르에는 고유한 '재미의 본질'이 있다. 
+이 본질이 살아있지 않으면 장르 약속이 배반된 것이다.
+
+[장르별 재미의 본질]
+  · 드라마: 관객이 '나라면 어떻게 할까'를 고민하게 만드는 것
+  · 로맨틱 코미디: 주인공의 어긋남이 웃음과 설렘을 동시에 주는 것
+  · 스릴러: 정보 비대칭이 긴장을 만드는 것
+  · 호러: 규칙 위반이 주는 서늘함
+  · 액션: 물리적 쾌감의 카타르시스
+  · 느와르: 도덕적 모호함의 긴장
+  · SF: 아이디어가 감정을 움직이는 것
+  · 판타지: 경이(wonder)가 테마로 작동하는 것
+
+★ Core Build 완료 후 반드시 자가 검증 ★
+  · genre_fun_alive: true / false
+  · genre_fun_diagnosis: "이 작품에서 장르 재미가 살아있는가" 3줄 진단
+  · weak_zones: 장르 재미가 약할 것으로 예상되는 비트 구간 명시
+
+false로 나오거나 weak_zones가 3개 이상이면 재설계 강제.
+""".strip()
+
+
+PROVOCATION_VS_DOPAMINE = """
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PROVOCATION ≠ DOPAMINE — 자극과 도파민의 구분 (v2.3)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+오프닝이나 핵심 씬에 '강한 것'이 있다고 도파민이 있는 것은 아니다.
+
+  ■ 자극 (Provocation): 살인·폭력·섹스·폭발·충격적 대사
+  ■ 도파민 (Dopamine): 관객의 감각이 실제로 작동하는 것
+
+❌ 자극만 있고 도파민 없음:
+  "주인공이 누군가를 칼로 찌르며 시작"
+  → 자극은 있지만 맥락 없음. 긴장 0점. 호기심 0점.
+
+✅ 자극 + 도파민 동시 작동:
+  〈베테랑〉 중고차 사기단 검거
+  → 자극(물리 충돌) + 도파민(웃음+경이+정의감)
+
+자가 검증:
+  · provocation_level: 자극 강도 1-10
+  · dopamine_working: 실제 작동하는 도파민 감각 목록
+  · warning: provocation_level이 높은데 dopamine_working이 빈약하면 경고
+
+자극만 있는 씬은 피로를 주고, 도파민이 있는 씬은 중독을 준다.
+""".strip()
+
+
+ANTAGONIST_BJND = """
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ANTAGONIST BJND — 적대자의 인간화 (v2.3)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+평면 빌런 금지. 적대자도 BJND 4단으로 설계되어야 한다.
+
+모든 적대자(빌런/아버지/경쟁자/권력)는 다음을 가져야 한다:
+
+① Loss/Lack: 적대자의 상실/결핍 (빌런도 상처가 있다)
+② Desire: 적대자의 욕망 — 주인공 방해는 수단이지 목적이 아님
+③ Strategy: 적대자만의 해결 방식 (자기 정당화 포함)
+④ Cost: 이 전략이 적대자 자신에게 치르게 하는 대가
+
+★ 핵심: 적대자도 자기 관점에서는 '정당한 주인공'이어야 한다. ★
+★ 적대자의 Strategy는 주인공의 Strategy와 거울 관계여야 한다. ★
+
+예시 — 쿠킹클래스 강회장:
+  ❌ 평면: "딸에게 상속 조건을 걸어 통제하는 아버지"
+  ✅ 입체: 
+    Loss: 아내를 일찍 잃음 (Loss)
+    Desire: 딸이 자기처럼 혼자 늙지 않기를
+    Strategy: 상속 조건으로 '질문을 던지기' — 답을 주지 않고 딸이 
+             스스로 답하게 하기. 아내의 유언을 지키는 방식.
+    Cost: 이 방식이 통제로 보임. 딸은 13년간 그를 빌런으로 오해.
+    
+★ 거울 관계 확인 ★
+유진 Strategy: '사람을 재료처럼 분류' (친밀함 회피)
+강회장 Strategy: '질문을 던지는 아버지' (딸에게 다가가지 못함)
+→ 둘 다 "진짜 소통 회피"의 다른 형태. 아버지와 딸이 같은 결함을 공유.
+이것이 3막 화해의 기반.
+
+엔딩의 감정적 정산은 적대자도 Cost를 인정하는 순간에서 완성된다.
+""".strip()
+
+
+THEME_STRATEGY_ALIGNMENT = """
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+THEME-STRATEGY ALIGNMENT — 테마와 전략의 방향 일치 (v2.3)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+★ 이것은 v2.2.2에서 쿠킹클래스 8.7점을 만든 핵심 결함 해결 모듈이다. ★
+
+테마와 Strategy(플롯 엔진)은 같은 방향이어야 한다.
+반대 방향이면 관객에게 혼란을 준다.
+
+[정합성 패턴]
+  · 테마 "X할 수 없다" → Strategy "X하려다 실패·자각"
+  · 테마 "진짜 Y" → Strategy "가짜 Y를 거쳐 진짜 발견"
+  · 테마 "자기 발견" → Strategy "외부 목표 실패 → 내면 발견"
+  · 테마 "Z가 중요하다" → Strategy "Z 없이 살다가 Z 가치 발견"
+
+[반대 방향 — 절대 금지]
+❌ 테마: "사람은 요리처럼 섞을 수 없다"
+   Strategy: 주인공이 두 남자를 체크리스트로 항목화·합산 시도
+   → 테마는 "섞지 마라", Strategy는 "섞어라" = 정면 충돌
+
+✅ 테마: "사람은 요리처럼 섞을 수 없다"
+   Strategy: 주인공이 두 남자를 각각 관찰하다가 
+             자신이 '재료처럼 읽어왔음'을 깨달음
+   → 둘 다 "섞을 수 없음"을 확인하는 방향
+
+[자가 검증]
+Core Build 완료 후 반드시:
+  1. 이 작품의 테마를 한 문장으로 쓴다
+  2. 주인공의 Strategy를 한 문장으로 쓴다
+  3. 둘이 같은 방향인가 반대 방향인가 판정한다
+  4. 반대 방향이면 Strategy를 재설계한다
+
+테마와 Strategy가 어긋나면 시나리오 전체가 어긋난다. 최우선 검증 항목.
+""".strip()
+
+
+BRAINSTORM_BJND_DIVERSITY = """
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+BRAINSTORM BJND DIVERSITY — 3 컨셉의 근본 다양성 (v2.3)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Brainstorm에서 3개 컨셉을 뽑을 때 서로 '근본적으로 다른' 3개여야 한다.
+같은 접근의 변주만 나오면 엔진이 안전한 영역에 수렴한 것이다.
+
+[3축 다양성 강제]
+
+축 A — 플롯 접근: 주인공의 주된 행동
+  (도망치다 / 쫓다 / 버티다 / 선택하다 / 깨닫다 / 증명하다)
+축 B — 감정 톤: 주된 감정
+  (웃음 / 긴장 / 슬픔 / 경이 / 분노 / 설렘)
+축 C — 구조 문법: 장르 공식과의 관계
+  (전형 공식 / 공식 비틀기 / 공식 해체 / 장르 혼합)
+
+★ 3개 컨셉이 서로 다른 축 조합을 사용해야 합격. ★
+
+❌ 실패 예시:
+  컨셉 1: 체크리스트로 분석 → 실패 → 자각
+  컨셉 2: 데이터로 판단 → 실패 → 자각
+  컨셉 3: 규칙으로 접근 → 실패 → 자각
+  → 세 컨셉 모두 "분석→실패→자각" 같은 축. 다양성 실패.
+
+✅ 성공 예시:
+  컨셉 1: 분류 습관 유지하다 균열 (심리 내면극, 슬픔)
+  컨셉 2: 두 남자와 직접 대결 (코미디 파이트, 웃음)
+  컨셉 3: 신화 비틀기로 구조 해체 (메타 로맨스, 경이)
+  → 세 컨셉이 서로 다른 축 조합. 다양성 합격.
+
+Brainstorm 완료 후 자가 진단:
+  · 3개 컨셉의 축 조합이 실제로 다른가?
+  · 같은 축만 사용했다면 재생성 강제.
+""".strip()
+
+
+WORLD_MIRRORS_BJND = """
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+WORLD MIRRORS BJND — 세계가 캐릭터를 비추는가 (v2.3)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+세계관 설정은 배경이 아니다. 캐릭터의 BJND를 비추는 거울이다.
+
+[공간 설정 체크]
+  · 주인공의 일터 = 주인공의 외적 자기(Goal/Strategy)를 보여주는가?
+  · 주인공의 집 = 주인공의 내적 자기(Lack/Cost)를 보여주는가?
+  · 두 공간의 대비가 주인공의 겉/속 층위를 공간화하는가?
+
+예시 — 쿠킹클래스:
+  ✅ '우엉' (한남동, 와인 선반) = 유진의 '원하는 자기' (Strategy 무대)
+  ✅ 유진 자택 부엌 (비어있음, 와인잔 하나) = 유진의 '실제 자기' (Cost)
+  → 두 공간 대비가 Strategy vs Cost를 공간화함
+
+[시간 설정 체크]
+  · 계절 변화가 캐릭터 BJND 변화와 동조하는가?
+  · 특정 시간(새벽/저녁/밤)이 특정 감정과 연결되는가?
+
+예시 — 쿠킹클래스:
+  · 봄 개업(Lack 시작) → 여름(Strategy 작동) → 가을(Cost 균열)
+  · 겨울(Cost 폭발 + Strategy 전환) → 봄 에필로그(Strategy_2 확정)
+
+[소품·의상 체크]
+  · 주인공의 핵심 소품이 Strategy를 물질화하는가?
+  · 복장 변화가 변화 아크와 동조하는가?
+
+★ 세계가 BJND를 비추지 않으면 이야기는 평면이 된다. ★
+★ Core Build 단계에서 world_build 필드에 이 연결을 명시하라. ★
+""".strip()
+
+
+def get_creator_support_modules() -> str:
+    """Phase 4 기술 지원 모듈 통합 반환 (Core Build 주입용)"""
+    modules = [
+        POV_POLITICS,
+        GENRE_FUN_ALIVE,
+        PROVOCATION_VS_DOPAMINE,
+        ANTAGONIST_BJND,
+        THEME_STRATEGY_ALIGNMENT,
+        BRAINSTORM_BJND_DIVERSITY,
+        WORLD_MIRRORS_BJND,
+    ]
+    return "\n\n" + "\n\n".join(modules) + "\n"
+
+
+def get_theme_strategy_only() -> str:
+    """테마-Strategy 정합성만 반환 (Scene/Treatment 재진단용)"""
+    return "\n\n" + THEME_STRATEGY_ALIGNMENT + "\n"
+
+
 ATTRACTION_RULES = """
 [ATTRACTION RULES — 이야기를 매력적으로 만드는 최우선 명령]
 
@@ -2177,17 +2870,22 @@ def _get_genre_override(genre: str) -> str:
 
 
 def build_system_core(genre: str, fact_based: bool = False, historical: bool = False, film_type: str = "") -> str:
-    """Core Build 시스템 프롬프트 — 장르 + LOCKED + FACT/HISTORICAL + OPENING MASTERY v2.2"""
+    """Core Build 시스템 프롬프트 — v2.3 최종 (장르 + LOCKED + FACT + OPENING MASTERY + BJND 4축 + 창작자 감성 + 기술 지원)"""
     genre_rules = get_genre_rules(genre)
     genre_override_block = _get_genre_override(genre)
     fact_block = get_fact_based_rules(fact_based)
     historical_block = get_historical_film_rules(historical, film_type)
     opening_mastery = get_opening_mastery()
     opening_dna = get_opening_dna_instruction(genre)
+    bjnd_four_axis = get_bjnd_four_axis()
+    creator_sensibility = get_creator_sensibility()  # v2.3 Phase 3
+    support_modules = get_creator_support_modules()  # v2.3 Phase 4
     return f"""당신은 헐리우드 메이저 스튜디오의 Development Producer이자 Script Architect다.
 Brainstorm에서 선정된 컨셉을 기반으로 Core Build를 수행한다.
 로그라인을 고정하고, 기획의도와 주제를 정리하고, 세계관과 캐릭터를 설계하고,
-주인공의 Goal / Need / Strategy를 확정하고, 이 작품의 오프닝 전략을 결정한다.
+주인공의 Goal / Need / Strategy / Cost를 확정하고, 이 작품의 오프닝 전략을 결정한다.
+★ 모든 BJND 설계 후 4축 자가 검증을 반드시 수행한다. ★
+★ 창작자 감성 3요소와 기술 지원 7모듈을 준수한다. ★
 
 {LOCKED_SYSTEM_RULES}
 
@@ -2204,6 +2902,12 @@ Brainstorm에서 선정된 컨셉을 기반으로 Core Build를 수행한다.
 {SORKIN_CURTIS["but_except_test"]}
 
 {NARRATIVE_DRIVE}
+
+{bjnd_four_axis}
+
+{creator_sensibility}
+
+{support_modules}
 
 {ATTRACTION_RULES}
 
@@ -2224,7 +2928,10 @@ Brainstorm에서 선정된 컨셉을 기반으로 Core Build를 수행한다.
 - ★ LOCKED 블록의 기획의도 키워드를 캐릭터/세계관/시놉시스에 반드시 반영하라. ★
 - 필수 캐릭터 4인(protagonist/antagonist/ally/mirror)은 characters 배열에.
 - 추가 캐릭터(0~4인)는 extended_characters 배열에. 역할명은 자유 (catalyst/subplot_lead/mentor/rival/informant 등).
-- 영화는 총 4~5명, 미니시리즈는 6~8명이 적정. 이야기가 필요로 하는 만큼 생성."""
+- 영화는 총 4~5명, 미니시리즈는 6~8명이 적정. 이야기가 필요로 하는 만큼 생성.
+- ★ BJND 설계 완료 후 bjnd_four_axis_check 필드에 4축 자가 검증 결과를 반드시 기재하라. ★
+- ★ 적대자(antagonist)도 반드시 BJND 4단(Lack/Desire/Strategy/Cost)으로 설계하라 — 평면 빌런 금지. ★
+- ★ 테마와 주인공 Strategy의 방향이 일치하는지 자가 검증하라 — 반대 방향이면 재설계. ★"""
 
 
 SYSTEM_CORE_GATE = """당신은 Development Producer다.
@@ -2445,12 +3152,14 @@ Structure Build 결과를 채점한다.
 
 
 def build_system_scene_design(genre: str, fact_based: bool = False, historical: bool = False, film_type: str = "") -> str:
-    """Scene Design v2.1 — 장르별 특화 + Hook/Punch + LOCKED + FACT/HISTORICAL + OPENING MASTERY v2.2"""
+    """Scene Design v2.3 — 장르별 특화 + Hook/Punch + LOCKED + FACT/HISTORICAL + OPENING MASTERY v2.2 + BJND ENFORCER v2.3 + 창작자 감성 v2.3"""
     genre_rules = get_genre_rules(genre)
     fact_block = get_fact_based_rules(fact_based)
     historical_block = get_historical_film_rules(historical, film_type)
     opening_mastery = get_opening_mastery()
     opening_dna = get_opening_dna_instruction(genre)
+    bjnd_enforcer = get_bjnd_scene_enforcer()
+    creator_sensibility = get_creator_sensibility()  # v2.3 Phase 3
     genre_scene_block = ""
     if _is_comedy(genre):
         genre_scene_block += """
@@ -2549,6 +3258,10 @@ Structure Build 결과를 기반으로 핵심 장면(Key Scene)을 설계한다.
 
 {opening_dna}
 
+{bjnd_enforcer}
+
+{creator_sensibility}
+
 [오프닝 씬 설계 지시 — 1막 Beat 1~2]
 ★ Scene Design 단계에서 1막 첫 비트의 key_scenes를 설계할 때, 위 OPENING DNA를 반드시 반영하라. ★
 - 1막 Beat 1의 첫 key_scene은 오프닝 6기법 중 하나로 명확히 분류 가능해야 한다.
@@ -2574,12 +3287,13 @@ Structure Build 결과를 기반으로 핵심 장면(Key Scene)을 설계한다.
 
 def build_system_treatment(genre: str, act_label: str, fmt: str = "", b_story_context: str = "",
                            fact_based: bool = False, historical: bool = False, film_type: str = "") -> str:
-    """Treatment v2.1 — SCOPE MANDATE + 8장르 특화 + B-Story + LOCKED + FACT/HISTORICAL + OPENING MASTERY v2.2 (1막)"""
+    """Treatment v2.3 — SCOPE MANDATE + 8장르 특화 + B-Story + LOCKED + FACT/HISTORICAL + OPENING MASTERY + BJND + 창작자 감성"""
     genre_rules = get_genre_rules(genre)
     genre_rules_text = json.dumps(genre_rules, ensure_ascii=False)
     is_series = is_series_format(fmt)
     fact_block = get_fact_based_rules(fact_based)
     historical_block = get_historical_film_rules(historical, film_type)
+    creator_sensibility = get_creator_sensibility()  # v2.3 Phase 3 — 모든 막에 주입
 
     # OPENING MASTERY는 1막 트리트먼트에만 주입 (2막/3막에는 불필요)
     opening_treatment_block = ""
@@ -2843,13 +3557,40 @@ narrative의 모든 씬에 최소 1개의 '관객이 웃는 순간'이 있어야
    추상적 테마로 대체하지 말고, 구체적 장면 디테일로 구현하라. ★
 ★ 역사적 사건 도입부가 LOCKED에 지정된 경우, 해당 에피소드 시작 비트에 반드시 포함하라. ★
 
-[BLUE JEANS 서사동력 — 트리트먼트 적용]
+[BLUE JEANS 서사동력 — 트리트먼트 적용 (BJND v1.0)]
 - Core Build의 narrative_drive에서 주인공의 발생요인(상실/결핍)을 확인하라.
 - 상실(loss) 기반이면: 잃어버린 것을 향한 집착·분노·슬픔이 매 비트의 선택을 지배한다.
   비트가 진행될수록 "되찾을 수 없음"의 인식이 깊어져야 한다.
 - 결핍(lack) 기반이면: 갈망·열등감·증명 욕구가 매 비트의 선택을 지배한다.
   비트가 진행될수록 "획득해도 채워지지 않음"의 인식이 깊어져야 한다.
 - 클라이맥스에서 주인공의 최종 선택은 Goal(외적)과 Need(내적) 사이의 간극을 해소하는 것이어야 한다.
+
+[★ BJND Strategy/Cost 씬 레벨 집행 — v2.3 ★]
+Core Build에서 설계한 Strategy는 매 비트 씬에서 '구체적 행동'으로 드러나야 한다.
+Core Build에서 설계한 Cost 3축(관계/자기/세계)은 막별로 누적되어야 한다.
+
+막별 Cost 누적 단계 (절대 준수):
+  ■ 1막 (Beat 1~4): Cost는 '암시'만. 주변이 감지하되 주인공은 자각 못 함.
+  ■ 2막 전반 (Beat 5~8): Cost가 '작은 균열'로 드러남. 주인공 당황하지만 Strategy 고집.
+  ■ 2막 후반 (Beat 9~11): Cost가 '실재 손상'으로 누적. 누군가를 실제로 다치게 하거나 잃음.
+  ■ 3막 (Beat 12~16): Cost가 더 이상 부정할 수 없는 현실. 
+    Strategy_1의 완전한 붕괴 → Strategy_2의 첫 실행 → Strategy_2의 확정.
+
+★ 3막 엔딩 규칙 — Strategy 전환은 내적 전환이어야 한다 ★
+Core Build의 ending_payoff가 '내적 깨달음'이라면 엔딩을 '외적 선택'으로 단순화하지 마라.
+  - 예: ending_payoff가 '고를 수 없음 자체가 사랑임을 깨달음'이면 → 
+    엔딩은 반드시 '고를 수 없음을 선언하는 씬'이어야 한다.
+    '한 명 선택'으로 마무리하면 BJND 배반이다. 금지.
+  - 예: ending_payoff가 '복수 포기하고 새 삶을 선택'이면 →
+    엔딩은 반드시 '복수 기회 앞에서 돌아서는 씬'이어야 한다.
+    '빌런을 처단하고 정의 실현'으로 마무리하면 BJND 배반이다. 금지.
+
+매 비트 작성 시 자가 체크:
+□ 이 비트에서 주인공의 Strategy가 어떤 행동으로 드러나는가?
+□ 이 비트가 배치된 막(1막/2막전반/2막후반/3막)의 Cost 누적 단계와 맞는가?
+□ 이 비트 끝에서 주인공은 자기 Strategy에 대해 어떤 감각을 갖는가?
+  (자신감/균열/의심/붕괴/전환 중 어느 단계인가)
+□ 3막 마지막 비트라면 — ending_payoff를 외적 선택이 아닌 내적 전환으로 구현했는가?
 
 [SCOPE MANDATE — 가장 중요한 규칙]
 ★ 1비트 = 1씬이 아니다. 1비트 = 여러 씬이다. ★
@@ -2925,6 +3666,8 @@ narrative의 모든 씬에 최소 1개의 '관객이 웃는 순간'이 있어야
 {historical_block}
 
 {opening_treatment_block}
+
+{creator_sensibility}
 
 [관객 심리]
 6. Dramatic Irony: 관객에게 먼저 정보를 줘라.
