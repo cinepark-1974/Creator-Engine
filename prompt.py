@@ -2,8 +2,8 @@
 👖 BLUE JEANS Creator Engine — Prompt Library
 
 ╔══════════════════════════════════════════════════════════╗
-║  VERSION: v2.3.0                                         ║
-║  BUILD DATE: 2026-04-20                                  ║
+║  VERSION: v2.3.1                                         ║
+║  BUILD DATE: 2026-04-21                                  ║
 ║  STATUS: Production                                      ║
 ╚══════════════════════════════════════════════════════════╝
 
@@ -12,6 +12,31 @@
 - Streamlit UI 좌측 사이드바 하단 "Engine Info" 확인
 - README.md 최상단 확인
 세 곳의 버전이 일치해야 정상.
+
+─────────────────────────────────────────────────────────
+v2.3.1 핫픽스 (2026-04-21) — 캐릭터 일관성 보호
+─────────────────────────────────────────────────────────
+
+[문제 진단 — 쿠킹클래스 v2.3.0 결과물에서 발견]
+같은 DOCX 안에서 유진의 어머니 설정이 두 가지로 공존:
+- 유진 백스토리: "8살 때 어머니 이혼으로 떠남 (살아있음)"
+- 강회장 백스토리: "11살 때 아내 위암 사망"
+학력 설정도 "뉴욕 CIA"와 "런던 유학"이 혼재.
+
+[원인]
+Character Bible은 4~8명을 순차 생성하지만, 각 호출에서 AI가
+Core Build의 설정만 참조하고 이전에 생성한 다른 캐릭터의
+백스토리는 참조하지 않아 설정 모순 발생.
+
+[v2.3.1 해결책]
+extract_char_consistency_facts() + build_prior_chars_consistency_block()
+두 헬퍼 함수 신설. 순차 생성 시 이전 캐릭터들의 핵심 사실
+(나이·직업·가족관계·공유 사건·비밀)을 다음 캐릭터 생성 프롬프트에
+누적 주입하여 일관성 모순을 원천 차단.
+
+CHAR_BIBLE_RULES에 "일관성 보호 블록 준수" 규칙 추가.
+main.py의 call_character_bible()는 순차 생성 시 성공한 캐릭터의
+사실을 즉시 추출하여 prior_facts에 누적, 다음 호출에 prior_chars_block으로 주입.
 
 ─────────────────────────────────────────────────────────
 v2.3.0 주요 변경사항 (2026-04-20)
@@ -85,6 +110,8 @@ BLUE JEANS 3축 (Mr.MOON 고유)
   v2.2.2 오프닝 ≠ 도발적 사건 · 한국 상업영화 3단 구조
   v2.3.0 BJND v1.0 표준 · Cost 4번째 축 · 4축 자가검증 · 창작자 감성 3요소
          · 기술 지원 7모듈 · OPEN 필드 폐지 · 18개 모듈 통합
+  v2.3.1 [핫픽스] 캐릭터 일관성 보호 — 순차 생성 시 이전 캐릭터 핵심 사실 주입
+         (가족관계·학력·나이·비밀 모순 방지)
 
 © 2026 BLUE JEANS PICTURES. All rights reserved.
 """
@@ -94,8 +121,8 @@ BLUE JEANS 3축 (Mr.MOON 고유)
 # 수정 시 ENGINE_VERSION과 ENGINE_BUILD_DATE를 함께 갱신하세요.
 # ═══════════════════════════════════════════════════
 
-ENGINE_VERSION = "v2.3.0"
-ENGINE_BUILD_DATE = "2026-04-20"
+ENGINE_VERSION = "v2.3.1"
+ENGINE_BUILD_DATE = "2026-04-21"
 ENGINE_STATUS = "Production"
 
 def get_engine_info() -> str:
@@ -3159,7 +3186,120 @@ CHAR_BIBLE_RULES = """규칙:
 - tactics는 반드시 3개. 이 인물만의 독특한 문제 해결 방식.
 - sample_lines 대사는 실제 시나리오 품질.
 - speech_pattern은 추상어 금지. 구체적 규칙만.
-- ★ LOCKED 블록의 캐릭터 정보(소속/직책/나이/관계)를 반드시 준수하라. ★"""
+- ★ LOCKED 블록의 캐릭터 정보(소속/직책/나이/관계)를 반드시 준수하라. ★
+- ★ 일관성 보호 블록이 있으면 거기 기재된 다른 캐릭터의 사실과 절대 모순되게 쓰지 마라.
+  특히 가족 관계의 생사·이혼 여부, 공유 과거 사건의 시점, 학력·출신지의 기본 정보는
+  단 하나의 버전으로만 존재해야 한다. 이미 확정된 사실을 재정의하거나 변경하지 마라. ★"""
+
+
+# ═══════════════════════════════════════════════════
+# 캐릭터 일관성 보호 (v2.3.1 신규)
+# 목적: 순차 생성 시 이전 캐릭터와의 설정 모순 방지
+# 예: 유진(8살 이혼) vs 강회장(11살 위암사망) 같은 모순 차단
+# ═══════════════════════════════════════════════════
+
+def extract_char_consistency_facts(char_data: dict) -> dict:
+    """이미 생성된 캐릭터에서 '일관성 핵심 사실'만 추출.
+    이 사실들은 다른 캐릭터의 백스토리와 모순되어선 안 된다.
+    
+    Returns:
+        {
+            "name": "강유진",
+            "role": "protagonist",
+            "age": 32,
+            "key_facts": [추출된 핵심 사실들]
+        }
+    """
+    facts = []
+    
+    # 나이 (관계 속 나이 차이 계산에 필수)
+    age = char_data.get("age", "")
+    if age:
+        facts.append(f"나이: {age}세")
+    
+    # 직업 · 소속
+    occupation = char_data.get("occupation", "")
+    if occupation:
+        facts.append(f"직업/위치: {occupation}")
+    
+    # 학력 · 과거 경력 (backstory에서 추출 — 학력 키워드 포함)
+    backstory = char_data.get("backstory", "")
+    if backstory:
+        # 요약본만 전달 (전체 백스토리를 주면 프롬프트 폭증)
+        backstory_summary = backstory[:300] + ("..." if len(backstory) > 300 else "")
+        facts.append(f"과거사 요약: {backstory_summary}")
+    
+    # 가족 관계 (어머니·아버지·형제자매 생사·현존 여부 — 일관성 가장 중요)
+    # relations에 가족 관계 정보가 담기므로 그대로 활용
+    relations = char_data.get("relations", {})
+    if relations:
+        for rel_name, rel_data in relations.items():
+            if isinstance(rel_data, dict):
+                attitude = rel_data.get("attitude", "")
+                if attitude:
+                    facts.append(f"→ {rel_name}: {attitude[:150]}")
+    
+    # 비밀 (다른 캐릭터의 비밀과 모순되거나 겹치지 않도록)
+    secret = char_data.get("secret", "")
+    if secret:
+        facts.append(f"비밀: {secret[:200]}")
+    
+    return {
+        "name": char_data.get("name", ""),
+        "role": char_data.get("role", ""),
+        "age": age,
+        "key_facts": facts,
+    }
+
+
+def build_prior_chars_consistency_block(prior_chars: list) -> str:
+    """이미 생성된 캐릭터들의 핵심 사실을 프롬프트 블록으로 구성.
+    다음 캐릭터 생성 시 모순 방지용.
+    
+    Args:
+        prior_chars: 이미 생성된 캐릭터 데이터 리스트
+    
+    Returns:
+        프롬프트에 주입할 일관성 블록 문자열 (빈 리스트면 빈 문자열)
+    """
+    if not prior_chars:
+        return ""
+    
+    lines = [
+        "",
+        "[★ 일관성 보호 — 이미 확정된 설정 ★]",
+        "아래는 이미 생성되어 확정된 다른 캐릭터들의 핵심 사실이다.",
+        "당신이 지금 생성하는 캐릭터의 백스토리·관계·비밀은 아래와 절대 모순되면 안 된다.",
+        "",
+        "[특히 다음을 반드시 일치시켜라]",
+        "- 가족 관계: 어머니·아버지·형제자매의 생사·이혼 여부·사망 시기는 단 하나의 버전만 존재한다.",
+        "- 공유 사건: 같은 사건을 두 캐릭터가 기억할 경우 시점과 세부 사항이 같아야 한다.",
+        "- 시간축: 나이 차이, 과거 사건 간 시간 경과는 물리적으로 일관되어야 한다.",
+        "- 공간: 같은 장소에 대한 묘사가 서로 충돌하면 안 된다.",
+        "",
+    ]
+    
+    for i, fact_dict in enumerate(prior_chars, 1):
+        name = fact_dict.get("name", f"캐릭터{i}")
+        role = fact_dict.get("role", "")
+        age = fact_dict.get("age", "")
+        
+        header = f"■ 이미 확정된 캐릭터 {i}: {name}"
+        if role:
+            header += f" ({role})"
+        if age:
+            header += f" / {age}세"
+        lines.append(header)
+        
+        key_facts = fact_dict.get("key_facts", [])
+        for fact in key_facts:
+            lines.append(f"  · {fact}")
+        lines.append("")
+    
+    lines.append("★ 위 사실과 모순되는 백스토리/관계/비밀을 쓰면 심각한 결함이다. 반드시 교차 검증하라. ★")
+    lines.append("")
+    
+    return "\n".join(lines)
 
 
 def build_system_structure_story(fact_based: bool = False, historical: bool = False, film_type: str = "") -> str:
