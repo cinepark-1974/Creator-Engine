@@ -1104,6 +1104,21 @@ def call_core_build_main(idea, genre, market, fmt, selected_concept, research=No
       "memorable_line_or_image": "영화 끝난 후 관객 입에 남을 장면 1개"
     }}
   }},
+  "genre_expectation_check": {{
+    "genre_fun_alive": "true 또는 false — 이 장르의 재미 본질이 살아있는가",
+    "genre_fun_diagnosis": "이 작품에서 장르 재미가 어떻게 살아있는지 3줄 진단",
+    "checklist": {{
+      "item_label_1": "YES 또는 NO + 1문장 근거 — 해당 장르 체크리스트 항목 1",
+      "item_label_2": "YES 또는 NO + 1문장 근거 — 해당 장르 체크리스트 항목 2",
+      "item_label_3": "YES 또는 NO + 1문장 근거 — 해당 장르 체크리스트 항목 3",
+      "item_label_4": "YES 또는 NO + 1문장 근거 — 해당 장르 체크리스트 항목 4",
+      "item_label_5": "YES 또는 NO + 1문장 근거 — 해당 장르 체크리스트 항목 5",
+      "item_label_6": "YES 또는 NO + 1문장 근거 — 해당 장르 체크리스트 항목 6 (있으면)",
+      "item_label_7": "YES 또는 NO + 1문장 근거 — 해당 장르 체크리스트 항목 7 (있으면)"
+    }},
+    "weak_zones": ["장르 기대가 약할 것으로 예상되는 비트 구간 명시 (예: '클라이맥스가 로맨스 완성 아님', '2막 Fun and Games 부족')"],
+    "climax_verdict": "CLIMAX_PASS 또는 CLIMAX_FAIL — 장르 약속에 맞는 클라이맥스인가. FAIL이면 3막 전체 재설계 강제"
+  }},
   "opening_strategy": {{
     "opening_type": "Action Drop / Cold Open / Tease & Reveal / In Media Res / Character Reveal Action / Hook Dialogue 중 택1 — 시스템 프롬프트의 오프닝 DNA 매핑에 따른 권장 기법을 우선하되, 작품 특성에 맞게 택1",
     "opening_intent": "이 오프닝으로 무엇을 잡는가 — 캐릭터 / 세계 / 사건 / 톤 / 테마 중 1~2개 구체화",
