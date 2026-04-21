@@ -1338,8 +1338,14 @@ def call_core_gate(core_data):
 
 # ─── API Call: Character Bible ───
 def call_character_bible_single(char_data, all_chars_names, core_data, genre, fmt, locked_block="",
-                                 fact_based=False, historical=False, film_type=""):
-    """캐릭터 바이블 — 캐릭터 1인 단위 호출"""
+                                 fact_based=False, historical=False, film_type="",
+                                 prior_chars_block=""):
+    """캐릭터 바이블 — 캐릭터 1인 단위 호출
+    
+    Args:
+        prior_chars_block: 이미 생성된 다른 캐릭터들의 일관성 사실 블록 (v2.3.1 신규).
+                          빈 문자열이면 일관성 참조 없이 생성 (첫 번째 캐릭터).
+    """
     try:
         client = get_client()
         gns = core_data.get("goal_need_strategy", {})
@@ -1376,7 +1382,7 @@ def call_character_bible_single(char_data, all_chars_names, core_data, genre, fm
 [다른 캐릭터 이름 (관계별 태도 작성용)]
 {others_str}
 {locked_block}
-
+{prior_chars_block}
 [JSON 스키마 — 이 캐릭터 1인분만 출력]
 {schema}
 
@@ -1435,21 +1441,44 @@ def call_character_bible_single(char_data, all_chars_names, core_data, genre, fm
 
 def call_character_bible(core_data, genre, fmt, locked_block="",
                          fact_based=False, historical=False, film_type=""):
-    """캐릭터 바이블 — characters + extended_characters 모두 처리"""
+    """캐릭터 바이블 — characters + extended_characters 모두 처리
+    
+    v2.3.1: 순차 생성 시 이전 캐릭터의 핵심 사실을 다음 캐릭터 생성 프롬프트에 주입하여
+            가족 관계·학력·나이 등의 일관성 모순을 차단한다.
+    """
     chars = core_data.get("characters", [])
     ext_chars = core_data.get("extended_characters", [])
     all_chars = chars + ext_chars
     all_names = [c.get("name", f"캐릭터{i+1}") for i, c in enumerate(all_chars)]
 
     result_chars = []
+    prior_facts = []  # v2.3.1: 이전 캐릭터들의 일관성 사실 누적
+
     for i, ch in enumerate(all_chars):
         name = ch.get("name", f"캐릭터{i+1}")
         role = ch.get("role", "")
-        st.info(f"📖 {i+1}/{len(all_chars)} — {name} ({role}) 바이블 생성 중...")
-        char_result = call_character_bible_single(ch, all_names, core_data, genre, fmt, locked_block=locked_block,
-                                                    fact_based=fact_based, historical=historical, film_type=film_type)
+
+        # v2.3.1: 이전 캐릭터 맥락 블록 생성
+        prior_chars_block = P.build_prior_chars_consistency_block(prior_facts)
+
+        if i == 0:
+            st.info(f"📖 {i+1}/{len(all_chars)} — {name} ({role}) 바이블 생성 중... (최초 캐릭터)")
+        else:
+            st.info(f"📖 {i+1}/{len(all_chars)} — {name} ({role}) 바이블 생성 중... "
+                    f"(이전 {len(prior_facts)}명과 일관성 검증 중)")
+
+        char_result = call_character_bible_single(
+            ch, all_names, core_data, genre, fmt,
+            locked_block=locked_block,
+            fact_based=fact_based, historical=historical, film_type=film_type,
+            prior_chars_block=prior_chars_block,  # v2.3.1 신규
+        )
+
         if char_result:
             result_chars.append(char_result)
+            # v2.3.1: 성공한 캐릭터의 일관성 사실을 추출하여 다음 캐릭터 생성 시 참조
+            facts = P.extract_char_consistency_facts(char_result)
+            prior_facts.append(facts)
         else:
             st.warning(f"⚠️ {name} 바이블 생성 실패. 건너뜁니다.")
 
