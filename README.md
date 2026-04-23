@@ -1,6 +1,6 @@
 # 👖 BLUE JEANS · Creator Engine
 
-**Version: v2.3.8** · Build: 2026-04-22 · Status: Production
+**Version: v2.3.9** · Build: 2026-04-23 · Status: Production
 
 > **아이디어 한 줄 → 글로벌 스튜디오 수준 기획개발 패키지**
 >
@@ -10,69 +10,198 @@
 
 ---
 
-## v2.3.8 업데이트 (2026-04-22) — Core Build 필드 Treatment 전파 완성
+## v2.3.9 업데이트 (2026-04-23) — ROMCOM OVERRIDE + Profession Pack 13 카테고리
+
+### 진단 — Mr. MOON 지적
+
+> "로맨틱 코미디 작품을 돌려보니 데이트 장면 설계 원칙이 없어서 두 경쟁자 공간이 구별 안 되고, 전문직 캐릭터의 직업 디테일이 표면적임. 이왕 하는 거 제대로 업그레이드하자."
+
+### 축 1: ROMCOM 전용 OVERRIDE 블록 신설
+
+기존 v2.3.8까지는 "로맨틱 코미디" 장르가 COMEDY + ROMANCE 규칙만 이중 활성화했습니다. v2.3.9부터는 **롬코 고유 문법 8개 원칙**이 담긴 `ROMCOM_RULES` 블록이 추가로 활성화되어 **삼중 구조**로 작동합니다.
+
+**ROMCOM 8대 원칙:**
+
+| # | 원칙 | 핵심 내용 |
+|---|---|---|
+| 1 | 톤 밸런스 | 모든 로맨틱 장면에 코믹 결 1개 + 모든 코믹 장면에 로맨틱 잔향 1개 |
+| 2 | 삼각관계 공간 차별화 | 두 경쟁자의 데이트 장소는 반드시 다른 유형 |
+| 3 | 데이트 Beat 배치 | 삼각관계형 롬코는 최소 4회 데이트 장면 |
+| 4 | 교차 편집 몽타주 | 2막 중반 필수 (삼각관계형) — 주인공 딜레마 시각화 |
+| 5 | Low Point 귀환 구조 | 외부 데이트 → 주 공간 귀환 세트 |
+| 6 | 롬코 Meet-Cute | 운명적 조우 금지, 코믹 실수 + 틀린 첫인상 필수 |
+| 7 | 대사 이중 레이어 | 표면 (일상적/코믹) + 이면 (진짜 감정) |
+| 8 | 결말 문법 | 웃음과 눈물의 동시 착지. 열린 결말 금지 |
+
+`_is_romcom()` 판별 함수가 추가되어 "로맨틱 코미디"·"롬코"·"로코"·"romcom"·"rom-com" 등 **14개 표현**을 감지합니다. 또한 코미디와 로맨스/로맨틱/멜로가 함께 들어간 경우도 자동 감지합니다.
+
+### 축 2: Profession Pack — 전문직 디테일 자동 주입
+
+캐릭터의 직업이 LOCKED 블록에 명시되면 해당 전문직 프로필이 **자동으로** 주입되어 Brainstorm부터 Treatment까지 전 파이프라인에 반영됩니다.
+
+**신규 파일 `profession_pack.py` — 13개 카테고리:**
+
+| Tier | 카테고리 | 세부 직종 |
+|---|---|---|
+| T1 | 법률직 | 검사/판사/변호사/로스쿨생/법무관 |
+| T1 | 의료직 | 내외과/응급/정신과/산부인과/간호사/한의사 |
+| T1 | 금융기업직 | 증권 애널리스트/IB/재무/PB/WM/VC |
+| T1 | 언론창작직 | 기자/PD/소설가/시나리오/웹툰작가/카피라이터 |
+| T1 | 공직정치 | 국회/관료/청와대/경찰/외교관 |
+| T1 | 요식서비스직 | 셰프/쿠킹클래스/바리스타/소믈리에/호텔리어 |
+| T2 | 교육직 | 교사/교수/학원강사/입시컨설턴트 |
+| T2 | 엔터테인먼트 | 아이돌/배우/매니저/A&R/안무가 |
+| T2 | 기술IT직 | 개발자/스타트업/게임/AI연구원 |
+| T2 | 예술전통 | 국악/무용/미술/공예/전통주 |
+| T3 | 범죄수사 | 형사/프로파일러/과학수사/국과수 |
+| T3 | 건설부동산 | 건축가/현장소장/중개사/디벨로퍼 |
+| T3 | 농림수산자영업 | 농부/어부/상인/자영업/귀농 |
+
+**각 카테고리 8 필드 표준:**
+
+1. **subtypes** — 세부 직종 분류
+2. **daily_timeline** — 하루 타임라인 (아침→밤)
+3. **jargon** — 전문 용어 사전 (20개 내외, 한/영 병기)
+4. **space_detail** — 공간 디테일 (소품·냄새·소리)
+5. **stress** — 직업적 스트레스·내적 갈등
+6. **forbidden** — 작가가 흔히 범하는 오류
+7. **korea_context** — 한국 고유 맥락 (계급·호칭·조직문화)
+8. **romance_style** — 연애·관계 스타일 경향성
+
+### 축 3: 자동 주입 — main.py 수정 불필요
+
+v2.3.8의 "Core Build 필드 Treatment 전파" 구조를 그대로 활용합니다.
+
+```
+LOCKED 항목:
+  "강유진: 쿠킹 스튜디오 오너 셰프"
+  "이진호: 증권사 애널리스트"
+  "반세웅: 소설가"
+       ↓
+build_locked_block()이 키워드 감지
+       ↓
+요식서비스직 + 금융기업직 + 언론창작직 Profession Pack 자동 부착
+       ↓
+Brainstorm → Core Build → Character Bible → Structure
+  → Scene Design → Treatment Beats 전 단계에 자동 전달
+```
+
+`build_locked_block()`이 확장되었지만 **기존 호출 방식은 그대로 작동**합니다 (하위 호환성 100%). `main.py`는 전혀 건드릴 필요가 없습니다.
+
+### 효과
+
+**ROMCOM 추가 효과:**
+- 삼각관계 로맨틱 코미디에서 두 경쟁자 공간·데이트가 자연스럽게 차별화
+- 2막 중반 교차 편집 몽타주가 구조적 필수로 포함
+- 열린 결말 대신 "선택" 결말의 명확성 확보
+
+**Profession Pack 추가 효과:**
+- 직업 디테일이 표면적 묘사가 아닌 캐릭터 DNA로 작동
+- 예: 금융권 애널리스트 = 오후 여유·와인 동호회·약속 지킴이 자연스럽게 반영
+- 예: 소설가 = 즉흥성·시간 불규칙·작품에 상대 등장 위험이 로맨스 갈등 원천
+- 잘못된 직업 디테일(검사가 법정에서 피의자 신문·내과의사가 수술 등) 자동 차단
+
+### 검증
+
+통합 테스트 — 쿠킹클래스 LOCKED 9개 항목 투입:
+- 3개 Profession 카테고리 자동 감지·주입 확인
+- 총 13,402자의 전문직 디테일이 전 파이프라인에 전달
+- ROMCOM 7,759자 + Profession Pack 결합으로 풍부한 장르·직업 디테일 확보
+
+---
+
+## v2.3.8 업데이트 (2026-04-22) — Core Build 필드 Treatment 전파 + Research 선별 응용 구조
 
 ### 진단 — Mr. MOON 지적
 
 > "기본적으로 코어빌드에 많은 걸 넣어두었는데 트리트먼트로 연결되는지야. 리서치 기능도 넣어놔서 핍진성을 높이려고 했단 말이지"
 
-실증 확인 결과 Core Build에서 생성되지만 Treatment 단계에서 **휘발되던 필드 4종**:
+**Mr. MOON 원칙 확정**:
+> "리서치 내용 전체를 받을 필요는 없고. 설정된 캐릭터에 사용할 수 있는 것만 응용하면 됨"
+
+실증 확인 결과 Core Build에서 생성되지만 Treatment 단계에서 **휘발되던 필드**:
 
 | 휘발 필드 | 영향 |
 |---|---|
 | `project_intent` (기획의도·주제·톤앤매너) | 매 비트가 주제에서 이탈할 위험 |
-| `world_build` (시대·공간·규칙) | 시대 오류 생성 단계에서 방지 실패 (v2.3.7 Gate에만 있었음) |
+| `world_build` (시대·공간·규칙) | 시대 오류 생성 단계에서 방지 실패 |
 | `genre_expectation_check.weak_zones` | Core Build 자가 진단 경고 사장 |
-| `research.real_events` | **표절 방지 + 핍진성** 설계 의도 완전 미작동 |
+| `research` 전체 데이터 | Brainstorm/Core까지만 전달, Treatment부터 완전 휘발 |
 
-Mr. MOON이 대부분 프로젝트에서 Research를 사용하시는데, 이 데이터가 **Brainstorm과 Core Build까지만 전달되고 Treatment부터 Writer Engine까지 끊김**. 결과:
-- 기존 작품 표절 방지 신호가 Writer Engine까지 전달 안 됨
-- 실제 사건 디테일이 시나리오에 반영 안 됨
-- Core Build의 자가 진단 약점 구간이 Treatment에서 무시됨
+### 해결 — 두 축 동시 적용
 
-### 해결 — 4개 전파 블록 신규 삽입
+#### 축 1: Core Build 휘발 필드 4종 Treatment 전파
 
-`call_treatment_beats()` 함수의 `user_prompt`에 4개 블록 순차 주입:
+`call_treatment_beats()`의 `user_prompt`에 4개 블록 신규 주입:
 
-**[1] 🎯 기획의도 블록** — 주제 + 엘리베이터 피치 + 톤앤매너
-> "매 비트가 수렴해야 할 주제"로 선언. 대사·행동·디테일 모두 주제로 수렴.
+- **🎯 기획의도 블록** — 주제·피치·톤앤매너 ("매 비트가 수렴해야 할 주제" 선언)
+- **🌍 세계관 블록** — 시대/공간/규칙/터부/시각 ("시대에 없는 요소 포함 금지" 명시)
+- **⚠️ 장르 자가 진단 경고 블록** — weak_zones + climax_verdict (CLIMAX_FAIL 시 재설계 강제)
+- **📚 리서치 선별 블록** — research_applied 우선 전달 (아래 축 2와 연동)
 
-**[2] 🌍 세계관 블록** — 시간/공간/규칙/금기/시각 키워드
-> "시대 배경에 존재하지 않는 기술·제도·문화·언어 포함 금지" 명시 (생성 단계)
+#### 축 2: Research 선별 응용 구조 (Mr. MOON 원칙의 엔진화)
 
-**[3] ⚠️ 장르 자가 진단 경고 블록** — weak_zones + climax_verdict
-> Core Build가 스스로 식별한 약점 구간을 Treatment가 참조.
-> `CLIMAX_FAIL` 판정 시 3막 마지막 비트 재설계 강제.
+**Core Build JSON 스키마에 `research_applied` 필드 신설**:
 
-**[4] 📚 리서치 블록** — 실제 사건 상위 5개 + 기존 작품 목록
-> **핍진성 강화**: real_events가 비트 디테일 원천으로 작동.
-> **표절 방지**: existing_works 목록 제시로 유사성 회피.
+```json
+"research_applied": {
+  "references_used": [
+    {
+      "source_type": "real_event / existing_work",
+      "source_id": 1,
+      "source_title": "리서치에서 참조한 아이템",
+      "applied_to": "character_background / world_rule / plot_event / motif / ...",
+      "how_applied": "이 작품 어디에 어떻게 녹였는가 (구체적으로)",
+      "character_name": "적용된 캐릭터 이름"
+    }
+  ],
+  "verisimilitude_anchors": [
+    "Treatment·시나리오에서 반드시 유지할 현실 기반 디테일 3~5개"
+  ],
+  "research_absorption_note": "작가가 리서치를 어떻게 소화했는지 1문장"
+}
+```
 
-### 토큰 과부하 방지
+**작동 방식**:
+1. Core Build가 Research를 받으면 "이 작품에 실제 응용된 것"만 `research_applied`에 기록
+2. Treatment는 **전체 Research가 아닌 `research_applied`만** 우선 전달받음
+3. 리서치 전체 나열이 아닌 "이 작품에 녹은 것"만 집중 반영
 
-Research 데이터 전달 시 크기 제한:
-- `real_events`: 상위 5개만, 요약 150자 제한, 활용 100자 제한
-- `existing_works`: 상위 7개 제목만 추출
-- 불필요한 필드 제외
+**예시 — 〈바타비아〉 가정**:
 
-### 효과
+Research 5개 real_events 중 **2개만 실제 녹인 경우**:
+```json
+"references_used": [
+  {
+    "source_id": 1,
+    "source_title": "바타비아 학살 1740",
+    "applied_to": "world_rule",
+    "how_applied": "저택 저주 기원을 학살과 연결 — 가문이 가담한 대가"
+  },
+  {
+    "source_id": 3,
+    "source_title": "인도네시아 두꾼 신앙",
+    "applied_to": "character_background",
+    "how_applied": "두꾼 캐릭터의 기능과 대사 패턴 기반",
+    "character_name": "Pak Tua"
+  }
+],
+"verisimilitude_anchors": [
+  "1874년 바타비아 학살 — 3막 반전 때 다시 등장",
+  "두꾼의 제물 요구 방식 — 2막 내내 반복",
+  "코타 투아 건축 양식 — 저택 공간 묘사의 시각적 근거"
+]
+```
 
-Mr. MOON이 설계하신 전 엔진 구조가 Writer Engine 직전까지 **휘발 없이 전달**됨.
+Treatment는 위 2개 + 앵커 3개만 받아서 핍진성 있게 집필.
 
-- Research 기능이 핍진성 강화 + 표절 방지 두 역할을 Treatment 생성 단계에서 실제 작동
-- 기획의도가 매 비트에 반영되어 주제 일관성 유지
-- 시대 오류가 생성 단계에서 차단 (v2.3.7 Gate 검증과 2중 방어)
-- Core Build 자가 진단이 Treatment에 자동 반영
+### 효과 — Mr. MOON이 설계하신 전체 구조 완성
 
-### Mr. MOON의 Research 사용 시나리오 확인
-
-> "실제 사건이 있다면 에피소드에 활용 가능성도 있고. 예를 들어 쿠킹클래스 아동반 유행. 이런 게 리서치에서 확인되니 개발해도 좋다고 판단하잖아."
-
-이제 Research가 확인한 "쿠킹클래스 아동반 유행" 같은 실증 데이터가:
-- Brainstorm에서 컨셉 선정 근거 ✅
-- Core Build에서 세계관 설계 근거 ✅
-- **Treatment에서 비트 디테일 원천** ✅ (v2.3.8 신규)
-- Writer Engine이 받는 시나리오 기초 자료 ✅ (Treatment를 통해)
+- **Core Build 설계 휘발 없이 Treatment까지 전달**
+- **Research가 '나열'이 아닌 '이 작품에 응용된 것'으로 전달** (토큰 효율)
+- Writer Engine이 받을 Treatment에 **핍진성 앵커 구체 박힘**
+- Core Build 자가 진단 약점 구간이 Treatment에서 강화 설계
+- 시대 오류 **생성 단계 차단** (v2.3.7 Gate 검증과 2중 방어)
 
 ---
 
@@ -652,7 +781,7 @@ ANTHROPIC_API_KEY = "sk-ant-..."
 | **v2.3.5** | **프로젝트 JSON 저장/불러오기 — 세션 끊김 대비 복구 기능. Scene/Treatment/Tone 완료 후 JSON 저장 + 홈에서 업로드 복원. 여러 날 / 다른 컴퓨터 / 장애 복구 지원.** |
 | **v2.3.6** | **장르/BJND/POV/적대자 규칙을 Treatment 단계까지 전파 + Gate E 실제 내용 논리 검증 (장르 정합/엔딩 정합/논리 일관성 3축 신규). Core Build 설계가 Writer Engine으로 휘발 없이 전달되도록 구조적 공백 해결.** |
 | **v2.3.7** | **시대 고증 검증 추가 — Gate E의 8번째 축 `period_consistency` 신설. 1980년대 배경에 스마트폰 등장 같은 시대 오류를 생성·검증 양쪽에서 방지. 역사영화 체크 여부와 무관하게 모든 작품에 적용.** |
-| **v2.3.8** | **Core Build 필드 Treatment 전파 완성 — 기획의도+세계관+자가진단+리서치 4종 블록 주입. Research 데이터(실제 사건 + 기존 작품)가 Writer Engine 직전까지 휘발 없이 전달되어 핍진성 강화 + 표절 방지 양쪽 역할 완성.** |
+| **v2.3.8** | **Core Build 필드 Treatment 전파 + Research 선별 응용 구조 — Core Build에 `research_applied` 필드 신설(references_used/verisimilitude_anchors/research_absorption_note). "리서치 전체가 아닌 이 작품에 응용된 것만" 엔진화. project_intent/world_build/genre_warning/research_applied 4종 블록 Treatment 전파. 핍진성 앵커가 Writer Engine까지 휘발 없이 전달.** |
 
 ---
 
