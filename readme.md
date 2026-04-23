@@ -1,12 +1,288 @@
 # 👖 BLUE JEANS · Creator Engine
 
-**Version: v2.3.3** · Build: 2026-04-21 · Status: Production
+**Version: v2.3.8** · Build: 2026-04-22 · Status: Production
 
 > **아이디어 한 줄 → 글로벌 스튜디오 수준 기획개발 패키지**
 >
 > BLUE JEANS PICTURES 고유 서사동력 프레임워크(BJND) + 창작자 감성 엔진
 
 > ⚠️ **버전 확인 방법**: `prompt.py` 최상단 VERSION 블록 / Streamlit UI 사이드바 Engine Info / 이 README 최상단 — 세 곳의 버전이 일치해야 정상입니다. 불일치 시 최신 파일로 덮어쓰세요.
+
+---
+
+## v2.3.8 업데이트 (2026-04-22) — Core Build 필드 Treatment 전파 + Research 선별 응용 구조
+
+### 진단 — Mr. MOON 지적
+
+> "기본적으로 코어빌드에 많은 걸 넣어두었는데 트리트먼트로 연결되는지야. 리서치 기능도 넣어놔서 핍진성을 높이려고 했단 말이지"
+
+**Mr. MOON 원칙 확정**:
+> "리서치 내용 전체를 받을 필요는 없고. 설정된 캐릭터에 사용할 수 있는 것만 응용하면 됨"
+
+실증 확인 결과 Core Build에서 생성되지만 Treatment 단계에서 **휘발되던 필드**:
+
+| 휘발 필드 | 영향 |
+|---|---|
+| `project_intent` (기획의도·주제·톤앤매너) | 매 비트가 주제에서 이탈할 위험 |
+| `world_build` (시대·공간·규칙) | 시대 오류 생성 단계에서 방지 실패 |
+| `genre_expectation_check.weak_zones` | Core Build 자가 진단 경고 사장 |
+| `research` 전체 데이터 | Brainstorm/Core까지만 전달, Treatment부터 완전 휘발 |
+
+### 해결 — 두 축 동시 적용
+
+#### 축 1: Core Build 휘발 필드 4종 Treatment 전파
+
+`call_treatment_beats()`의 `user_prompt`에 4개 블록 신규 주입:
+
+- **🎯 기획의도 블록** — 주제·피치·톤앤매너 ("매 비트가 수렴해야 할 주제" 선언)
+- **🌍 세계관 블록** — 시대/공간/규칙/터부/시각 ("시대에 없는 요소 포함 금지" 명시)
+- **⚠️ 장르 자가 진단 경고 블록** — weak_zones + climax_verdict (CLIMAX_FAIL 시 재설계 강제)
+- **📚 리서치 선별 블록** — research_applied 우선 전달 (아래 축 2와 연동)
+
+#### 축 2: Research 선별 응용 구조 (Mr. MOON 원칙의 엔진화)
+
+**Core Build JSON 스키마에 `research_applied` 필드 신설**:
+
+```json
+"research_applied": {
+  "references_used": [
+    {
+      "source_type": "real_event / existing_work",
+      "source_id": 1,
+      "source_title": "리서치에서 참조한 아이템",
+      "applied_to": "character_background / world_rule / plot_event / motif / ...",
+      "how_applied": "이 작품 어디에 어떻게 녹였는가 (구체적으로)",
+      "character_name": "적용된 캐릭터 이름"
+    }
+  ],
+  "verisimilitude_anchors": [
+    "Treatment·시나리오에서 반드시 유지할 현실 기반 디테일 3~5개"
+  ],
+  "research_absorption_note": "작가가 리서치를 어떻게 소화했는지 1문장"
+}
+```
+
+**작동 방식**:
+1. Core Build가 Research를 받으면 "이 작품에 실제 응용된 것"만 `research_applied`에 기록
+2. Treatment는 **전체 Research가 아닌 `research_applied`만** 우선 전달받음
+3. 리서치 전체 나열이 아닌 "이 작품에 녹은 것"만 집중 반영
+
+**예시 — 〈바타비아〉 가정**:
+
+Research 5개 real_events 중 **2개만 실제 녹인 경우**:
+```json
+"references_used": [
+  {
+    "source_id": 1,
+    "source_title": "바타비아 학살 1740",
+    "applied_to": "world_rule",
+    "how_applied": "저택 저주 기원을 학살과 연결 — 가문이 가담한 대가"
+  },
+  {
+    "source_id": 3,
+    "source_title": "인도네시아 두꾼 신앙",
+    "applied_to": "character_background",
+    "how_applied": "두꾼 캐릭터의 기능과 대사 패턴 기반",
+    "character_name": "Pak Tua"
+  }
+],
+"verisimilitude_anchors": [
+  "1874년 바타비아 학살 — 3막 반전 때 다시 등장",
+  "두꾼의 제물 요구 방식 — 2막 내내 반복",
+  "코타 투아 건축 양식 — 저택 공간 묘사의 시각적 근거"
+]
+```
+
+Treatment는 위 2개 + 앵커 3개만 받아서 핍진성 있게 집필.
+
+### 효과 — Mr. MOON이 설계하신 전체 구조 완성
+
+- **Core Build 설계 휘발 없이 Treatment까지 전달**
+- **Research가 '나열'이 아닌 '이 작품에 응용된 것'으로 전달** (토큰 효율)
+- Writer Engine이 받을 Treatment에 **핍진성 앵커 구체 박힘**
+- Core Build 자가 진단 약점 구간이 Treatment에서 강화 설계
+- 시대 오류 **생성 단계 차단** (v2.3.7 Gate 검증과 2중 방어)
+
+---
+
+## v2.3.7 업데이트 (2026-04-22) — 시대 고증 검증 추가
+
+### 진단 — Mr. MOON 지적
+
+v2.3.6의 `logic_consistency` 검증 축이 "세계관 규칙"을 본다고 했지만 **시대 고증**이 명시되지 않음. 예시 상황:
+
+- 1980년대 설정인데 Treatment에 **스마트폰·AI 로봇** 등장
+- 조선시대 배경인데 **사진·기차** 언급
+- 1995년 배경인데 **카카오톡** 사용
+
+이런 시대 오류를 현재 엔진이 감지 못 함. `HISTORICAL_FILM_RULES`는 '역사영화' 체크 시에만 주입되는데, **1980년대 한국 드라마** 같은 '근현대 배경'은 역사영화로 체크하지 않으므로 시대 고증 검증이 완전히 누락됨.
+
+### 해결 — 모든 작품에 시대 고증 검증 적용 (역사영화 체크 여부 무관)
+
+**A. Treatment 시스템 프롬프트에 시대 고증 섹션 추가**
+- 시대별 주요 금지 요소 목록 (1980년대~2022년 주요 기술 도입 시점)
+- 역사 배경·근현대·미래 SF 3가지 케이스 구분
+- 매 비트 자가 체크 항목
+
+**B. Gate E에 `world_build` 정보 전달**
+- Core Build의 time / space / rules 필드를 Gate E 검증 컨텍스트에 포함
+- Gate E가 실제 Treatment 내용과 대조 검증 가능
+
+**C. Gate E 채점 축 7개 → 8개 확장**
+- 신규: `period_consistency` (시대 고증)
+- 신규 feedback 필드: `period_check_feedback`
+- `critical_issues`에 시대 고증 오류 비트 번호 구체 기록
+- `period_consistency`가 4.0 미만이면 "전면 재작성 권고" 자동 출력
+
+**D. `SYSTEM_TREATMENT_GATE` 프롬프트 강화**
+- 시대별 금지 요소 상세 가이드 주입 (ChatGPT 2022년 등 구체 시점)
+- 역사·현대·미래 3가지 케이스별 검증 기준 명시
+
+### 검증 예시
+
+작품 시대가 `1985년 서울`이라면:
+
+Gate E가 자동 감지:
+- Beat 7에 "주인공이 카카오톡으로 메시지 확인" → `period_consistency` 감점
+- `critical_issues: ["Beat 7: 1985년 배경인데 카카오톡 — 시대 고증 오류"]`
+- `period_check_feedback: "Beat 7에서 1985년에 존재하지 않던 카카오톡 등장. 유선전화 또는 직접 대면으로 수정 필요."`
+
+---
+
+## v2.3.6 업데이트 (2026-04-22) — 장르/BJND/POV/적대자 규칙 Treatment 전파 + Gate E 실질 검증
+
+### 진단 — Mr. MOON이 발견한 엔진 구조적 공백
+
+Core Build까지 공들여 설계한 장르 재미·서사동력·시선·적대자 규칙이 **Treatment 단계에서 전부 휘발**되고 있었음. Core Build → Character → Structure → Scene → **Treatment**로 넘어가는 순간 Writer Engine이 받아야 할 장르 법칙이 사라진 상태로 전달.
+
+Mr. MOON의 정확한 지적:
+> "장르적 재미 법칙이 Treatment 단계에 적용되지 않으면 Writer Engine이 가동이 안 된다"
+
+### 검증된 주입 상태 (v2.3.5 기준)
+
+| 모듈 | Core Build | Treatment |
+|---|---|---|
+| GENRE_FUN_ALIVE (장르 체크리스트) | ✅ | ❌ |
+| BJND 4축 자가 검증 | ✅ | ❌ |
+| POV 정치학 | ✅ | ❌ |
+| ANTAGONIST_BJND (적대자 거울 관계) | ✅ | ❌ |
+
+〈바타비아 피의 계약〉 결과물에서 발견된 결함 4가지가 바로 이 공백에서 발생:
+- ① 2막 후반 호러 공포 부족 (호러 체크리스트 휘발)
+- ② 엔딩 이미지 애매 (BJND 4축·Ending Payoff 검증 공백)
+- ③ 유령 인식 범위 논리 비약 (논리 검증 부재)
+- ④ 두꾼 긴장감 소실 (위협 관리 휘발)
+
+추가 문제: **Gate E가 글자 수만 검증**하고 실제 내용을 보지 않음. 위 결함이 채점 없이 통과.
+
+### v2.3.6 해결 — 3가지 동시 수정
+
+**A. Treatment 시스템 프롬프트에 4개 핵심 모듈 주입**
+- GENRE_FUN_ALIVE — 장르별 체크리스트 매 비트 실시간 체크
+- BJND 4축 — 서사동력 4축 자가 검증
+- POV_POLITICS — 씬별 POV 선택
+- ANTAGONIST_BJND — 빌런 거울 관계
+
+**B. 장르별 Treatment 특별 지시 추가**
+- 호러: 2막 후반 물리적 공포 장면 최소 2개+, 유령 인식 범위 명시, 위협 반복 등장
+- 로맨틱 코미디: Fun and Games 3개+, 클라이맥스 로맨스 완성 강제, 웃음+설렘 각 5회+
+
+**C. Gate E 실질 검증 체계 구축**
+- 이전: 비트별 글자 수만 전달 → 내용 검증 불가
+- 수정: 각 비트 narrative 500자 요약 + Core Build 참조(Strategy, Ending Payoff) + 장르 전달
+- 채점 축 4개 → 7개 확장:
+  - 신규: `genre_expectation_alignment` (장르 기대 정합)
+  - 신규: `ending_coherence` (Ending Payoff ↔ 실제 엔딩 정합)
+  - 신규: `logic_consistency` (세계관·캐릭터·긴장 요소 일관성)
+- `critical_issues` 배열에 문제 비트 번호 + 짧은 진단 기록
+
+### 효과 — Writer Engine 가동 조건 완성
+
+Core Build의 설계 품질이 Treatment 단계에서 휘발되지 않고 **Writer Engine이 받을 수 있는 형태로 전달**됨.
+
+〈바타비아〉 재생성 시 예상 변화:
+- 2막 후반 호러 공포 장면 최소 2개 강제 배치 (결함 ① 대응)
+- Ending Payoff와 엔딩 이미지 정합 검증 → "손목 브랜드에 재" 같은 배반 감지 (결함 ② 대응)
+- 유령 인식 범위 비약을 Gate E logic_consistency에서 critical_issues로 기록 (결함 ③ 대응)
+- 위협 요소 반복 등장 규칙으로 두꾼 긴장 유지 (결함 ④ 대응)
+
+---
+
+## v2.3.5 업데이트 (2026-04-22) — 프로젝트 JSON 저장/불러오기
+
+### 진단
+
+Streamlit Cloud 세션이 끊어지거나 브라우저를 닫으면 프로젝트 데이터가 전부 날아감. Core~Scene Design까지 수 시간 작업한 내용도 세션 종료 시 복구 불가능.
+
+실사용 시나리오:
+- Scene Design까지 완료 (2~3시간 소요)
+- 컴퓨터 종료, 다음 날 Treatment 실행하려니 **전부 다시 시작** 😱
+
+### 해결 — 프로젝트 JSON 저장/불러오기
+
+**저장 기능** — 3곳 배치:
+- Scene Design 완료 후 (Treatment 전 주요 체크포인트)
+- Treatment 완료 후 (Tone 전)
+- Tone Document 완료 후 (최종 백업)
+
+**불러오기 기능** — 홈 화면:
+- "📂 프로젝트 JSON 불러오기" expander
+- JSON 파일 업로드 → 자동 검증 → 완료된 단계로 자동 점프
+
+**사용 시나리오**:
+```
+Day 1: Core → Character → Structure → Scene Design 완료
+  → "💾 프로젝트 저장 (Scene 완료 시점)" 클릭
+  → 쿠킹클래스_Scene완료_20260422_1530.json 파일 저장
+  → 컴퓨터 종료
+
+Day 3: 다른 컴퓨터에서 Streamlit 접속
+  → 홈 화면 → "📂 프로젝트 JSON 불러오기" 클릭
+  → 저장한 JSON 파일 업로드
+  → 자동으로 Scene Design 화면으로 이동 (완료 상태 복원)
+  → "Treatment Build 진행 →" 클릭
+  → Treatment 실행 후 완성
+```
+
+**원칙 준수**:
+- **전체 저장 / 전체 복원** — 부분 저장 금지 (캐릭터 일관성 원칙)
+- **세션 복구 전용** — Stepper 점프(v2.3.4)와 역할 분리
+- **단순 UI** — expander 2개 + 버튼 3개만
+
+**안전장치**:
+- 엔진 버전 호환성 체크 (불일치 시 경고)
+- 중복 프로젝트 ID 충돌 시 새 ID 자동 부여 + "(복원본)" 표시
+- 필수 필드 누락 시 명확한 에러 메시지
+
+### Mr. MOON의 3가지 요구 완전 충족
+
+- ✅ 여러 날에 걸쳐 작업 가능
+- ✅ 다른 컴퓨터에서 이어서 작업
+- ✅ 장애 발생 시 복구 가능
+
+---
+
+## v2.3.4 업데이트 (2026-04-21) — Stepper 네비게이션 실제 작동화
+
+### 진단
+
+상단 Stepper UI가 시각적 표시만 할 뿐 실제 클릭 기능이 없었습니다. 코드에는 "클릭 가능 여부 (done 단계만)" 주석이 있었지만 구현이 누락되어, 사용자는 매번 "← 뒤로" 버튼으로 한 단계씩만 이동해야 했습니다.
+
+### 해결
+
+`render_stepper()` 함수를 `st.columns + st.button` 구조로 재작성.
+
+- **완료된 단계** (파란 배경, ✓ 아이콘): **클릭 시 해당 view로 즉시 점프**
+- **현재 단계** (노란 하이라이트, ● 아이콘): 클릭 비활성
+- **미완료 단계** (회색, 숫자): 클릭 비활성
+
+Mr. MOON 피드백: *"당초 상단 프로세스로 갈 수 있게 만든 건데"* — 원래 설계 의도대로 복원.
+
+### 효과
+
+- Scene Design 완료 후 JSON 저장 없이도 Treatment로 직접 점프 가능
+- 완료된 이전 단계로 이동해 내용 검토 후 다시 현재 단계 복귀 용이
+- 함수 하나만 재작성, 다른 코드 변경 없음
 
 ---
 
@@ -401,6 +677,11 @@ ANTHROPIC_API_KEY = "sk-ant-..."
 | **v2.3.1** | **[핫픽스] 캐릭터 일관성 보호 — 순차 생성 시 이전 캐릭터 핵심 사실 주입 (가족관계·학력·나이·비밀 모순 방지)** |
 | **v2.3.2** | **장르 기대 체크리스트 강화 — 11개 장르 각 6~7개 구체 체크 + CLIMAX 장르 정렬 엄격 채점** |
 | **v2.3.3** | **장르별 적대자 유형 재정의 — ANTAGONIST_BJND 재작성 · 로맨틱 코미디 예시 전환 (강회장 → 브리짓 존스 / 해리가 샐리 등) · 부모 반사 배치 결함 제거** |
+| **v2.3.4** | **Stepper 네비게이션 실제 작동화 — 상단 단계 표시바를 클릭 이동 가능한 버튼으로 변환. 완료된 단계 점프 이동 가능.** |
+| **v2.3.5** | **프로젝트 JSON 저장/불러오기 — 세션 끊김 대비 복구 기능. Scene/Treatment/Tone 완료 후 JSON 저장 + 홈에서 업로드 복원. 여러 날 / 다른 컴퓨터 / 장애 복구 지원.** |
+| **v2.3.6** | **장르/BJND/POV/적대자 규칙을 Treatment 단계까지 전파 + Gate E 실제 내용 논리 검증 (장르 정합/엔딩 정합/논리 일관성 3축 신규). Core Build 설계가 Writer Engine으로 휘발 없이 전달되도록 구조적 공백 해결.** |
+| **v2.3.7** | **시대 고증 검증 추가 — Gate E의 8번째 축 `period_consistency` 신설. 1980년대 배경에 스마트폰 등장 같은 시대 오류를 생성·검증 양쪽에서 방지. 역사영화 체크 여부와 무관하게 모든 작품에 적용.** |
+| **v2.3.8** | **Core Build 필드 Treatment 전파 + Research 선별 응용 구조 — Core Build에 `research_applied` 필드 신설(references_used/verisimilitude_anchors/research_absorption_note). "리서치 전체가 아닌 이 작품에 응용된 것만" 엔진화. project_intent/world_build/genre_warning/research_applied 4종 블록 Treatment 전파. 핍진성 앵커가 Writer Engine까지 휘발 없이 전달.** |
 
 ---
 
