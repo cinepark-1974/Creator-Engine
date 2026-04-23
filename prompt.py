@@ -15,12 +15,15 @@
 
 ─────────────────────────────────────────────────────────
 v2.3.8 업데이트 (2026-04-22) — Core Build 필드 Treatment 전파 완성
-                                   (기획의도+세계관+자가진단+리서치)
+                                 + Research 선별 응용 구조 (research_applied)
 ─────────────────────────────────────────────────────────
 
 [문제 진단 — Mr. MOON 지적]
 "기본적으로 코어빌드에 많은 걸 넣어두었는데 트리트먼트로 연결되는지야.
 리서치 기능도 넣어놔서 핍진성을 높이려고 했단 말이지"
+
+추가 방향 확정:
+"리서치 내용 전체를 받을 필요는 없고. 설정된 캐릭터에 사용할 수 있는 것만 응용하면 됨"
 
 실증 확인 결과 Core Build에서 생성되지만 Treatment 단계에서 휘발되던 필드:
   · project_intent (기획의도, 주제, 톤앤매너) — 매 비트 주제 이탈 위험
@@ -28,44 +31,43 @@ v2.3.8 업데이트 (2026-04-22) — Core Build 필드 Treatment 전파 완성
   · genre_expectation_check.weak_zones — Core 자가 진단 경고 사장
   · research (실제 사건 + 기존 작품) — 핍진성 설계 의도 작동 안 함
 
-Mr. MOON이 〈바타비아〉 포함 대부분 프로젝트에서 Research를 사용하는데,
-이 데이터가 Brainstorm/Core까지만 전달되고 Treatment부터 Writer Engine까지
-전달이 끊김. 결과:
-  · 표절 방지 신호가 Writer Engine까지 전달 안 됨
-  · 실제 사건 디테일이 시나리오에 반영 안 됨
-  · Core Build의 자가 진단 약점 구간이 Treatment에서 무시됨
+[v2.3.8 해결책 — 두 축 동시 적용]
 
-[v2.3.8 해결책 — main.py의 call_treatment_beats() 대폭 확장]
+[축 1] Core Build 휘발 필드 4종 Treatment 전파:
+  main.py의 call_treatment_beats()의 user_prompt에 4개 블록 신규 삽입:
+  · project_intent_block — 주제·피치·톤앤매너
+  · world_build_block — 시대/공간/규칙/터부/시각 키워드
+  · genre_warning_block — Core 자가 진단의 weak_zones + climax_verdict
+  · research_block_treatment — 리서치 선별 응용 결과
 
-[A] 함수 시그니처에 research=None 추가
-[B] user_prompt에 4개 전파 블록 신규 삽입:
-
-  [1] project_intent_block — 주제·피치·톤앤매너
-      "매 비트가 수렴해야 할 주제" 명시
+[축 2] Research 선별 응용 구조 (Mr. MOON 원칙 반영):
+  Core Build JSON 스키마에 research_applied 필드 신설:
   
-  [2] world_build_block — 시대/공간/규칙/터부/시각 키워드
-      "시대 배경에 존재하지 않는 기술·제도·문화 포함 금지" 명시 (생성 단계)
+  "research_applied": {{
+    "references_used": [이 작품에 실제로 녹인 리서치 요소만],
+    "verisimilitude_anchors": [Writer Engine이 유지할 핵심 디테일 3~5개],
+    "research_absorption_note": 작가 흡수 노트 1문장
+  }}
   
-  [3] genre_warning_block — Core Build 자가 진단 경고
-      weak_zones 리스트와 climax_verdict를 Treatment가 참조
-      CLIMAX_FAIL 시 장르 약속에 맞는 3막 재설계 강제
-  
-  [4] research_block_treatment — 실제 사건 상위 5개 + 기존 작품 제목
-      · real_events: 제목/연도/요약/활용 가능성 → 비트 디테일 원천
-      · existing_works: 제목 리스트 → 표절 방지 참조
-      · key_insight: Research 핵심 통찰
+  Core Build가 리서치 전체를 받고 '이 작품에 응용된 것만' 선별 기록.
+  Treatment는 전체 research가 아닌 research_applied만 우선 전달.
+  핵심: "설정된 캐릭터에 사용할 수 있는 것만 응용" 원칙 엔진화.
 
-[C] 호출부 3곳(1막/2막/3막) 모두 research=project.get("research") 전달
+[main.py 변경]
+  · call_treatment_beats() 시그니처에 research=None 추가
+  · user_prompt에 research_applied 우선 전달 블록 추가
+  · 원본 research는 research_applied가 비어있을 때만 최소 참고 (구버전 호환)
+  · 호출부 3곳(1막/2막/3막) research=project.get("research") 전달
 
-[프롬프트 토큰 관리]
-Research 전달 시 과부하 방지 장치:
-  · real_events 상위 5개만 (요약 150자 제한, 활용 100자 제한)
-  · existing_works 상위 7개 제목만 추출
-  · 불필요한 필드 제외
+[prompt.py 변경]
+  · build_system_core()에 research_applied 작성 지시 추가
+  · Core Build가 리서치를 선별 응용하도록 강제
 
-이로써 Mr. MOON이 설계하신 전 엔진 구조가 Writer Engine 직전까지
-휘발 없이 전달됨. Research 기능이 핍진성 강화 + 표절 방지 두 역할을
-Treatment 생성 단계에서 실제 작동.
+[효과]
+  · Core Build의 풍부한 설계가 Treatment에서 휘발 없이 전달
+  · Research가 '나열'이 아닌 '이 작품에 녹인 것'으로 전달 (토큰 효율)
+  · Writer Engine이 받을 Treatment에 핍진성 앵커가 구체 박힘
+  · Core Build의 자가 진단 약점 구간이 Treatment에서 강화 설계됨
 
 ─────────────────────────────────────────────────────────
 v2.3.7 업데이트 (2026-04-22) — 시대 고증 검증 추가
@@ -411,11 +413,11 @@ BLUE JEANS 3축 (Mr.MOON 고유)
   v2.3.7 시대 고증 검증 추가 — Gate E의 8번째 축 period_consistency 신설.
          1980년대 배경에 스마트폰 등장 같은 시대 오류를 생성·검증 양쪽에서 방지.
          역사영화 체크 여부와 무관하게 모든 작품에 적용.
-  v2.3.8 Core Build 필드 Treatment 전파 완성 — project_intent(기획의도+주제+
-         톤앤매너) + world_build(시대/공간/규칙) + genre_expectation_check.weak_zones
-         (Core 자가 진단) + research(실제 사건 + 기존 작품) 4종 블록 주입.
-         Research 데이터가 Writer Engine 직전까지 휘발 없이 전달되어 핍진성 강화
-         + 표절 방지 양쪽 역할 완성.
+  v2.3.8 Core Build 필드 Treatment 전파 완성 + Research 선별 응용 구조.
+         project_intent + world_build + genre_warning + research_applied 4종 블록 주입.
+         Core Build에 research_applied 필드 신설 (references_used / verisimilitude_anchors
+         / research_absorption_note). Mr. MOON 원칙 "리서치 전체가 아닌 이 작품에
+         응용된 것만" 엔진화. 핍진성 앵커가 Writer Engine까지 휘발 없이 전달.
 
 © 2026 BLUE JEANS PICTURES. All rights reserved.
 """
@@ -3521,7 +3523,31 @@ Brainstorm에서 선정된 컨셉을 기반으로 Core Build를 수행한다.
 - 영화는 총 4~5명, 미니시리즈는 6~8명이 적정. 이야기가 필요로 하는 만큼 생성.
 - ★ BJND 설계 완료 후 bjnd_four_axis_check 필드에 4축 자가 검증 결과를 반드시 기재하라. ★
 - ★ 적대자(antagonist)도 반드시 BJND 4단(Lack/Desire/Strategy/Cost)으로 설계하라 — 평면 빌런 금지. ★
-- ★ 테마와 주인공 Strategy의 방향이 일치하는지 자가 검증하라 — 반대 방향이면 재설계. ★"""
+- ★ 테마와 주인공 Strategy의 방향이 일치하는지 자가 검증하라 — 반대 방향이면 재설계. ★
+
+[★★★ v2.3.8 — 리서치 선별 응용 (research_applied 필수 작성) ★★★]
+사용자가 [리서치 참고] 섹션을 제공한 경우, research_applied 필드에 반드시 다음을 기록하라:
+
+1. references_used (이 작품에 실제로 응용된 리서치 요소만):
+   - 리서치 전체를 나열하지 마라. '이 작품에 녹인 것'만 선별.
+   - 예: real_events 5개 중 2개만 세계관·캐릭터에 녹였다면 그 2개만 기록.
+   - 각 항목은 applied_to(어디에), how_applied(어떻게)가 구체적으로 드러나야 함.
+   - 캐릭터에 적용된 경우 character_name 반드시 기입.
+   
+2. verisimilitude_anchors (핍진성 앵커 3~5개):
+   - Treatment와 시나리오 단계에서 Writer Engine이 반드시 유지할 '현실 기반 디테일'.
+   - 추상 금지: "감정적 무게" X → "1997년 IMF 당시 은행 앞 줄서기 모습" O
+   - 이것이 없으면 Treatment가 공허한 추상으로 흐름.
+   
+3. research_absorption_note (작가 흡수 노트 1문장):
+   - "이 작품이 리서치를 어떻게 소화했는가" 작가 시점 정리.
+   - 단순 "참고했다"가 아니라 "이 작품만의 방식으로 어떻게 흡수되었는가".
+
+리서치가 제공되지 않은 경우에도 verisimilitude_anchors는 작품 내적 설정 기반으로 3개 생성 
+(references_used와 research_absorption_note는 빈 배열/빈 문자열).
+
+이 필드는 Treatment 단계에서 Writer Engine으로 전달되어 시나리오 핍진성의 뼈대가 되므로
+휘발시키거나 추상으로 흐려서는 안 된다."""
 
 
 SYSTEM_CORE_GATE = """당신은 Development Producer다.
