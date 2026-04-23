@@ -2,8 +2,8 @@
 👖 BLUE JEANS Creator Engine — Prompt Library
 
 ╔══════════════════════════════════════════════════════════╗
-║  VERSION: v2.3.8                                         ║
-║  BUILD DATE: 2026-04-22                                  ║
+║  VERSION: v2.3.9                                         ║
+║  BUILD DATE: 2026-04-23                                  ║
 ║  STATUS: Production                                      ║
 ╚══════════════════════════════════════════════════════════╝
 
@@ -12,6 +12,33 @@
 - Streamlit UI 좌측 사이드바 하단 "Engine Info" 확인
 - README.md 최상단 확인
 세 곳의 버전이 일치해야 정상.
+
+─────────────────────────────────────────────────────────
+v2.3.9 업데이트 (2026-04-23) — ROMCOM 전용 OVERRIDE 추가
+                                 + Profession Pack 신설 (13 카테고리)
+                                 + 전문직 디테일 Core Build · Treatment 전파
+─────────────────────────────────────────────────────────
+
+[v2.3.9 핵심]
+1. ROMCOM_RULES 블록 신설 (로맨틱 코미디 전용 8개 원칙)
+   - 톤 밸런스 (웃음+설렘 이중 엔진)
+   - 삼각관계 공간 차별화 법칙
+   - 데이트 시퀀스 Beat 배치 표준
+   - 2막 중반 교차 편집 몽타주 필수
+   - Low Point 직전 귀환 구조
+   - 롬코 Meet-Cute 재설계
+   - 대사 이중 레이어 규칙
+   - 결말 문법 (웃음+눈물 동시 착지)
+
+2. _is_romcom() 판별 함수 추가
+   - COMEDY + ROMANCE + ROMCOM 삼중 활성화 구조
+
+3. Profession Pack (profession_pack.py 신규 파일)
+   - 13개 카테고리 (법률/의료/금융/언론창작/공직정치/요식서비스
+     /교육/엔터/IT/예술전통/수사/건설/자영업)
+   - 각 카테고리: 세부직종, 일과, 용어사전, 공간디테일,
+     스트레스, 금지오류, 한국맥락, 연애경향
+   - Core Build + Treatment 자동 주입
 
 ─────────────────────────────────────────────────────────
 v2.3.8 업데이트 (2026-04-22) — Core Build 필드 Treatment 전파 완성
@@ -427,8 +454,8 @@ BLUE JEANS 3축 (Mr.MOON 고유)
 # 수정 시 ENGINE_VERSION과 ENGINE_BUILD_DATE를 함께 갱신하세요.
 # ═══════════════════════════════════════════════════
 
-ENGINE_VERSION = "v2.3.8"
-ENGINE_BUILD_DATE = "2026-04-22"
+ENGINE_VERSION = "v2.3.9"
+ENGINE_BUILD_DATE = "2026-04-23"
 ENGINE_STATUS = "Production"
 
 def get_engine_info() -> str:
@@ -494,9 +521,12 @@ LOCKED 블록에 명시되지 않은 모든 디테일은 엔진이 자유롭게 
 - 빌런의 대사나 조직의 유혹 구조에 반영하는 것이 가장 효과적이다.
 """
 
-def build_locked_block(locked_items: list = None, open_items: list = None) -> str:
+def build_locked_block(locked_items: list = None, open_items: list = None, idea_text: str = "") -> str:
     """
     LOCKED 블록을 생성한다. (v2.3부터 OPEN 필드는 폐지 — open_items는 하위 호환성을 위해 받지만 무시)
+    
+    v2.3.9: 직업 키워드 자동 감지. LOCKED 항목과 idea_text에서 직업을 추출해
+    profession_pack.py의 해당 전문직 블록을 자동 주입한다.
     
     사용 예:
         locked = [
@@ -521,6 +551,73 @@ def build_locked_block(locked_items: list = None, open_items: list = None) -> st
         result += "</LOCKED>\n\n"
     
     # v2.3: OPEN 블록 생성 폐지. open_items 파라미터는 하위 호환성을 위해 받지만 무시한다.
+    
+    # v2.3.9: Profession Pack 자동 주입
+    try:
+        import profession_pack as PP
+        # LOCKED 항목들과 idea_text를 합쳐서 스캔
+        scan_texts = []
+        if locked_items:
+            scan_texts.extend(locked_items)
+        if idea_text:
+            scan_texts.append(idea_text)
+        
+        # 감지된 모든 카테고리 수집 (중복 제거)
+        all_categories = []
+        for text in scan_texts:
+            cats = PP.detect_profession_category(text)
+            for c in cats:
+                if c not in all_categories:
+                    all_categories.append(c)
+        
+        if all_categories:
+            # 단일 통합 블록 생성 — 캐릭터 이름 없이 카테고리 기반
+            blocks = []
+            for cat in all_categories:
+                if cat not in PP.PROFESSION_PACK:
+                    continue
+                data = PP.PROFESSION_PACK[cat]
+                block = f"""[직업 전문성 블록 — {cat} ({data['en']})]
+
+[세부 직종 후보]
+{chr(10).join('- ' + s for s in data['subtypes'])}
+
+[하루 타임라인]
+{data['daily_timeline']}
+
+[전문 용어 사전 (선별 활용, 전체 나열 금지)]
+{chr(10).join('- ' + j for j in data['jargon'])}
+
+[공간 디테일]
+{data['space_detail']}
+
+[직업적 스트레스·내적 갈등]
+{data['stress']}
+
+[금지 사항]
+{data['forbidden']}
+
+[한국 고유 맥락]
+{data['korea_context']}
+
+[연애·관계 스타일 경향성]
+{data['romance_style']}"""
+                blocks.append(block)
+            
+            if blocks:
+                intro = """<PROFESSION_PACK>
+[전문직 디테일 자료 — v2.3.9 자동 주입]
+아래는 등장인물들의 직업 세계에 대한 한국 맥락 기반 디테일이다.
+각 블록에서 '이 작품에 녹일 수 있는 요소만' 장면·대사·갈등에 선별 응용하라.
+전체 나열·설명적 서술 금지. 디테일은 보이지 않게 스며들어야 한다.
+리서치 선별 응용 원칙(v2.3.8)과 동일 — 녹지 않은 디테일은 휘발되어도 된다."""
+                result += intro + "\n\n" + "\n\n".join(blocks) + "\n</PROFESSION_PACK>\n\n"
+    except ImportError:
+        # profession_pack.py가 없어도 크래시 없이 통과
+        pass
+    except Exception:
+        # 기타 예외도 조용히 통과 — Profession Pack은 옵션 기능
+        pass
     
     return result
 
@@ -2111,6 +2208,155 @@ ROMANCE_RULES = """
 """
 
 
+# ═══════════════════════════════════════════════════
+# ROMCOM OVERRIDE — v2.3.9 신규
+# 로맨틱 코미디 = 코미디 DNA + 로맨스 DNA + 롬코 고유 문법
+# COMEDY_RULES + ROMANCE_RULES 위에 추가 활성화
+# ═══════════════════════════════════════════════════
+
+ROMCOM_RULES = """
+[로맨틱 코미디 특화 규칙 — ROMCOM OVERRIDE]
+
+★ 이 작품은 로맨틱 코미디다. 코미디 + 로맨스 규칙 위에 아래 롬코 고유 문법이 추가로 작동한다. ★
+★ '웃기면서 설레고, 설레면서 아프다' — 한 장면에서 두 감정이 동시에 작동해야 롬코다. ★
+
+[1. 롬코 톤 밸런스 — 웃음과 설렘의 이중 엔진]
+1. 모든 로맨틱 장면에 코믹 결을 1개 이상 심어라.
+   ❌ 드라마체 로맨스: '두 사람이 빗속에서 서로를 바라본다. 말없이.'
+   ✅ 롬코체: '두 사람이 빗속에서 서로를 바라본다. 우산이 작다. 한쪽 어깨가 다 젖었다.
+             그가 우산을 옮긴다. 이번엔 그녀 어깨가 다 젖는다. 둘 다 모른다.'
+   → 로맨스의 긴장을 유지하되, 상황의 비틀림으로 웃음 한 겹 더.
+
+2. 모든 코믹 장면에 로맨틱 잔향을 1개 이상 심어라.
+   ❌ 순수 코미디: '주인공이 친구와 약속 장소에서 엉뚱한 실수를 한다.'
+   ✅ 롬코: '주인공이 약속 장소에서 엉뚱한 실수를 한다. 상대가 웃는다.
+           그 웃음을 본 순간, 주인공의 얼굴이 한 박자 늦게 굳는다.'
+   → 코미디 다음에 0.5초의 감정 잔향이 남아야 관객이 '좋아하는구나'를 포착한다.
+
+3. 웃음 → 설렘 → 웃음의 파도 구조.
+   같은 씬 안에서 톤이 2번 이상 전환되어야 롬코다.
+   평탄한 웃음만 = 시트콤 / 평탄한 설렘만 = 멜로드라마.
+
+[2. 삼각관계 공간 차별화 법칙 (2인 이상 경쟁자 구조)]
+★ 두 경쟁자의 데이트 장소는 반드시 차별화될 것. ★
+각 인물의 세계관·성격이 공간 선택으로 시각화되어야 한다.
+
+예시 축:
+- 안정형 vs 예술가형: 예약된 레스토랑 vs 즉흥적 포장마차
+- 계획형 vs 즉흥형: 미술관 큐레이터 투어 vs 밤거리 산책
+- 전통형 vs 도시형: 한옥 카페 vs 루프탑 바
+- 부유층형 vs 서민형: 고급 호텔 라운지 vs 오래된 동네 맛집
+
+금지:
+❌ 두 경쟁자가 같은 유형의 공간에서 데이트 (카페/레스토랑 반복)
+❌ 공간이 인물 성격과 무관하게 선택됨 (작가 편의주의)
+❌ 공간의 기능이 배경으로만 쓰이고 대비축을 형성하지 못함
+
+[3. 데이트 시퀀스 Beat 배치 (롬코 구조 필수)]
+삼각관계형 롬코의 경우 — 작품 전체에 최소 4회의 데이트/외부 2인 장면 배치.
+
+표준 배치 (16비트 영화 기준):
+- Beat 5~6 (1막 후반): 남주 A와의 첫 데이트 — 케미 증명 1
+- Beat 7~8 (2막 초): 남주 B와의 예상 밖 만남 — 케미 증명 2
+- Beat 9~10 (2막 중): 교차 편집 몽타주 — 주인공의 딜레마 시각화 ★필수★
+- Beat 11~12 (2막 후): 관계 진전 또는 결정적 흔들림 — 외부 공간
+- Beat 13~14 (3막): Low Point 직전 외부 장면 + 주 공간 귀환 세트
+
+양자관계형 롬코의 경우 — 교차 편집 몽타주 항목 생략, 나머지는 축소 적용.
+
+[4. 2막 중반 교차 편집 데이트 몽타주 — ROMCOM 구조적 필수 장치]
+★ 삼각관계 롬코에서 Beat 9~10 부근에 반드시 1회 배치. ★
+
+설계 원칙:
+- 주인공이 두 경쟁자와 번갈아 만나는 장면을 병렬 편집으로 제시
+- 각 장면은 짧게(30초~1분 단위), 컷 전환으로 감정 리듬 생성
+- 같은 행위(식사/이동/대화)를 두 공간에서 교차
+- 주인공의 표정/반응이 두 상대 앞에서 어떻게 다른지 시각화
+
+이 몽타주의 서사 기능:
+- 관객에게 주인공의 '간보기'를 체화시키는 구간
+- 주인공 자신도 자각하지 못하는 기울어짐을 관객이 먼저 포착
+- 3막 Low Point의 감정적 준비 — 여기서 관객은 '이러다 놓친다'를 직감
+
+[5. Low Point 직전 귀환 구조 — ROMCOM 3막 문법]
+3막 진입 직전 외부 데이트 장면은 반드시 '주 공간 귀환 장면'과 세트로 구성.
+
+구조:
+외부 (두 사람 중 한 명과) → 주인공 혼자 주 공간 귀환 → 선택 회피의 대가 시각화
+
+예:
+- 외부 와인바에서 즐거운 대화
+- 주인공 혼자 집으로 돌아옴
+- 냉장고 열고 물 한 잔. 소파에 앉음. 아무것도 안 함.
+- 이 '정적'이 '간보기의 대가'를 말없이 전달
+
+금지:
+❌ 외부 데이트 후 바로 다른 외부 장면으로 이동
+❌ Low Point를 외부에서 직접 처리 (귀환 없는 붕괴)
+
+[6. 롬코 Meet-Cute 재설계]
+★ 첫 만남이 일반 로맨스와 달라야 롬코다. ★
+
+롬코 Meet-Cute 원칙:
+- 일상에 있을 법한 상황인데 한 가지가 비틀린 구조
+- 첫 만남에 '코믹 실수 또는 오해'가 반드시 1개 포함
+- 서로의 결함이 첫 만남에 드러남 (숨기려다 실패)
+- 첫 만남에서 상대에 대한 '첫 판단'이 틀렸음이 추후 뒤집힘
+
+금지:
+❌ 운명적 조우 (드라마/멜로 문법)
+❌ 완벽한 첫인상 (롬코의 설렘 엔진이 꺼짐)
+❌ 위기 속 구출 (로맨스 클리셰, 롬코 아님)
+
+[7. 롬코 대사 — 이중 레이어 규칙]
+★ 롬코 대사는 표면 의미 + 이면 감정이 동시에 작동해야 한다. ★
+
+구조:
+- 표면: 일상적이거나 코믹한 대화 (상대 무장 해제)
+- 이면: 진짜 감정 또는 욕망 (관객만 포착)
+
+예:
+표면: '커피에 설탕 안 넣으시네요?'
+이면: '당신이 뭘 좋아하는지 궁금해요.'
+
+표면: '이 책 재미없는 거 같던데요.'
+이면: '당신이 추천했으니 다 읽었어요.'
+
+규칙:
+- 롬코의 핵심 대사는 절대 직설적이지 않다
+- 상대가 못 알아듣는 동안 관객은 알아듣는 구조가 매력의 엔진
+- 고백은 작품에 1번만. 나머지는 '돌려 말하기'의 연속
+
+[8. 롬코 결말 문법 — 웃음과 눈물의 동시 착지]
+★ 롬코 엔딩의 핵심 이미지는 '웃다가 울거나, 울다가 웃는' 순간. ★
+
+금지:
+❌ 순수 해피엔딩 (눈물 없는 착지)
+❌ 비극적 엔딩 (웃음 없는 착지 — 이건 멜로드라마)
+❌ 열린 결말 (롬코는 감정의 명확한 도착점이 필요)
+
+권장:
+✅ 장엄한 고백이 엉뚱한 상황에 방해받음 → 웃음 후 진심 도달
+✅ 화해의 순간에 코믹한 실수 → 긴장 해소 후 더 깊은 감정
+✅ 결정적 선택의 순간 유머 → 무게를 덜어주면서 관객이 더 크게 울게 만드는 구조
+
+[롬코 캐릭터 추가 규칙]
+- 주인공의 '결함'은 웃음의 원천이자 사랑 실패의 원인이어야 한다 (같은 결함, 이중 기능)
+- 두 경쟁자 중 한 명은 '안정', 한 명은 '자극' 축으로 설정될 때 가장 효과적
+- 주인공의 베스트 프렌드는 반드시 1명 이상 — 관객 대리인 기능 (주인공에게 솔직하게 말해주는 존재)
+- 부모/권력자는 롬코의 안타고니스트가 아니다 (ROMANCE_RULES 참조)
+
+[롬코 FAIL 체크리스트]
+다음이 발생하면 롬코 장르 실패:
+- 코믹 씬이 서사를 정지시킨다 (개그를 위한 개그)
+- 로맨틱 씬에 유머가 없다 (드라마/멜로로 드리프트)
+- 삼각관계인데 두 경쟁자의 데이트 장소가 구별되지 않는다
+- 2막 중반에 교차 편집 몽타주가 없다 (삼각관계의 경우)
+- 결말이 선택을 회피한다 (열린 결말 = 롬코 실패)
+- 고백이 2회 이상 등장한다 (고백 인플레이션)
+"""
+
+
 def _is_horror(genre: str) -> bool:
     """장르가 호러인지 판별"""
     g = genre.lower()
@@ -2121,6 +2367,23 @@ def _is_romance(genre: str) -> bool:
     """장르가 로맨스인지 판별 (롬코/로맨틱 코미디 포함)"""
     g = genre.lower()
     return "로맨스" in g or "멜로" in g or "romance" in g or "롬코" in g or "로맨틱" in g
+
+
+def _is_romcom(genre: str) -> bool:
+    """장르가 로맨틱 코미디인지 판별 (v2.3.9 신규).
+    코미디 + 로맨스 둘 다 True이거나, 롬코/로맨틱 코미디 명시인 경우."""
+    g = genre.lower()
+    # 명시적 롬코 표기
+    if "롬코" in g or "romcom" in g or "rom-com" in g:
+        return True
+    if "로맨틱 코미디" in g or "로맨틱코미디" in g or "romantic comedy" in g:
+        return True
+    if "로맨스 코미디" in g or "로코" in g:
+        return True
+    # 코미디 + 로맨스/로맨틱/멜로 동시 포함
+    has_comedy = "코미디" in g or "comedy" in g
+    has_romance = "로맨스" in g or "로맨틱" in g or "멜로" in g or "romance" in g
+    return has_comedy and has_romance
 
 
 def _is_action(genre: str) -> bool:
@@ -3372,8 +3635,8 @@ def get_opening_dna_instruction(genre: str) -> str:
 
 
 
-    """장르별 특화 규칙 통합 반환 (8장르 지원).
-    롬코(로맨틱 코미디)면 코미디+로맨스 이중 활성화."""
+    """장르별 특화 규칙 통합 반환 (v2.3.9: 9장르 지원, ROMCOM 추가).
+    롬코(로맨틱 코미디)면 코미디+로맨스+ROMCOM 삼중 활성화."""
     blocks = []
     if _is_comedy(genre):
         blocks.append(COMEDY_RULES)
@@ -3381,6 +3644,8 @@ def get_opening_dna_instruction(genre: str) -> str:
         blocks.append(HORROR_RULES)
     if _is_romance(genre):
         blocks.append(ROMANCE_RULES)
+    if _is_romcom(genre):
+        blocks.append(ROMCOM_RULES)
     if _is_action(genre):
         blocks.append(ACTION_RULES)
     if _is_drama(genre):
@@ -3439,8 +3704,8 @@ Brainstorm Top 3를 기반으로 시장성/차별화/타이밍을 분석하고 G
 
 
 def _get_genre_override(genre: str) -> str:
-    """장르별 특화 규칙 통합 반환 (8장르 지원).
-    롬코(로맨틱 코미디)면 코미디+로맨스 이중 활성화."""
+    """장르별 특화 규칙 통합 반환 (v2.3.9: 9장르 지원, ROMCOM 추가).
+    롬코(로맨틱 코미디)면 코미디+로맨스+ROMCOM 삼중 활성화."""
     blocks = []
     if _is_comedy(genre):
         blocks.append(COMEDY_RULES)
@@ -3448,6 +3713,8 @@ def _get_genre_override(genre: str) -> str:
         blocks.append(HORROR_RULES)
     if _is_romance(genre):
         blocks.append(ROMANCE_RULES)
+    if _is_romcom(genre):
+        blocks.append(ROMCOM_RULES)
     if _is_action(genre):
         blocks.append(ACTION_RULES)
     if _is_drama(genre):
