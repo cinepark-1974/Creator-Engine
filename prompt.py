@@ -2,8 +2,8 @@
 👖 BLUE JEANS Creator Engine — Prompt Library
 
 ╔══════════════════════════════════════════════════════════╗
-║  VERSION: v2.3.3                                         ║
-║  BUILD DATE: 2026-04-21                                  ║
+║  VERSION: v2.3.8                                         ║
+║  BUILD DATE: 2026-04-22                                  ║
 ║  STATUS: Production                                      ║
 ╚══════════════════════════════════════════════════════════╝
 
@@ -12,6 +12,226 @@
 - Streamlit UI 좌측 사이드바 하단 "Engine Info" 확인
 - README.md 최상단 확인
 세 곳의 버전이 일치해야 정상.
+
+─────────────────────────────────────────────────────────
+v2.3.8 업데이트 (2026-04-22) — Core Build 필드 Treatment 전파 완성
+                                   (기획의도+세계관+자가진단+리서치)
+─────────────────────────────────────────────────────────
+
+[문제 진단 — Mr. MOON 지적]
+"기본적으로 코어빌드에 많은 걸 넣어두었는데 트리트먼트로 연결되는지야.
+리서치 기능도 넣어놔서 핍진성을 높이려고 했단 말이지"
+
+실증 확인 결과 Core Build에서 생성되지만 Treatment 단계에서 휘발되던 필드:
+  · project_intent (기획의도, 주제, 톤앤매너) — 매 비트 주제 이탈 위험
+  · world_build (시대, 공간, 규칙) — 시대 오류 방지 실패 (v2.3.7 Gate에만 있었음)
+  · genre_expectation_check.weak_zones — Core 자가 진단 경고 사장
+  · research (실제 사건 + 기존 작품) — 핍진성 설계 의도 작동 안 함
+
+Mr. MOON이 〈바타비아〉 포함 대부분 프로젝트에서 Research를 사용하는데,
+이 데이터가 Brainstorm/Core까지만 전달되고 Treatment부터 Writer Engine까지
+전달이 끊김. 결과:
+  · 표절 방지 신호가 Writer Engine까지 전달 안 됨
+  · 실제 사건 디테일이 시나리오에 반영 안 됨
+  · Core Build의 자가 진단 약점 구간이 Treatment에서 무시됨
+
+[v2.3.8 해결책 — main.py의 call_treatment_beats() 대폭 확장]
+
+[A] 함수 시그니처에 research=None 추가
+[B] user_prompt에 4개 전파 블록 신규 삽입:
+
+  [1] project_intent_block — 주제·피치·톤앤매너
+      "매 비트가 수렴해야 할 주제" 명시
+  
+  [2] world_build_block — 시대/공간/규칙/터부/시각 키워드
+      "시대 배경에 존재하지 않는 기술·제도·문화 포함 금지" 명시 (생성 단계)
+  
+  [3] genre_warning_block — Core Build 자가 진단 경고
+      weak_zones 리스트와 climax_verdict를 Treatment가 참조
+      CLIMAX_FAIL 시 장르 약속에 맞는 3막 재설계 강제
+  
+  [4] research_block_treatment — 실제 사건 상위 5개 + 기존 작품 제목
+      · real_events: 제목/연도/요약/활용 가능성 → 비트 디테일 원천
+      · existing_works: 제목 리스트 → 표절 방지 참조
+      · key_insight: Research 핵심 통찰
+
+[C] 호출부 3곳(1막/2막/3막) 모두 research=project.get("research") 전달
+
+[프롬프트 토큰 관리]
+Research 전달 시 과부하 방지 장치:
+  · real_events 상위 5개만 (요약 150자 제한, 활용 100자 제한)
+  · existing_works 상위 7개 제목만 추출
+  · 불필요한 필드 제외
+
+이로써 Mr. MOON이 설계하신 전 엔진 구조가 Writer Engine 직전까지
+휘발 없이 전달됨. Research 기능이 핍진성 강화 + 표절 방지 두 역할을
+Treatment 생성 단계에서 실제 작동.
+
+─────────────────────────────────────────────────────────
+v2.3.7 업데이트 (2026-04-22) — 시대 고증 검증 추가
+─────────────────────────────────────────────────────────
+
+[문제 진단 — Mr. MOON 지적]
+v2.3.6의 logic_consistency 검증 축이 "세계관 규칙"을 본다고 했지만
+시대 고증(period consistency)이 명시되지 않음. 예:
+  · 1980년대 설정인데 Treatment에 스마트폰·AI 로봇 등장
+  · 조선시대 배경인데 사진·기차 언급
+  · 1995년 배경인데 카카오톡 사용
+이런 시대 오류를 현재 엔진이 감지 못 함.
+
+HISTORICAL_FILM_RULES는 '역사영화' 체크 시에만 주입되는데,
+1980년대 한국 드라마 같은 '근현대 배경'은 역사영화로 체크 안 되므로
+시대 고증 검증이 완전히 빠짐.
+
+[v2.3.7 해결책]
+모든 작품(역사영화 체크 여부 무관)에 시대 고증 검증 적용:
+
+[A] Treatment 시스템 프롬프트에 시대 고증 섹션 추가:
+  · 시대별 주요 금지 요소 목록 (1980년대~2022년 주요 기술 도입 시점)
+  · 역사 배경 시대 고증 기준
+  · 미래 SF 배경 시대 일관성
+  · 매 비트 자가 체크 항목
+
+[B] call_treatment_gate()에 world_build 정보 전달:
+  · world_build.time (시대)
+  · world_build.space (공간)
+  · world_build.rules (세계관 규칙)
+  → Gate E가 실제 Treatment 내용과 대조 검증 가능
+
+[C] Gate E 채점 축 7개 → 8개 확장:
+  · 신규: period_consistency (시대 고증)
+  · 신규 feedback 필드: period_check_feedback
+  · critical_issues에 시대 고증 오류 비트 번호 기록
+  · period_consistency가 4.0 미만이면 "전면 재작성 권고" 자동 출력
+
+[D] SYSTEM_TREATMENT_GATE 프롬프트 강화:
+  · 시대별 금지 요소 상세 가이드 주입
+  · 역사·현대·미래 3가지 케이스별 검증 기준 명시
+
+이로써 "Core Build에서 1980년대 설정한 작품이 Treatment에서
+스마트폰 쓴다" 같은 시대 오류가 생성 단계와 검증 단계 모두에서 방지됨.
+
+─────────────────────────────────────────────────────────
+v2.3.6 업데이트 (2026-04-22) — 장르/BJND/POV/적대자 Treatment 전파 +
+                                   Gate E 실제 내용 논리 검증
+─────────────────────────────────────────────────────────
+
+[문제 진단 — Mr. MOON이 발견한 엔진 구조적 공백]
+Core Build까지 공들여 설계한 장르 재미·서사동력·시선·적대자 규칙이
+Treatment 단계에서 전부 휘발되고 있었음.
+
+- GENRE_FUN_ALIVE 체크리스트: Core Build만 주입 → Treatment 미주입
+- BJND 4축 자가 검증: Core Build만 주입 → Treatment 미주입
+- POV 정치학: Core Build만 주입 → Treatment 미주입
+- ANTAGONIST_BJND (거울 관계): Core Build만 주입 → Treatment 미주입
+
+결과: 〈바타비아 피의 계약〉 결함 4가지가 여기서 발생
+  ① 2막 후반 호러 공포 부족 (호러 체크리스트 휘발)
+  ② 엔딩 이미지 애매 (BJND 4축·Ending Payoff 검증 공백)
+  ③ 유령 인식 범위 논리 비약 (논리 검증 부재)
+  ④ 두꾼 긴장감 소실 (PROVOCATION 관리 휘발)
+
+추가 문제: Treatment Gate(Gate E)가 글자 수만 봄. 실제 내용 미검증.
+→ 모든 결함이 채점 없이 통과.
+
+[v2.3.6 해결책]
+
+[A] build_system_treatment() 수정 — 4개 핵심 모듈 주입
+  · GENRE_FUN_ALIVE (장르 체크리스트 매 비트 실시간 체크)
+  · bjnd_four_axis (BJND 4축)
+  · POV_POLITICS (씬별 POV 선택)
+  · ANTAGONIST_BJND (빌런 거울 관계)
+  추가: 호러 Treatment 특별 지시 (2막 후반 공포 장면 최소 2개+,
+        유령 인식 범위 명시, 위협 요소 반복 등장 누적)
+  추가: 로맨틱 코미디 Treatment 특별 지시 (Fun and Games 3개+,
+        클라이맥스 로맨스 완성 강제, 웃음+설렘 각 5회+)
+
+[B] call_treatment_gate() 수정 — 실제 내용 전달
+  · 이전: 비트별 "글자 수(chars)"만 Gate에 전달
+  · 수정: 각 비트의 narrative 요약(500자) + Core Build 참조(Strategy,
+          Ending Payoff) + 장르 정보를 모두 전달
+  · Gate E 채점 축 4개 → 7개로 확장:
+    - 기존: cinematic_reading / scene_emotion_match / beat_completeness
+           / screenplay_ready
+    - 신규: genre_expectation_alignment (장르 기대 정합)
+           ending_coherence (Core Build Ending Payoff와 실제 엔딩 정합)
+           logic_consistency (세계관 규칙/캐릭터 일관성/긴장 요소 유지)
+  · critical_issues 배열에 문제 비트 번호 + 짧은 진단 기록
+
+[C] SYSTEM_TREATMENT_GATE 프롬프트 대폭 강화
+  · 한 줄(50자) → 검증 기준 체계 (1800자)
+  · 장르별 체크 기준 (호러 공포 장면 / 로코 클라이맥스 / 스릴러 정보 비대칭
+    / 액션 Setpiece 실재 등) 명시
+  · 엔딩 정합 / 논리 일관성 검증 기준 명시
+  · 6.0 미만 시 "재생성 권고" 자동 출력
+
+이로써 Core Build의 설계 품질이 Treatment 단계에서 휘발되지 않고
+Writer Engine으로 전달됨. Mr. MOON 표현: "장르적 재미 법칙이 Treatment에
+적용되지 않으면 Writer Engine이 가동이 안 된다" → 해결.
+
+─────────────────────────────────────────────────────────
+v2.3.5 업데이트 (2026-04-22) — 프로젝트 JSON 저장/불러오기
+─────────────────────────────────────────────────────────
+
+[문제 진단]
+Streamlit Cloud 세션이 끊어지거나 브라우저를 닫으면 프로젝트 데이터가
+전부 날아감. 수 시간에 걸쳐 Core~Scene Design까지 완료한 프로젝트도
+세션 종료 시 복구 불가능. Mr. MOON 실사용 시나리오:
+  · Scene Design까지 완료 (2~3시간 소요)
+  · 컴퓨터 종료
+  · 다음 날 Treatment 실행하려니 전부 다시 시작해야 함
+
+[v2.3.5 해결책]
+main.py에 프로젝트 JSON 저장/불러오기 기능 신설:
+
+1. 헬퍼 함수 3개 추가 (main.py):
+   · _get_project_stage() — 프로젝트의 완료 단계 파악
+   · save_project_to_json() — project dict 전체 직렬화
+   · load_project_from_json() — JSON에서 project 복원 + 검증
+
+2. JSON 저장 버튼 3곳에 배치:
+   · Scene Design 완료 후 (Treatment 전 주요 체크포인트)
+   · Treatment 완료 후 (Tone 전)
+   · Tone Document 완료 후 (최종 백업)
+
+3. 홈 화면에 JSON 불러오기 expander:
+   · st.file_uploader로 JSON 파일 받음
+   · 구조 검증, 엔진 버전 호환성 체크
+   · 중복 ID 충돌 시 새 ID 자동 부여
+   · 복원 후 해당 단계의 view로 자동 점프
+
+원칙 준수:
+  · 전체 저장/전체 복원 — 부분 저장 금지 (일관성 유지)
+  · 세션 복구 전용 — Stepper 점프(v2.3.4)와 역할 분리
+  · 단순 UI — expander 2개 + 버튼 3개만
+
+이로써 Mr. MOON의 실사용 요구 충족:
+  · 여러 날에 걸쳐 작업 가능
+  · 다른 컴퓨터에서 이어서 작업
+  · 장애 발생 시 복구 가능
+
+─────────────────────────────────────────────────────────
+v2.3.4 업데이트 (2026-04-21) — Stepper 네비게이션 실제 작동화
+─────────────────────────────────────────────────────────
+
+[문제 진단]
+상단 Stepper UI가 시각적 표시만 하고 실제로는 클릭 작동 안 함.
+코드 주석에는 "클릭 가능 여부 (done 단계만)"이라고 명시되어 있었지만
+실제 구현은 HTML 렌더링만으로 끝나 있어서 클릭 시 아무 반응 없음.
+
+원래 기획은 "완료된 단계를 Stepper에서 클릭해서 점프 이동"이었는데
+실제 UI는 이게 작동하지 않는 상태. 결과적으로 사용자는 매번 단계별
+"← 뒤로" 버튼으로만 이동 가능했음.
+
+[v2.3.4 해결책]
+render_stepper() 함수를 st.columns + st.button 구조로 재작성.
+각 단계가 실제 클릭 가능한 버튼이 됨:
+  · 완료된 단계(done): 클릭 시 해당 view로 즉시 점프
+  · 현재 단계(active): 노란 버튼으로 하이라이트, disabled
+  · 미완료(upcoming): 회색 비활성 버튼
+
+이로써 원래 기획된 네비게이션이 실제로 작동. 
+추가 UI 구조 변경 없이 함수 1개만 교체.
 
 ─────────────────────────────────────────────────────────
 v2.3.3 업데이트 (2026-04-21) — 장르별 적대자 유형 재정의
@@ -179,6 +399,23 @@ BLUE JEANS 3축 (Mr.MOON 고유)
   v2.3.3 장르별 적대자 유형 재정의 — ANTAGONIST_BJND 모듈 재작성
          · 로맨틱 코미디 예시 전환 (강회장 → 브리짓 존스/해리가 샐리 등)
          · 부모를 반사적으로 적대자 배치하는 결함 제거
+  v2.3.4 Stepper 네비게이션 실제 작동화 — 상단 단계 표시바를 클릭 이동 가능한
+         버튼으로 변환. 완료된 단계 점프 이동, 중간 단계 직접 진입 가능.
+  v2.3.5 프로젝트 JSON 저장/불러오기 — 세션 끊김 대비 복구 기능.
+         Scene/Treatment/Tone 완료 후 JSON 저장 + 홈 화면에서 업로드 복원.
+         여러 날 작업 / 다른 컴퓨터 작업 / 장애 복구 지원.
+  v2.3.6 장르/BJND/POV/적대자 규칙을 Treatment 단계까지 전파 +
+         Gate E 실제 내용 논리 검증 (장르 정합/엔딩 정합/논리 일관성 3축 신규).
+         Core Build 설계가 Treatment에서 휘발되어 Writer Engine으로 전달 안 되던
+         구조적 공백 해결.
+  v2.3.7 시대 고증 검증 추가 — Gate E의 8번째 축 period_consistency 신설.
+         1980년대 배경에 스마트폰 등장 같은 시대 오류를 생성·검증 양쪽에서 방지.
+         역사영화 체크 여부와 무관하게 모든 작품에 적용.
+  v2.3.8 Core Build 필드 Treatment 전파 완성 — project_intent(기획의도+주제+
+         톤앤매너) + world_build(시대/공간/규칙) + genre_expectation_check.weak_zones
+         (Core 자가 진단) + research(실제 사건 + 기존 작품) 4종 블록 주입.
+         Research 데이터가 Writer Engine 직전까지 휘발 없이 전달되어 핍진성 강화
+         + 표절 방지 양쪽 역할 완성.
 
 © 2026 BLUE JEANS PICTURES. All rights reserved.
 """
@@ -188,8 +425,8 @@ BLUE JEANS 3축 (Mr.MOON 고유)
 # 수정 시 ENGINE_VERSION과 ENGINE_BUILD_DATE를 함께 갱신하세요.
 # ═══════════════════════════════════════════════════
 
-ENGINE_VERSION = "v2.3.3"
-ENGINE_BUILD_DATE = "2026-04-21"
+ENGINE_VERSION = "v2.3.8"
+ENGINE_BUILD_DATE = "2026-04-22"
 ENGINE_STATUS = "Production"
 
 def get_engine_info() -> str:
@@ -3766,13 +4003,30 @@ Structure Build 결과를 기반으로 핵심 장면(Key Scene)을 설계한다.
 
 def build_system_treatment(genre: str, act_label: str, fmt: str = "", b_story_context: str = "",
                            fact_based: bool = False, historical: bool = False, film_type: str = "") -> str:
-    """Treatment v2.3 — SCOPE MANDATE + 8장르 특화 + B-Story + LOCKED + FACT/HISTORICAL + OPENING MASTERY + BJND + 창작자 감성"""
+    """Treatment v2.3.6 — Core Build의 장르/BJND/POV/적대자 규칙 모두 Treatment 단계까지 전파.
+    
+    [v2.3.6 핵심 수정 — 엔진 구조적 공백 해결]
+    이전까지 Treatment 시스템 프롬프트는 creator_sensibility(감성 3요소)만 받았음.
+    장르 체크리스트(GENRE_FUN_ALIVE), BJND 4축, POV 정치학, 적대자 BJND가 빠져서
+    Core Build에서 설계된 장르 재미/서사동력/시선/적대자가 Treatment 집필 시 휘발됨.
+    Writer Engine에 넘어가는 시나리오 직전 단계에서 구조적 공백 발생.
+    
+    이번에 Core Build와 동일한 핵심 모듈 4종을 Treatment에도 주입하여
+    매 비트 집필 시 장르 체크리스트 + BJND 4축 + POV 선택 + 적대자 거울 관계가
+    실시간 작동하도록 수정.
+    """
     genre_rules = get_genre_rules(genre)
     genre_rules_text = json.dumps(genre_rules, ensure_ascii=False)
     is_series = is_series_format(fmt)
     fact_block = get_fact_based_rules(fact_based)
     historical_block = get_historical_film_rules(historical, film_type)
     creator_sensibility = get_creator_sensibility()  # v2.3 Phase 3 — 모든 막에 주입
+    
+    # v2.3.6 신규 — Core Build에서 휘발되던 장르/BJND/POV/적대자 모듈을 Treatment에도 주입
+    genre_fun_check = GENRE_FUN_ALIVE  # 장르 체크리스트 (매 비트 실시간 체크)
+    bjnd_four_axis = get_bjnd_four_axis()  # BJND 4축 (씬 레벨 집행)
+    pov_politics = POV_POLITICS  # 시선의 정치학 (씬별 POV 선택)
+    antagonist_bjnd = ANTAGONIST_BJND  # 적대자 거울 관계 (빌런 비트)
 
     # OPENING MASTERY는 1막 트리트먼트에만 주입 (2막/3막에는 불필요)
     opening_treatment_block = ""
@@ -4035,6 +4289,56 @@ narrative의 모든 씬에 최소 1개의 '관객이 웃는 순간'이 있어야
 ★ 기획의도 키워드가 LOCKED에 있으면, 트리트먼트의 대사/행동/배경 묘사에 구체적으로 반영하라.
    추상적 테마로 대체하지 말고, 구체적 장면 디테일로 구현하라. ★
 ★ 역사적 사건 도입부가 LOCKED에 지정된 경우, 해당 에피소드 시작 비트에 반드시 포함하라. ★
+
+{bjnd_four_axis}
+
+{genre_fun_check}
+
+{pov_politics}
+
+{antagonist_bjnd}
+
+[★ v2.3.6 — 장르 체크리스트 매 비트 실시간 체크 ★]
+위 GENRE FUN ALIVE의 해당 장르 체크리스트를 매 비트 작성 전/작성 후 반드시 확인하라.
+특히 다음 비트에는 엄격 적용:
+  · 2막 후반 비트(Beat 9~11): 장르 중간 지점 약속 충족 여부
+  · 3막 비트(Beat 12~16): 클라이맥스가 장르 기대에 맞는지 (CLIMAX_FAIL 방지)
+  
+호러 장르 Treatment 특별 지시 (바타비아 결함 대응):
+  · 2막 후반에 물리적 공포 장면 최소 2개 이상 배치 (추리/대화만으로 2막 마감 금지)
+  · 유령·영혼·초자연 존재의 인식·행동 범위를 비트마다 명확히 (논리 비약 금지)
+  · 위협 요소(제물 요구, 저주 조건 등)는 1회성이 아니라 비트별로 반복 등장하며 긴장 누적
+
+로맨틱 코미디 Treatment 특별 지시:
+  · 2막 Fun and Games 시퀀스 3개 이상을 '사랑 관계의 어긋남'으로 구성
+  · 클라이맥스 씬이 '로맨스 완성 순간'인지 확인 (부녀 화해/가족 서사/사회 성공으로 대체 금지)
+  · 웃음 포인트 + 설렘 포인트 각각 5회 이상 비트 전체 분산
+
+[★ v2.3.7 — 시대 고증 절대 준수 ★]
+Core Build의 world_build.time 필드를 확인하고, 그 시대에 실존하지 않던 요소를
+Treatment에 포함하지 마라. 이것은 세계관 논리 검증의 일부이자 독립 체크 항목.
+
+시대별 주요 금지 요소 (참고 기준):
+  ■ 1980년대 이전: 스마트폰, 인터넷, 이메일, SNS, AI, 카카오톡 — 모두 없음
+  ■ 1990년대 초: 이메일·인터넷은 있지만 대중화 전 (소수 얼리 어답터만)
+  ■ 1990년대 후반: PC 통신(하이텔/천리안), 삐삐, 벽돌폰 시작
+  ■ 2000년대 초: 2G 피처폰, 싸이월드 시대 (카카오톡·인스타그램 없음)
+  ■ 2007년 이전: 아이폰 없음
+  ■ 2010년 이전: 카카오톡 없음, 인스타그램 없음
+  ■ 2022년 이전: ChatGPT 없음, 상용 AI 생성 도구 매우 제한적
+
+역사 배경(조선/고려/일제강점기/근대):
+  · 해당 시대에 없던 기술·제도·언어·개념 등장 금지
+  · 예: 조선시대 배경인데 '사진' '카메라' '기차' '전화' 등은 도입 시점 확인 필수
+
+미래 SF 배경:
+  · 제시된 미래 시점의 기술 수준을 일관되게 유지
+  · 세계관 규칙 내에서 기술이 역행하지 않도록
+
+자가 체크 (매 비트 작성 후):
+□ 이 비트에 등장하는 모든 소품/기술/제도/문화가 작품 시대(world_build.time)에 존재했는가?
+□ 캐릭터가 사용하는 통신 수단이 시대와 맞는가? (편지/공중전화/삐삐/휴대폰/스마트폰)
+□ 대사에 미래 유행어·신조어가 섞이지 않았는가?
 
 [BLUE JEANS 서사동력 — 트리트먼트 적용 (BJND v1.0)]
 - Core Build의 narrative_drive에서 주인공의 발생요인(상실/결핍)을 확인하라.
@@ -4469,4 +4773,73 @@ SCENE_DESIGN_RULES = """규칙:
 # ─── 보조 함수 시스템 프롬프트 ───
 SYSTEM_STRUCTURE_PROSE = "당신은 숙련된 시나리오 작가다. 유효한 단일 JSON만 출력. 후행 쉼표 금지."
 SYSTEM_TREATMENT_META = "당신은 Development Producer다. 유효한 단일 JSON만 출력. 후행 쉼표 금지."
-SYSTEM_TREATMENT_GATE = "당신은 Development Producer다. 유효한 단일 JSON만 출력. 후행 쉼표 금지. 점수 0.0~10.0."
+SYSTEM_TREATMENT_GATE = """당신은 Development Producer이자 Script Doctor다.
+제공된 Treatment를 Core Build 설계와 대조하여 엄격 검증한다.
+
+[v2.3.7 검증 기준 — 엄격 적용]
+
+1. cinematic_reading (영화적 가독성): narrative가 장면으로 떠오르는가
+2. scene_emotion_match (씬-감정 정합): 각 비트의 감정 흐름이 서사와 맞는가
+3. beat_completeness (비트 완성도): 각 비트가 SCOPE MANDATE 충족하는가 (3~5개 씬)
+4. screenplay_ready (시나리오 전환 가능성): Writer Engine이 바로 받아 쓸 수 있는가
+
+[v2.3.6 신규 검증 3축]
+
+5. genre_expectation_alignment (장르 기대 정합 — 가장 중요):
+   - 호러: 2막 후반에 물리적 공포 장면이 실제 등장하는가? 추리·대화만으로 채워졌다면 감점.
+   - 로맨틱 코미디: 클라이맥스가 로맨스 완성 순간인가? 부녀 화해/가족 서사로 대체되었다면 감점.
+   - 스릴러: 정보 비대칭이 2막 전반에 설계되었는가? 타이머가 작동하는가?
+   - 액션: Setpiece 액션 시퀀스가 실제로 비트 안에 배치되었는가?
+   - 각 장르의 체크리스트를 실제 narrative 내용으로 확인하라. 장르 약속 배반은 심각 감점.
+
+6. ending_coherence (엔딩 정합):
+   - Core Build의 Ending Payoff가 Treatment 3막 마지막 비트에 구체 씬으로 구현되었는가?
+   - Ending Payoff가 '내적 전환'이면 엔딩 씬도 '내적 전환'이어야 한다.
+     ('외적 선택'으로 단순화되었으면 감점)
+   - 엔딩 이미지가 Ending Payoff를 배반하거나 애매하게 만들면 감점.
+     (예: '해방' Payoff인데 엔딩 이미지가 '아직 구속된 상태' 암시 → 배반)
+
+7. logic_consistency (논리·세계관 일관성):
+   - 세계관 규칙 내에서 불가능한 사건이 발생하는가? (예: 1874년 유령이 150년 후 브랜드 로고 읽기)
+   - 캐릭터가 이유 없이 원래 설정과 다르게 행동하는가?
+   - 긴장 요소가 등장 후 사라지는가? (예: 제물 요구 같은 핵심 위협이 1회로 끝남)
+   - 구체 비트 번호와 함께 critical_issues에 기록.
+
+[v2.3.7 신규 검증 1축]
+
+8. period_consistency (시대 고증 — 치명적 검증):
+   - Core Build의 world_build.time 필드 확인: 작품 시대가 언제인가?
+   - 그 시대에 존재하지 않는 요소가 Treatment에 포함되면 치명적 감점.
+   
+   시대별 주요 금지 요소 참고:
+   ■ 1960년대 이전: 컬러 TV 흔치 않음, 유선전화만, PC 없음
+   ■ 1970년대: 워크맨 이전, 비디오테이프 초기
+   ■ 1980년대: 스마트폰 없음, 인터넷 없음, 컴퓨터는 기업용, AI/로봇 상용 없음,
+               카드 결제 드물게, 무선호출기(삐삐)는 1990년대 후반
+   ■ 1990년대 초: 이메일·인터넷 대중화 전, 휴대폰 소수 (벽돌폰)
+   ■ 1990년대 후반: PC 통신(하이텔/천리안) 전성기, 삐삐 대중화, 휴대폰 확산 시작
+   ■ 2000년대 초: 스마트폰 없음, SNS 없음, 2G 피처폰, 카카오톡 없음
+   ■ 2007년 이전: 아이폰 없음
+   ■ 2010년 이전: 카카오톡 없음, 인스타그램 없음, 유튜브 초기
+   ■ 2020년대 이전: AI 생성 도구 상용화 전 (ChatGPT는 2022년 11월)
+   
+   역사 배경(조선/고려/일제강점기 등)인 경우:
+   - 해당 시대의 복식·언어·제도·기술 고증 오류 감점
+   - 예: 조선시대 배경인데 '스마트폰' '사진' '미국 영화 이야기' 등 등장
+   
+   미래 SF 배경인 경우:
+   - 제시된 미래 시점에 맞지 않는 과거 기술 등장 점검
+   - 세계관 규칙 내 기술 수준 일관성 점검
+   
+   critical_issues에 구체 기록: "Beat 7: 1985년 배경인데 주인공이 카카오톡 메시지 확인 — 시대 고증 오류"
+
+[채점 원칙]
+- 각 항목 0.0 ~ 10.0, 소수점 1자리.
+- average = 8항목 평균 (v2.3.7: 시대 고증 축 추가로 7→8).
+- genre_expectation_alignment, ending_coherence, logic_consistency, period_consistency 중
+  하나라도 6.0 미만이면 feedback에 "재생성 권고"를 명시.
+- period_consistency가 4.0 미만이면 "시대 고증 치명적 오류 — 전면 재작성 권고" 별도 명시.
+- critical_issues 배열에 문제 비트를 구체 기록. "Beat 10: 엘시가 브랜드 로고 인식 — 세계관 범위 비약" 형식.
+
+[출력 규칙]
+유효한 단일 JSON만 출력. 후행 쉼표 금지. 주석 금지."""
