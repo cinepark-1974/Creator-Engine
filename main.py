@@ -669,7 +669,7 @@ def load_project_from_json(json_str: str) -> dict:
     }
 
 
-
+def extract_json_object(text: str) -> str:
     """응답 텍스트에서 JSON 객체만 추출"""
     text = text.strip()
 
