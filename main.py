@@ -1374,6 +1374,24 @@ def call_core_build_main(idea, genre, market, fmt, selected_concept, research=No
         "payoff_scene": "어느 장면에서 회수하는가 (Beat 번호 또는 상황)"
       }}
     ]
+  }},
+  "research_applied": {{
+    "references_used": [
+      {{
+        "source_type": "real_event / existing_work",
+        "source_id": 1,
+        "source_title": "리서치 JSON에서 참조한 아이템의 제목",
+        "applied_to": "character_background / world_rule / plot_event / motif / dialogue_reference / visual_detail 중 선택",
+        "how_applied": "이 리서치 요소를 이 작품 어디에 어떻게 녹였는가 1문장 — 추상 금지, 구체적으로",
+        "character_name": "해당 캐릭터 이름 (캐릭터에 적용된 경우, 아니면 빈 문자열)"
+      }}
+    ],
+    "verisimilitude_anchors": [
+      "핍진성 앵커 1 — Treatment·Scene·시나리오에서 반드시 유지할 현실 기반 디테일 1문장",
+      "핍진성 앵커 2",
+      "핍진성 앵커 3"
+    ],
+    "research_absorption_note": "리서치를 어떻게 소화했는지 작가 시점 1문장 — 단순 나열이 아닌 '이 작품만의 방식으로 어떻게 흡수되었는가'"
   }}
 }}
 
@@ -1389,6 +1407,10 @@ def call_core_build_main(idea, genre, market, fmt, selected_concept, research=No
 - characters는 필수 4명(protagonist/antagonist/ally/mirror). extended_characters는 이야기가 필요로 하는 만큼 0~4명 추가 (최대 총 8명). 영화는 4~5명, 미니시리즈는 6~8명이 적정. 각 인물의 goal이 서로 달라야 한다.
 - extended_characters의 role은 자유. catalyst(촉매자), subplot_lead(서브플롯 리드), mentor(멘토), rival(라이벌), informant(정보원), love_interest(연인) 등 이야기에 맞는 역할명을 직접 지정.
 - world_build의 conflict_points는 세계관이 만들어내는 갈등이어야 한다.
+- [v2.3.8 신규] research_applied는 '이 작품에 실제로 응용된 리서치 요소만' 선별 기록. 리서치에 있었으나 이 작품에 녹지 못한 것은 제외.
+  references_used는 최소 2개, 최대 6개. 모든 항목의 how_applied는 '어디에/어떻게'가 구체적으로 드러나야 한다.
+  verisimilitude_anchors는 정확히 3~5개. Treatment·시나리오에서 Writer Engine이 반드시 유지할 핵심 디테일.
+  리서치가 제공되지 않은 경우에도 references_used는 빈 배열로 두되, verisimilitude_anchors는 작품 자체의 내적 설정 기반으로 3개 생성.
 """
 
         response = client.messages.create(
@@ -2240,48 +2262,66 @@ Water Cooler Moment: {wc.get("scene_or_setup", "")}
   (예: 로맨틱 코미디 CLIMAX_FAIL이면 → 부녀 화해/가족 서사 금지, 반드시 로맨스 완성 씬)
 """
         
-        # [4] Research 데이터 (research.real_events + existing_works 전파)
+        # [4] v2.3.8 재설계 — research_applied (Core Build 선별) 우선 + 원본 research 보조
+        # Mr. MOON 원칙: "리서치 내용 전체를 받을 필요는 없고. 설정된 캐릭터에 사용할 수 있는 것만 응용"
         research_block_treatment = ""
-        if research:
-            real_events = research.get("real_events", [])
+        
+        # (A) Core Build가 이미 선별한 research_applied를 최우선으로 전달
+        research_applied = core_data.get("research_applied", {}) if core_data else {}
+        if research_applied:
+            refs = research_applied.get("references_used", [])
+            anchors = research_applied.get("verisimilitude_anchors", [])
+            absorption = research_applied.get("research_absorption_note", "")
+            
+            # references_used를 간결하게 포맷
+            refs_lines = []
+            for r in refs[:6]:
+                src_title = r.get("source_title", "")
+                applied_to = r.get("applied_to", "")
+                how = r.get("how_applied", "")
+                char_name = r.get("character_name", "")
+                char_suffix = f" [→ {char_name}]" if char_name else ""
+                refs_lines.append(f"  · [{applied_to}] {src_title}: {how}{char_suffix}")
+            refs_str = "\n".join(refs_lines) if refs_lines else "  · (Core Build에서 선별한 참조 없음)"
+            
+            anchors_lines = [f"  {i+1}. {a}" for i, a in enumerate(anchors[:5])]
+            anchors_str = "\n".join(anchors_lines) if anchors_lines else "  (없음)"
+            
+            if refs_lines or anchors_lines or absorption:
+                research_block_treatment = f"""
+[📚 리서치 선별 응용 — Core Build가 이미 이 작품에 녹인 것만 전달]
+작가 흡수 노트: {absorption}
+
+[이 작품에 응용된 리서치 요소 — 매 비트에서 유지]
+{refs_str}
+
+[핍진성 앵커 — Treatment 집필 시 반드시 유지할 현실 기반 디테일]
+{anchors_str}
+
+★ 위 요소들은 Core Build가 '이 작품의 캐릭터·설정·사건에 실제로 응용된 것'만 선별한 결과.
+★ 응용된 요소는 해당 캐릭터·장면에서 구체 디테일로 드러나야 한다. 추상적 언급 금지.
+★ 핍진성 앵커는 Writer Engine까지 전달될 핵심이므로 Treatment에서 휘발시키지 말 것.
+★ 리서치에 있었으나 research_applied에 없는 요소는 이 작품에 해당 안 됨 — 끌어다 쓰지 말 것.
+"""
+        
+        # (B) 원본 research는 '표절 회피 레퍼런스'로만 보조 사용 (상위 3개 existing_works만)
+        if research and not research_applied:
+            # research_applied가 없는 경우에만 원본 research 최소한 참고 (구버전 프로젝트 호환)
             existing_works = research.get("existing_works", [])
-            key_insight = research.get("research_summary", {}).get("key_insight", "")
-            
-            # 상위 5개 실제 사건만 전달 (프롬프트 과부하 방지)
-            top_events = real_events[:5] if real_events else []
-            events_lines = []
-            for ev in top_events:
-                title = ev.get("title", "")
-                year = ev.get("year", "")
-                summary = ev.get("summary", "")[:150]  # 요약 150자로 제한
-                potential = ev.get("story_potential", "")[:100]
-                events_lines.append(f"  · [{year}] {title}: {summary} → 활용: {potential}")
-            events_str = "\n".join(events_lines) if events_lines else "  · (없음)"
-            
-            # 기존 작품 제목만 추출 (표절 방지 참조용)
             existing_titles = []
-            for w in existing_works[:7]:
+            for w in existing_works[:5]:
                 t = w.get("title", "")
                 y = w.get("year", "")
                 if t:
                     existing_titles.append(f"{t}({y})" if y else t)
             existing_str = ", ".join(existing_titles) if existing_titles else "(없음)"
             
-            if top_events or existing_titles or key_insight:
+            if existing_titles:
                 research_block_treatment = f"""
-[📚 리서치 — 핍진성 강화 + 표절 방지]
-핵심 통찰: {key_insight}
-
-[실제 사건 참조 — 비트 집필 시 구체 디테일 원천]
-{events_str}
-★ 위 실제 사건은 배경·디테일·분위기의 레퍼런스다. 직접 언급하지 말고, 사건의 '감각'과
-  '구체 디테일'을 해당 비트에 녹여라. (예: "1997년 IMF 당시 은행 줄서기" → 주인공이
-  은행 앞에 줄 서있는 구체 장면으로 변환)
-★ 실화 배경 작품이면 FACT_BASED_RULES와 결합하여 실명 금지 + 구체 디테일 활용.
-
-[기존 작품 — 표절·유사성 회피 대상]
-{existing_str}
+[📚 리서치 — 표절 회피 참조]
+유사 작품: {existing_str}
 ★ 위 작품들과 유사한 설정·구조·클라이맥스를 피하라. 이 작품만의 차별점을 유지.
+※ Core Build의 research_applied가 비어있어 최소 참고만 제공. 다음 재생성 시 research_applied 작성 권장.
 """
 
         user_prompt = f"""[작품 정보]
