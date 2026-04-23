@@ -458,7 +458,7 @@ STEPS = [
 ]
 
 def render_stepper(current_view, project_data=None):
-    """상단 단계 표시 바"""
+    """상단 단계 네비게이션 바 — 완료된 단계는 클릭 이동 가능 (v2.3.4)"""
     view_to_step = {
         "project": 1 if project_data and project_data.get("brainstorm_cards") else 0,
         "core": 2,
@@ -492,7 +492,52 @@ def render_stepper(current_view, project_data=None):
         if project_data.get("tone_doc"):
             done_idx = 7
 
-    html_parts = []
+    # 인라인 CSS — 버튼을 stepper 형태로 보이게
+    st.markdown("""
+    <style>
+    .stepper-nav [data-testid="column"] {
+        padding: 0 !important;
+    }
+    .stepper-nav .stButton button {
+        width: 100%;
+        min-height: 3.4rem;
+        padding: 0.4rem 0.2rem;
+        font-size: 0.72rem;
+        font-weight: 600;
+        line-height: 1.15;
+        border-radius: 8px;
+        white-space: normal;
+        word-break: keep-all;
+    }
+    .step-done button {
+        background: #191970 !important;
+        color: #FFCB05 !important;
+        border: 1px solid #191970 !important;
+    }
+    .step-done button:hover {
+        background: #FFCB05 !important;
+        color: #191970 !important;
+        border-color: #FFCB05 !important;
+    }
+    .step-active button {
+        background: #FFCB05 !important;
+        color: #191970 !important;
+        border: 2px solid #191970 !important;
+        cursor: default !important;
+    }
+    .step-upcoming button {
+        background: #F7F7F5 !important;
+        color: #B0B0B0 !important;
+        border: 1px dashed #D0D0D0 !important;
+        cursor: not-allowed !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+    # 단계 버튼을 가로로 배치
+    st.markdown('<div class="stepper-nav">', unsafe_allow_html=True)
+    cols = st.columns(len(STEPS))
+
     for i, (view_key, label) in enumerate(STEPS):
         # 상태 결정
         if i < current_idx and i <= done_idx:
@@ -502,27 +547,129 @@ def render_stepper(current_view, project_data=None):
         else:
             state = "upcoming"
 
-        # 클릭 가능 여부 (done 단계만)
-        circle_content = "✓" if state == "done" else str(i + 1)
+        icon = "✓" if state == "done" else ("●" if state == "active" else str(i + 1))
+        btn_label = f"{icon}\n{label}"
 
-        html_parts.append(
-            f'<div class="step-wrap">'
-            f'<div class="step-circle {state}">{circle_content}</div>'
-            f'<div class="step-label {state}">{label}</div>'
-            f'</div>'
-        )
+        with cols[i]:
+            # 상태별 컨테이너 스타일 적용
+            st.markdown(f'<div class="step-{state}">', unsafe_allow_html=True)
 
-        # 마지막이 아니면 연결선
-        if i < len(STEPS) - 1:
-            line_state = "done" if i < current_idx and i <= done_idx else "upcoming"
-            html_parts.append(f'<div class="step-line {line_state}"></div>')
+            if state == "done":
+                # 완료된 단계: 클릭 시 해당 view로 점프
+                if st.button(btn_label, key=f"stepper_nav_{view_key}_{i}", use_container_width=True):
+                    st.session_state.view = view_key
+                    st.rerun()
+            elif state == "active":
+                # 현재 위치: 버튼 형태로 표시되지만 클릭해도 의미 없음 (disabled)
+                st.button(btn_label, key=f"stepper_nav_{view_key}_{i}", use_container_width=True, disabled=True)
+            else:
+                # 미완료: 비활성
+                st.button(btn_label, key=f"stepper_nav_{view_key}_{i}", use_container_width=True, disabled=True)
 
-    stepper_html = '<div class="stepper">' + ''.join(html_parts) + '</div>'
-    st.markdown(stepper_html, unsafe_allow_html=True)
+            st.markdown('</div>', unsafe_allow_html=True)
+
+    st.markdown('</div>', unsafe_allow_html=True)
 
 
 # ─── JSON Helpers ───
-def extract_json_object(text: str) -> str:
+# ═══════════════════════════════════════════════════
+# Project JSON Save/Load (v2.3.5 신규)
+# 목적: 세션 끊김 대비한 프로젝트 상태 복구용
+# 원칙: 전체 저장 / 전체 복원 — 부분 저장 금지
+# ═══════════════════════════════════════════════════
+
+def _get_project_stage(project: dict) -> str:
+    """프로젝트의 현재 완료 단계 파악 — 파일명 생성용"""
+    if project.get("tone_doc"):
+        return "Tone완료"
+    if project.get("treatment"):
+        return "Treatment완료"
+    if project.get("scene_design"):
+        return "Scene완료"
+    if project.get("structure_story"):
+        return "Structure완료"
+    if project.get("char_bible"):
+        return "Character완료"
+    if project.get("core"):
+        return "Core완료"
+    if project.get("brainstorm_cards"):
+        return "Brainstorm완료"
+    return "초기"
+
+
+def save_project_to_json(project: dict, engine_version: str = "v2.3.5") -> str:
+    """프로젝트 전체를 JSON 문자열로 직렬화.
+    
+    Args:
+        project: Streamlit session_state의 project dict
+        engine_version: 현재 엔진 버전 (호환성 검증용)
+    
+    Returns:
+        UTF-8 JSON 문자열
+    """
+    # 저장 가능한 형태로 복사
+    payload = {
+        "_meta": {
+            "blue_jeans_engine": "Creator Engine",
+            "engine_version": engine_version,
+            "saved_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "stage": _get_project_stage(project),
+        },
+        "project": project,
+    }
+    return json.dumps(payload, ensure_ascii=False, indent=2)
+
+
+def load_project_from_json(json_str: str) -> dict:
+    """JSON 문자열에서 프로젝트 복원.
+    
+    Args:
+        json_str: save_project_to_json 으로 저장된 JSON 문자열
+    
+    Returns:
+        {"project": {...}, "meta": {...}, "warnings": [...]} 
+    
+    Raises:
+        ValueError: 형식이 올바르지 않을 때
+    """
+    try:
+        payload = json.loads(json_str)
+    except json.JSONDecodeError as e:
+        raise ValueError(f"유효한 JSON 파일이 아닙니다: {e}")
+    
+    # 구조 검증
+    if not isinstance(payload, dict):
+        raise ValueError("JSON 최상위가 객체가 아닙니다.")
+    if "project" not in payload:
+        raise ValueError("project 필드가 없습니다. Creator Engine 프로젝트 파일이 맞는지 확인하세요.")
+    
+    project = payload["project"]
+    meta = payload.get("_meta", {})
+    warnings = []
+    
+    # 필수 필드 검증
+    required_fields = ["project_id", "title", "idea_text", "genre", "format"]
+    missing = [f for f in required_fields if f not in project]
+    if missing:
+        raise ValueError(f"필수 필드 누락: {', '.join(missing)}")
+    
+    # 엔진 버전 호환성 체크 (경고만, 실패 아님)
+    saved_version = meta.get("engine_version", "unknown")
+    current_version = "v2.3.5"
+    if saved_version != current_version:
+        warnings.append(
+            f"엔진 버전 차이 — 저장 시: {saved_version} / 현재: {current_version}. "
+            f"대부분 호환되지만, 이후 단계 실행 시 예상치 못한 동작이 있을 수 있습니다."
+        )
+    
+    return {
+        "project": project,
+        "meta": meta,
+        "warnings": warnings,
+    }
+
+
+
     """응답 텍스트에서 JSON 객체만 추출"""
     text = text.strip()
 
@@ -1905,8 +2052,16 @@ def _build_b_story_context(core_data):
 
 # ─── API Call: Treatment Build (16비트 줄글) ───
 def call_treatment_beats(core_data, story_data, scene_data, genre, fmt, act_number, locked_block="",
-                          fact_based=False, historical=False, film_type=""):
-    """Treatment Build: 막별 비트 줄글 생성 — 영화/시리즈 자동 분기"""
+                          fact_based=False, historical=False, film_type="", research=None):
+    """Treatment Build: 막별 비트 줄글 생성 — 영화/시리즈 자동 분기.
+    
+    [v2.3.8 추가 전파 필드]
+    Core Build에서 설계했지만 Treatment에서 휘발되던 4개 카테고리를 전파:
+      1. project_intent (theme + pitch + tone_manner) — 주제·톤 일관성 유지
+      2. world_build (time/space/rules) — 시대 고증·세계관 일관성 (생성 단계)
+      3. genre_expectation_check.weak_zones — Core Build 자가 진단 경고
+      4. research.real_events (상위 3~5개) + existing_works (표절 방지) — 핍진성
+    """
     try:
         client = get_client()
         gns = core_data.get("goal_need_strategy", {})
@@ -1915,6 +2070,11 @@ def call_treatment_beats(core_data, story_data, scene_data, genre, fmt, act_numb
         chars = core_data.get("characters", []) + core_data.get("extended_characters", [])
         syn = story_data.get("synopsis_1p", {})
         storyline = story_data.get("storyline", [])
+        
+        # v2.3.8 신규 — 휘발되던 필드 4종 추출
+        project_intent = core_data.get("project_intent", {})
+        world_build = core_data.get("world_build", {})
+        genre_check = core_data.get("genre_expectation_check", {})
 
         is_series = P.is_series_format(fmt)
 
@@ -2014,6 +2174,116 @@ Water Cooler Moment: {wc.get("scene_or_setup", "")}
         # ── BJND 씬 레벨 집행 블록 (v2.3 신규) — 모든 막에 주입 (막별 Cost 단계 규칙 내장) ──
         bjnd_scene_block = P.build_bjnd_scene_block(core_data)
 
+        # ─────────────────────────────────────────────
+        # v2.3.8 신규 전파 블록 4종 — Core Build에서 휘발되던 필드 주입
+        # ─────────────────────────────────────────────
+        
+        # [1] 기획의도 + 주제 + 톤앤매너 (project_intent 전파)
+        project_intent_block = ""
+        if project_intent:
+            theme = project_intent.get("theme", "")
+            pitch = project_intent.get("pitch", "")
+            tone_manner = project_intent.get("tone_manner", [])
+            if theme or pitch or tone_manner:
+                tone_str = " / ".join(tone_manner) if tone_manner else ""
+                project_intent_block = f"""
+[🎯 기획의도 — 모든 비트가 수렴해야 할 주제]
+주제: {theme}
+엘리베이터 피치: {pitch}
+톤앤매너: {tone_str}
+
+★ 매 비트 작성 시 이 주제에서 이탈하지 말 것. 대사·행동·디테일 모두 주제를 향해 수렴.
+★ 톤앤매너 키워드를 씬 분위기·대사 결·디테일 선택에 일관되게 반영.
+"""
+        
+        # [2] 세계관 (world_build 전파) — 시대/공간/규칙
+        world_build_block = ""
+        if world_build:
+            wb_time = world_build.get("time", "")
+            wb_space = world_build.get("space", "")
+            wb_rules = world_build.get("rules", "")
+            wb_taboo = world_build.get("taboo", "")
+            wb_visual = world_build.get("visual_keywords", [])
+            if any([wb_time, wb_space, wb_rules]):
+                visual_str = " / ".join(wb_visual) if wb_visual else ""
+                world_build_block = f"""
+[🌍 세계관 — 시대·공간·규칙 절대 준수]
+시간 배경: {wb_time}
+공간 배경: {wb_space}
+세계관 규칙: {wb_rules}
+금기/터부: {wb_taboo}
+시각 키워드: {visual_str}
+
+★ 위 시간 배경에 존재하지 않는 기술·제도·문화·언어를 Treatment에 포함하지 말 것.
+  (예: 1980년대 설정인데 스마트폰·SNS·AI, 조선시대인데 사진·기차 등)
+★ 세계관 규칙은 비트 전체에 일관되게 적용.
+★ 금기가 있다면 그것이 파괴되는 순간이 긴장의 축이 되어야 함.
+"""
+        
+        # [3] 장르 자가 진단 경고 (genre_expectation_check.weak_zones 전파)
+        genre_warning_block = ""
+        if genre_check:
+            weak_zones = genre_check.get("weak_zones", [])
+            climax_verdict = genre_check.get("climax_verdict", "")
+            genre_diag = genre_check.get("genre_fun_diagnosis", "")
+            if weak_zones or climax_verdict == "CLIMAX_FAIL":
+                weak_str = "\n".join(f"  · {w}" for w in weak_zones) if weak_zones else "  · (없음)"
+                genre_warning_block = f"""
+[⚠️ 장르 자가 진단 경고 — Core Build에서 식별된 약점]
+장르 재미 진단: {genre_diag}
+예상 약점 구간:
+{weak_str}
+클라이맥스 판정: {climax_verdict}
+
+★ 위 약점 구간은 Core Build가 스스로 식별한 위험 영역. Treatment 집필 시 이 구간을 특히 강하게 설계하라.
+★ CLIMAX_FAIL 판정이 있으면 3막 마지막 비트를 장르 약속에 맞게 재설계하라.
+  (예: 로맨틱 코미디 CLIMAX_FAIL이면 → 부녀 화해/가족 서사 금지, 반드시 로맨스 완성 씬)
+"""
+        
+        # [4] Research 데이터 (research.real_events + existing_works 전파)
+        research_block_treatment = ""
+        if research:
+            real_events = research.get("real_events", [])
+            existing_works = research.get("existing_works", [])
+            key_insight = research.get("research_summary", {}).get("key_insight", "")
+            
+            # 상위 5개 실제 사건만 전달 (프롬프트 과부하 방지)
+            top_events = real_events[:5] if real_events else []
+            events_lines = []
+            for ev in top_events:
+                title = ev.get("title", "")
+                year = ev.get("year", "")
+                summary = ev.get("summary", "")[:150]  # 요약 150자로 제한
+                potential = ev.get("story_potential", "")[:100]
+                events_lines.append(f"  · [{year}] {title}: {summary} → 활용: {potential}")
+            events_str = "\n".join(events_lines) if events_lines else "  · (없음)"
+            
+            # 기존 작품 제목만 추출 (표절 방지 참조용)
+            existing_titles = []
+            for w in existing_works[:7]:
+                t = w.get("title", "")
+                y = w.get("year", "")
+                if t:
+                    existing_titles.append(f"{t}({y})" if y else t)
+            existing_str = ", ".join(existing_titles) if existing_titles else "(없음)"
+            
+            if top_events or existing_titles or key_insight:
+                research_block_treatment = f"""
+[📚 리서치 — 핍진성 강화 + 표절 방지]
+핵심 통찰: {key_insight}
+
+[실제 사건 참조 — 비트 집필 시 구체 디테일 원천]
+{events_str}
+★ 위 실제 사건은 배경·디테일·분위기의 레퍼런스다. 직접 언급하지 말고, 사건의 '감각'과
+  '구체 디테일'을 해당 비트에 녹여라. (예: "1997년 IMF 당시 은행 줄서기" → 주인공이
+  은행 앞에 줄 서있는 구체 장면으로 변환)
+★ 실화 배경 작품이면 FACT_BASED_RULES와 결합하여 실명 금지 + 구체 디테일 활용.
+
+[기존 작품 — 표절·유사성 회피 대상]
+{existing_str}
+★ 위 작품들과 유사한 설정·구조·클라이맥스를 피하라. 이 작품만의 차별점을 유지.
+"""
+
         user_prompt = f"""[작품 정보]
 로그라인: {lp.get("washed","")}
 장르: {genre} / 포맷: {fmt}
@@ -2022,6 +2292,10 @@ Goal: {gns.get("goal","")} / Need: {gns.get("need","")} / Strategy: {gns.get("st
 캐릭터: {chars_simple}
 {locked_block}
 {series_info}
+{project_intent_block}
+{world_build_block}
+{genre_warning_block}
+{research_block_treatment}
 {attraction_block}
 {opening_strategy_block}
 {bjnd_scene_block}
@@ -2138,23 +2412,74 @@ def call_treatment_meta(act1, act2, act3, core_data):
         return None
 
 
-def call_treatment_gate(treatment_data):
-    """Gate E: Treatment Gate 채점"""
+def call_treatment_gate(treatment_data, core_data=None, genre=""):
+    """Gate E: Treatment Gate 채점 — v2.3.6 강화판.
+    
+    이전 문제: beat_summary에 글자 수(chars)만 전달. 실제 내용 미검증.
+    v2.3.6: 각 비트의 narrative 내용 요약 + 장르 + Core Build 참조를 전달하여
+           장르 기대 충족, 엔딩 정합, 논리 일관성을 실제로 검증.
+    """
     try:
         client = get_client()
-        beat_summary = []
+        
+        # v2.3.6: 실제 narrative 내용도 전달 (압축 요약)
+        beat_details = []
         for act_key in ["act1", "act2", "act3"]:
             act_data = treatment_data.get(act_key, {})
             if act_data:
                 for b in act_data.get("beats", []):
-                    beat_summary.append({"beat_no": b.get("beat_no"), "beat_name": b.get("beat_name"), "chars": len(b.get("narrative",""))})
+                    narrative = b.get("narrative", "")
+                    # 각 비트 narrative를 500자로 압축 (앞 400자 + 뒤 100자)
+                    if len(narrative) > 500:
+                        narrative_compact = narrative[:400] + " ... [중략] ... " + narrative[-100:]
+                    else:
+                        narrative_compact = narrative
+                    beat_details.append({
+                        "beat_no": b.get("beat_no"),
+                        "beat_name": b.get("beat_name"),
+                        "length": len(narrative),
+                        "narrative_summary": narrative_compact,
+                    })
+        
+        # v2.3.6: Core Build 핵심 정보 전달 (엔딩 정합 검증용)
+        # v2.3.7: world_build.time 등 시대 고증 검증용 정보 추가
+        core_context = ""
+        if core_data:
+            gns = core_data.get("goal_need_strategy", {})
+            lp = core_data.get("logline_pack", {})
+            wb = core_data.get("world_build", {})
+            ending_payoff = gns.get("ending_payoff", "")
+            strategy = gns.get("strategy", "")
+            
+            # 시대/공간 정보 추출
+            time_setting = wb.get("time", "")
+            space_setting = wb.get("space", "")
+            rules = wb.get("rules", "")
+            
+            core_context = f"""
+[Core Build 참조 — 이 Treatment가 일관되게 구현해야 할 원본 설계]
+장르: {genre}
+로그라인: {lp.get("washed", "")}
+주인공 Strategy: {strategy}
+Ending Payoff: {ending_payoff}
+
+[★ 세계관·시대 설정 — 시대 고증 검증용 ★]
+시대/시간: {time_setting}
+공간/장소: {space_setting}
+세계관 규칙: {rules}
+
+위 시대에 존재하지 않는 요소가 Treatment에 포함되었는지 반드시 확인하라.
+(예: 1980년대 설정인데 스마트폰/SNS/AI, 1970년대인데 PC, 조선시대인데 사진기 등)
+"""
 
         response = client.messages.create(
-            model=ANTHROPIC_MODEL, max_tokens=1500, temperature=0.2,
+            model=ANTHROPIC_MODEL, max_tokens=2500, temperature=0.2,
             system=P.SYSTEM_TREATMENT_GATE,
-            messages=[{"role": "user", "content": f"""[Treatment 비트 구성]
-{json.dumps(beat_summary, ensure_ascii=False)}
-총 {len(beat_summary)}개 비트. 16비트 기준 Gate E 채점.
+            messages=[{"role": "user", "content": f"""{core_context}
+[Treatment 비트 구성 — 실제 내용 요약]
+{json.dumps(beat_details, ensure_ascii=False)}
+
+총 {len(beat_details)}개 비트.
 
 [JSON 스키마]
 {{
@@ -2163,11 +2488,22 @@ def call_treatment_gate(treatment_data):
     "scene_emotion_match": 0.0,
     "beat_completeness": 0.0,
     "screenplay_ready": 0.0,
+    "genre_expectation_alignment": 0.0,
+    "ending_coherence": 0.0,
+    "logic_consistency": 0.0,
+    "period_consistency": 0.0,
     "average": 0.0,
-    "feedback": "Gate E 종합 피드백 1문장"
+    "genre_check_feedback": "장르 체크리스트 기준 충족 여부 1~2문장",
+    "ending_check_feedback": "Core Build의 Ending Payoff와 실제 엔딩 비트의 정합성 1문장",
+    "logic_check_feedback": "논리 비약/세계관 일관성 이슈가 있으면 구체 비트 번호와 함께 1~2문장",
+    "period_check_feedback": "시대 고증 오류(작품 시대에 없던 기술/제도/문화 등) 구체 비트 번호와 함께 1~2문장 (없으면 '이슈 없음')",
+    "feedback": "Gate E 종합 피드백 1문장",
+    "critical_issues": ["문제가 있는 비트 번호와 짧은 진단 리스트 (없으면 빈 배열)"]
   }}
 }}
-규칙: average = 4항목 평균."""}]
+규칙: average = 8항목 평균 (소수점 1자리).
+특히 genre_expectation_alignment, ending_coherence, logic_consistency, period_consistency는 
+Core Build 설계와 Treatment 실제 구현의 일치도를 엄격 평가."""}]
         )
         txt = "".join(b.text for b in response.content if hasattr(b, "text")).strip()
         return safe_json_loads(txt)
@@ -3167,6 +3503,98 @@ if st.session_state.view == "home":
             st.session_state.cur = project_id
             st.session_state.view = "project"
             st.rerun()
+
+    # ─── 프로젝트 JSON 불러오기 (v2.3.5 신규) ───
+    with st.expander("📂 프로젝트 JSON 불러오기 (세션 복구)", expanded=False):
+        st.caption(
+            "이전 세션에서 저장한 프로젝트 JSON 파일을 업로드하면 해당 시점으로 복원됩니다. "
+            "Scene Design 완료 시점에 저장했다면 Treatment부터 이어서 진행 가능합니다."
+        )
+        uploaded_json = st.file_uploader(
+            "프로젝트 JSON 파일 선택",
+            type=["json"],
+            key="project_json_uploader",
+            help="Scene 완료 / Treatment 완료 / 최종완성 시점에 저장한 JSON 파일"
+        )
+
+        if uploaded_json is not None:
+            try:
+                json_str = uploaded_json.read().decode("utf-8")
+                result = load_project_from_json(json_str)
+                restored_project = result["project"]
+                meta = result["meta"]
+                warnings = result["warnings"]
+
+                # 정보 표시
+                st.markdown(
+                    f'<div class="callout">'
+                    f'<div class="cl">📋 불러올 프로젝트</div>'
+                    f'<b>{restored_project.get("title", "제목 없음")}</b><br>'
+                    f'{restored_project.get("genre", "")} · '
+                    f'{restored_project.get("target_market", "")} · '
+                    f'{restored_project.get("format", "")}<br>'
+                    f'<span style="font-size:.75rem;color:var(--dim)">'
+                    f'저장 시점: {meta.get("saved_at", "알 수 없음")} / '
+                    f'단계: {meta.get("stage", "알 수 없음")} / '
+                    f'엔진 버전: {meta.get("engine_version", "알 수 없음")}'
+                    f'</span></div>',
+                    unsafe_allow_html=True
+                )
+
+                # 경고 표시
+                for w in warnings:
+                    st.warning(w)
+
+                # 중복 ID 체크 및 복원 버튼
+                original_id = restored_project.get("project_id", "")
+                id_conflict = original_id in st.session_state.projects
+
+                if id_conflict:
+                    st.info(
+                        f"⚠️ 동일한 프로젝트 ID가 이미 존재합니다. "
+                        f"복원 시 새 ID를 부여하여 별도 프로젝트로 추가됩니다."
+                    )
+
+                if st.button("✅ 이 프로젝트 복원하기", type="primary", use_container_width=True):
+                    # 중복 방지: ID 충돌 시 새 ID 생성
+                    if id_conflict:
+                        new_id = f"proj_{int(datetime.now().timestamp() * 1000)}"
+                        restored_project["project_id"] = new_id
+                        restored_project["title"] = restored_project.get("title", "복원") + " (복원본)"
+                        restored_id = new_id
+                    else:
+                        restored_id = original_id
+
+                    # updated_at 갱신
+                    restored_project["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
+
+                    # 세션 상태에 주입
+                    st.session_state.projects[restored_id] = restored_project
+                    st.session_state.cur = restored_id
+
+                    # 단계별 적절한 view로 이동 (완료된 가장 높은 단계로)
+                    if restored_project.get("tone_doc"):
+                        st.session_state.view = "tone_doc"
+                    elif restored_project.get("treatment"):
+                        st.session_state.view = "treatment"
+                    elif restored_project.get("scene_design"):
+                        st.session_state.view = "scene_design"
+                    elif restored_project.get("structure_story"):
+                        st.session_state.view = "structure"
+                    elif restored_project.get("char_bible"):
+                        st.session_state.view = "char_bible"
+                    elif restored_project.get("core"):
+                        st.session_state.view = "core"
+                    else:
+                        st.session_state.view = "project"
+
+                    st.success(f"✅ '{restored_project['title']}' 복원 완료. 해당 단계로 이동합니다.")
+                    st.rerun()
+
+            except ValueError as e:
+                st.error(f"❌ 불러오기 실패: {e}")
+            except Exception as e:
+                st.error(f"❌ 예상치 못한 오류: {e}")
 
     # 프로젝트 목록
     if st.session_state.projects:
@@ -4506,11 +4934,12 @@ elif st.session_state.view == "structure" and st.session_state.cur:
             unsafe_allow_html=True
         )
         title_safe = project.get("title", "프로젝트").replace(" ", "_")
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M")
         docx_buffer = generate_docx(project)
         st.download_button(
             label="📥 기획개발보고서 [1차] 다운로드 (.docx)",
             data=docx_buffer,
-            file_name=f"기획개발보고서_{title_safe}_1차_Blue.docx",
+            file_name=f"기획개발보고서_{title_safe}_1차_Blue_{timestamp}.docx",
             mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             use_container_width=True
         )
@@ -4609,6 +5038,25 @@ elif st.session_state.view == "scene_design" and st.session_state.cur:
 
         st.markdown("---")
 
+        # JSON 프로젝트 저장 (세션 끊김 대비)
+        st.markdown("#### 💾 프로젝트 JSON 저장 (세션 복구용)")
+        st.caption(
+            "브라우저를 닫거나 세션이 끊겨도 여기서 JSON 파일을 저장하면 "
+            "다음에 홈 화면의 '프로젝트 불러오기'로 복원 후 Treatment부터 이어서 진행할 수 있습니다."
+        )
+        title_safe_json = project.get("title", "프로젝트").replace(" ", "_")
+        ts_json = datetime.now().strftime("%Y%m%d_%H%M")
+        project_json_str = save_project_to_json(project, engine_version="v2.3.5")
+        st.download_button(
+            label="💾 프로젝트 저장 (Scene 완료 시점)",
+            data=project_json_str.encode("utf-8"),
+            file_name=f"{title_safe_json}_Scene완료_{ts_json}.json",
+            mime="application/json",
+            use_container_width=True,
+        )
+
+        st.markdown("---")
+
         # Treatment 진행
         st.success("✅ Scene Design 완료. Treatment Build 진행 가능.")
         if st.button("📝 Treatment Build 진행 →", type="primary", use_container_width=True):
@@ -4665,6 +5113,7 @@ elif st.session_state.view == "treatment" and st.session_state.cur:
                     fact_based=project.get("fact_based", False),
                     historical=project.get("historical", False),
                     film_type=project.get("film_type", ""),
+                    research=project.get("research"),
                 )
             with st.spinner("② 2막 Treatment (Beat 7~12)... (약 40~50초)"):
                 act2 = call_treatment_beats(
@@ -4673,6 +5122,7 @@ elif st.session_state.view == "treatment" and st.session_state.cur:
                     fact_based=project.get("fact_based", False),
                     historical=project.get("historical", False),
                     film_type=project.get("film_type", ""),
+                    research=project.get("research"),
                 )
             with st.spinner("③ 3막 Treatment (Beat 13~16)... (약 30~40초)"):
                 act3 = call_treatment_beats(
@@ -4681,6 +5131,7 @@ elif st.session_state.view == "treatment" and st.session_state.cur:
                     fact_based=project.get("fact_based", False),
                     historical=project.get("historical", False),
                     film_type=project.get("film_type", ""),
+                    research=project.get("research"),
                 )
 
             if act1 or act2 or act3:
@@ -4692,8 +5143,12 @@ elif st.session_state.view == "treatment" and st.session_state.cur:
                 if meta:
                     project["treatment"]["meta"] = meta
 
-                with st.spinner("⑤ Gate E 채점... (약 10초)"):
-                    gate_e = call_treatment_gate(project["treatment"])
+                with st.spinner("⑤ Gate E 채점... (약 15초, 장르·엔딩·논리 검증 포함)"):
+                    gate_e = call_treatment_gate(
+                        project["treatment"],
+                        core_data=core,
+                        genre=project["genre"],
+                    )
                 if gate_e:
                     project["treatment_gate"] = gate_e
 
@@ -4835,13 +5290,25 @@ elif st.session_state.view == "treatment" and st.session_state.cur:
         st.markdown("#### 📥 기획개발보고서 [최종] 다운로드")
         st.caption("Core + Structure + Scene Design + Treatment 전체가 포함된 최종 기획서입니다.")
         title_safe = project.get("title", "프로젝트").replace(" ", "_")
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M")
         docx_buffer = generate_docx(project)
         st.download_button(
             label="📥 기획개발보고서 [최종] 다운로드 (.docx)",
             data=docx_buffer,
-            file_name=f"기획개발보고서_{title_safe}_최종_Blue.docx",
+            file_name=f"기획개발보고서_{title_safe}_최종_Blue_{timestamp}.docx",
             mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             use_container_width=True
+        )
+
+        # JSON 프로젝트 저장 (세션 복구용)
+        st.markdown("#### 💾 프로젝트 JSON 저장 (세션 복구용)")
+        project_json_str = save_project_to_json(project, engine_version="v2.3.5")
+        st.download_button(
+            label="💾 프로젝트 저장 (Treatment 완료 시점)",
+            data=project_json_str.encode("utf-8"),
+            file_name=f"{title_safe}_Treatment완료_{timestamp}.json",
+            mime="application/json",
+            use_container_width=True,
         )
 
         # Tone Document 진행
@@ -4993,13 +5460,26 @@ elif st.session_state.view == "tone_doc" and st.session_state.cur:
 
         # 최종 DOCX 다운로드
         title_safe = project.get("title", "프로젝트").replace(" ", "_")
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M")
         docx_buffer = generate_docx(project)
         st.download_button(
             label="📥 기획개발보고서 [최종 + Tone] 다운로드 (.docx)",
             data=docx_buffer,
-            file_name=f"기획개발보고서_{title_safe}_최종_Blue.docx",
+            file_name=f"기획개발보고서_{title_safe}_최종_Blue_{timestamp}.docx",
             mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             use_container_width=True
+        )
+
+        # 최종 프로젝트 JSON 저장 (완성 상태 백업)
+        st.markdown("#### 💾 프로젝트 JSON 저장 (완성 상태 백업)")
+        st.caption("완성된 프로젝트 전체 상태. 나중에 Writer Engine 투입 전 참고용 또는 백업용.")
+        project_json_str = save_project_to_json(project, engine_version="v2.3.5")
+        st.download_button(
+            label="💾 프로젝트 저장 (최종 완성)",
+            data=project_json_str.encode("utf-8"),
+            file_name=f"{title_safe}_최종완성_{timestamp}.json",
+            mime="application/json",
+            use_container_width=True,
         )
 
     else:
