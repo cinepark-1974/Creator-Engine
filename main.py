@@ -3493,17 +3493,196 @@ if st.session_state.view in ("project", "core", "char_bible", "structure", "scen
 # ═══════════════════════════════════════════════════
 if st.session_state.view == "home":
 
+    # ═══════════════════════════════════════════════════
+    # ★ v2.4.0: Idea Engine 시드 업로드 (선택)
+    # ═══════════════════════════════════════════════════
+    # Idea Engine v1.0에서 생성한 LOCKED 시드 JSON을 업로드하면
+    # 아래 입력 필드(제목·아이디어·장르·시장·포맷·LOCKED)가 자동으로 채워지고,
+    # 시드 데이터(레퍼런스·로그라인·테마)가 v2.4 시대극 자동 감지에 활용됩니다.
+    with st.expander("🔑 Idea Engine 시드 업로드 (선택)", expanded=False):
+        st.caption(
+            "Idea Engine에서 생성한 LOCKED 시드 JSON을 업로드하면 "
+            "아래 새 프로젝트 입력 필드가 자동으로 채워집니다. "
+            "(이 단계는 선택입니다 — 직접 입력하셔도 됩니다.)"
+        )
+
+        idea_seed_file = st.file_uploader(
+            "Idea Engine JSON 파일",
+            type=["json"],
+            key="idea_engine_seed_uploader",
+            help="Idea Engine ⑧ Export 단계에서 다운로드한 IdeaSeed_*.json 파일"
+        )
+
+        # 파일 업로드 시 1회 파싱 → session_state에 보관
+        if idea_seed_file is not None:
+            try:
+                seed_str = idea_seed_file.read().decode("utf-8")
+                seed_data = json.loads(seed_str)
+
+                # Idea Engine 메타 검증
+                if "_idea_engine_meta" not in seed_data:
+                    st.error(
+                        "❌ 올바른 Idea Engine JSON이 아닙니다. "
+                        "이 자리는 Idea Engine 시드 전용이며, "
+                        "Creator Engine 자체 백업 JSON은 아래의 "
+                        "📁 프로젝트 JSON 불러오기 (세션 복구)에 올려주세요."
+                    )
+                else:
+                    # 시드 보관 (Stage 전체에서 활용)
+                    st.session_state["locked_seed"] = seed_data.get("locked_seed", {})
+                    st.session_state["idea_seed_loaded"] = seed_data
+
+                    meta = seed_data.get("_idea_engine_meta", {})
+                    project_id = meta.get("project_id", "—")
+                    verdict = meta.get("verdict", "—")
+                    hook_score = meta.get("hook_score", 0)
+
+                    # Verdict별 색상
+                    verdict_color = {
+                        "GO": "#2EC484",
+                        "CONDITIONAL": "#FFCB05",
+                        "NOGO": "#D32F2F",
+                    }.get(verdict, "#8E8E99")
+
+                    st.markdown(
+                        f'<div class="callout" style="border-left-color:{verdict_color};">'
+                        f'<div class="cl">🔑 Idea Engine 시드 로드 완료</div>'
+                        f'<b style="font-size:1rem;">{seed_data.get("title", "제목 없음")}</b><br>'
+                        f'<span style="font-size:.85rem;">'
+                        f'Project: <code>{project_id}</code> · '
+                        f'<b style="color:{verdict_color};">{verdict}</b> · '
+                        f'Hook Score <b>{hook_score}/50</b>'
+                        f'</span></div>',
+                        unsafe_allow_html=True
+                    )
+
+                    # 임원 요약 (있으면)
+                    exec_summary = seed_data.get("executive_summary", "")
+                    if exec_summary:
+                        with st.expander("📋 Executive Summary 보기", expanded=False):
+                            st.markdown(exec_summary)
+
+                    # Creator Engine에서 결정할 펜딩 질문
+                    pending = seed_data.get("pending_decisions", [])
+                    if pending:
+                        st.markdown("**📝 Creator Engine에서 결정할 사항**")
+                        for q in pending:
+                            st.markdown(f"- {q}")
+
+                    # LOCKED 시드 핵심 항목 미리보기
+                    locked_seed = seed_data.get("locked_seed", {})
+                    if locked_seed:
+                        with st.expander("🔒 LOCKED 시드 패키지 상세", expanded=False):
+                            ll = locked_seed.get("locked_logline", "")
+                            if ll:
+                                st.markdown(f"**LOCKED 로그라인**: {ll}")
+                            lg = locked_seed.get("locked_genre", {})
+                            if lg:
+                                st.markdown(
+                                    f"**장르**: {lg.get('primary', '')}"
+                                    + (f" / {lg.get('secondary', '')}" if lg.get('secondary') else "")
+                                )
+                            lr = locked_seed.get("locked_references", [])
+                            if lr:
+                                ref_titles = []
+                                for r in lr:
+                                    if isinstance(r, dict):
+                                        ref_titles.append(r.get("title", ""))
+                                    elif isinstance(r, str):
+                                        ref_titles.append(r)
+                                ref_titles = [t for t in ref_titles if t]
+                                if ref_titles:
+                                    st.markdown(f"**레퍼런스**: {' / '.join(ref_titles)}")
+                            risks = locked_seed.get("locked_risks_to_address", [])
+                            if risks:
+                                st.markdown("**위험 요소 (Treatment 단계에서 다룰 것)**:")
+                                for r in risks:
+                                    st.markdown(f"- {r}")
+
+                    st.success(
+                        "✅ 아래 '➕ 새 프로젝트'에 시드 데이터가 자동 입력됩니다. "
+                        "필요하면 직접 수정하실 수 있습니다."
+                    )
+
+                    # 시드 제거 버튼
+                    if st.button("🗑️ 시드 제거 (직접 입력으로 전환)",
+                                 key="clear_idea_seed", use_container_width=False):
+                        for k in ("locked_seed", "idea_seed_loaded"):
+                            if k in st.session_state:
+                                del st.session_state[k]
+                        st.rerun()
+
+            except json.JSONDecodeError as e:
+                st.error(f"❌ JSON 파싱 실패: {e}")
+            except Exception as e:
+                st.error(f"❌ 시드 로드 실패: {e}")
+
     # 새 프로젝트 생성
     with st.expander("➕ 새 프로젝트", expanded=not bool(st.session_state.projects)):
+        # ── v2.4.0: Idea Engine 시드가 로드되어 있으면 default value 추출 ──
+        _seed_full = st.session_state.get("idea_seed_loaded", {}) or {}
+        _seed_locked = st.session_state.get("locked_seed", {}) or {}
+        _seed_default_title = _seed_full.get("title", "")
+        _seed_default_idea = _seed_full.get("raw_idea", "") or _seed_locked.get("locked_logline", "")
+        _seed_default_genre = _seed_full.get("genre", "") or _seed_locked.get("locked_genre", {}).get("primary", "")
+        _seed_default_market = _seed_full.get("target_market", "")
+        _seed_default_format = _seed_full.get("format", "") or _seed_locked.get("locked_format", {}).get("primary", "")
+
+        # LOCKED 자동 생성 — 시드의 핵심 항목을 한 줄씩 텍스트로
+        _seed_default_locked = ""
+        if _seed_locked:
+            _lock_lines = []
+            ll = _seed_locked.get("locked_logline", "")
+            if ll:
+                _lock_lines.append(f"로그라인: {ll}")
+            lg = _seed_locked.get("locked_genre", {})
+            if isinstance(lg, dict) and lg.get("primary"):
+                gtxt = lg["primary"]
+                if lg.get("secondary"):
+                    gtxt += f" / {lg['secondary']}"
+                _lock_lines.append(f"장르: {gtxt}")
+            lt = _seed_locked.get("locked_theme", {})
+            if isinstance(lt, dict):
+                if lt.get("surface"):
+                    _lock_lines.append(f"표면 주제: {lt['surface']}")
+                if lt.get("deep"):
+                    _lock_lines.append(f"심층 주제: {lt['deep']}")
+            ltg = _seed_locked.get("locked_target", {})
+            if isinstance(ltg, dict):
+                if ltg.get("domestic"):
+                    _lock_lines.append(f"국내 타겟: {ltg['domestic']}")
+            lf = _seed_locked.get("locked_format", {})
+            if isinstance(lf, dict):
+                if lf.get("episode_count"):
+                    _lock_lines.append(f"회차/분량: {lf.get('episode_count')} ({lf.get('runtime', '')})")
+            lr = _seed_locked.get("locked_references", [])
+            if isinstance(lr, list) and lr:
+                ref_titles = []
+                for r in lr:
+                    if isinstance(r, dict) and r.get("title"):
+                        ref_titles.append(r["title"])
+                    elif isinstance(r, str):
+                        ref_titles.append(r)
+                if ref_titles:
+                    _lock_lines.append(f"참고작: {' / '.join(ref_titles[:5])}")
+            risks = _seed_locked.get("locked_risks_to_address", [])
+            if isinstance(risks, list) and risks:
+                _lock_lines.append("[Treatment에서 다룰 위험 요소]")
+                for r in risks:
+                    _lock_lines.append(f"- {r}")
+            _seed_default_locked = "\n".join(_lock_lines)
+
         col1, col2 = st.columns([2, 1])
 
         with col1:
             title_input = st.text_input(
                 "프로젝트 제목",
+                value=_seed_default_title,
                 placeholder="예: 인도네시아 물귀신 프로젝트"
             )
             idea_input = st.text_area(
                 "💡 아이디어",
+                value=_seed_default_idea,
                 height=120,
                 placeholder=(
                     "자유롭게 입력\n"
@@ -3514,7 +3693,8 @@ if st.session_state.view == "home":
             )
 
         # ── LOCKED 설정 (v2.3: OPEN 필드 폐지) ──
-        with st.expander("🔒 설정 잠금 (LOCKED)", expanded=False):
+        with st.expander("🔒 설정 잠금 (LOCKED)",
+                          expanded=bool(_seed_default_locked)):
             st.caption(
                 "LOCKED = 파이프라인 전 과정에서 절대 변경 불가. "
                 "여기에 명시되지 않은 모든 디테일은 엔진이 자유롭게 창작합니다. "
@@ -3522,6 +3702,7 @@ if st.session_state.view == "home":
             )
             locked_input = st.text_area(
                 "🔒 LOCKED (반드시 지킬 것만 명시)",
+                value=_seed_default_locked,
                 height=180,
                 placeholder=(
                     "한 줄에 하나씩:\n"
@@ -3538,30 +3719,53 @@ if st.session_state.view == "home":
 
 
         with col2:
+            # 장르: 시드 default를 selectbox 옵션과 매칭, 없으면 "미지정"
+            _genre_options = ["미지정", "범죄/스릴러", "드라마", "액션", "로맨스", "코미디",
+                              "로맨틱 코미디", "호러/공포", "SF", "판타지", "시대극/사극", "느와르",
+                              "미스터리", "전쟁", "뮤지컬", "다큐/논픽션"]
+            _genre_default_idx = 0
+            for i, opt in enumerate(_genre_options):
+                if _seed_default_genre and (_seed_default_genre == opt or opt in _seed_default_genre or _seed_default_genre in opt):
+                    _genre_default_idx = i
+                    break
             genre_input = st.selectbox(
                 "🎬 장르",
-                ["미지정", "범죄/스릴러", "드라마", "액션", "로맨스", "코미디",
-                 "로맨틱 코미디", "호러/공포", "SF", "판타지", "시대극/사극", "느와르",
-                 "미스터리", "전쟁", "뮤지컬", "다큐/논픽션"]
+                _genre_options,
+                index=_genre_default_idx,
             )
 
+            _market_options = ["미지정", "한국", "북미/미국", "일본", "중국",
+                               "동남아", "유럽", "중동", "글로벌", "직접 입력"]
+            _market_default_idx = 0
+            for i, opt in enumerate(_market_options):
+                if _seed_default_market and (_seed_default_market == opt or opt in _seed_default_market or _seed_default_market in opt):
+                    _market_default_idx = i
+                    break
             market_type = st.selectbox(
                 "🌏 타겟 시장",
-                ["미지정", "한국", "북미/미국", "일본", "중국",
-                 "동남아", "유럽", "중동", "글로벌", "직접 입력"]
+                _market_options,
+                index=_market_default_idx,
             )
 
             market_custom = ""
             if market_type == "직접 입력":
                 market_custom = st.text_input(
                     "시장 직접 입력",
+                    value=(_seed_default_market if _seed_default_market not in _market_options else ""),
                     placeholder="예: 인도네시아+한국 공동제작"
                 )
 
+            _format_options = ["미지정", "영화", "시리즈", "미니시리즈(4~8화)",
+                               "웹툰", "웹소설", "숏폼", "다큐멘터리", "애니메이션"]
+            _format_default_idx = 0
+            for i, opt in enumerate(_format_options):
+                if _seed_default_format and (_seed_default_format == opt or opt in _seed_default_format or _seed_default_format in opt):
+                    _format_default_idx = i
+                    break
             format_input = st.selectbox(
                 "📐 포맷",
-                ["미지정", "영화", "시리즈", "미니시리즈(4~8화)",
-                 "웹툰", "웹소설", "숏폼", "다큐멘터리", "애니메이션"]
+                _format_options,
+                index=_format_default_idx,
             )
 
             st.markdown("##### 🏛️ 특수 규칙")
