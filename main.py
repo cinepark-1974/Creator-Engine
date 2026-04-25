@@ -22,6 +22,29 @@ ENGINE_FOOTER = f"© 2026 BLUE JEANS PICTURES · Creator Engine {ENGINE_VERSION}
 ANTHROPIC_MODEL = "claude-sonnet-4-6"           # 구조 작업 — 비용 효율
 ANTHROPIC_MODEL_OPUS = "claude-opus-4-6"        # 캐릭터 바이블 · 트리트먼트 · 톤 문서 — 최고 품질
 
+
+# ─── v2.4.0: 시대극 자동 감지 컨텍스트 추출 ─────────────────────────
+def _get_period_scan_context(project: dict = None) -> tuple:
+    """현재 세션 상태와 프로젝트 데이터에서 시대 감지용 텍스트를 추출.
+    
+    Idea Engine v1.0 시드(st.session_state["locked_seed"])가 있으면 활용.
+    - locked_logline, locked_references, locked_genre, locked_theme 등이
+      시대(SAGEUK/COLONIAL/MODERN_HIST) 자동 감지의 결정적 시그널이 됨.
+    
+    Returns:
+        (locked_text, idea_text) 튜플.
+        둘 다 빈 문자열이면 시대 OVERRIDE·Period Pack 자동 감지가 작동하지 않으며
+        v2.3.10과 동일하게 동작 (하위 호환).
+    """
+    try:
+        locked_seed = st.session_state.get("locked_seed", {}) or {}
+    except Exception:
+        locked_seed = {}
+    return P.build_scan_text_for_period_detection(
+        project=project or {},
+        locked_seed=locked_seed,
+    )
+
 # ─── Page Config ───
 st.set_page_config(
     page_title="BLUE JEANS · Creator Engine",
@@ -1166,7 +1189,17 @@ def call_core_build_main(idea, genre, market, fmt, selected_concept, research=No
     try:
         client = get_client()
 
-        system_prompt = P.build_system_core(genre, fact_based=fact_based, historical=historical, film_type=film_type)
+        # v2.4.0: 시대극 자동 감지 컨텍스트 추출
+        _locked_text, _idea_text = _get_period_scan_context({
+            "idea_text": idea or "",
+            "genre": genre,
+            "title": (selected_concept or {}).get("title", "") if selected_concept else "",
+            "locked_items": [locked_block] if locked_block else [],
+        })
+        system_prompt = P.build_system_core(
+            genre, fact_based=fact_based, historical=historical, film_type=film_type,
+            locked_text=_locked_text, idea_text=_idea_text,
+        )
 
         research_block = ""
         if research:
@@ -1546,8 +1579,15 @@ def call_character_bible_single(char_data, all_chars_names, core_data, genre, fm
         other_names = [n for n in all_chars_names if n != name]
         others_str = ", ".join(other_names) if other_names else "없음"
 
+        # v2.4.0: 시대극 자동 감지 컨텍스트 추출
+        _locked_text, _idea_text = _get_period_scan_context({
+            "genre": genre,
+            "core_data": core_data or {},
+            "locked_items": [locked_block] if locked_block else [],
+        })
         system_prompt = P.build_system_char_bible(genre, fmt, others_str,
-                                                    fact_based=fact_based, historical=historical, film_type=film_type)
+                                                    fact_based=fact_based, historical=historical, film_type=film_type,
+                                                    locked_text=_locked_text, idea_text=_idea_text)
 
         schema = P.CHAR_BIBLE_SCHEMA.replace("ROLE_PLACEHOLDER", role).replace("NAME_PLACEHOLDER", name)
 
@@ -1682,7 +1722,16 @@ def call_structure_story(core_data, genre, market, fmt, locked_block="",
         lp = core_data.get("logline_pack", {})
         chars = core_data.get("characters", []) + core_data.get("extended_characters", [])
 
-        system_prompt = P.build_system_structure_story(fact_based=fact_based, historical=historical, film_type=film_type)
+        # v2.4.0: 시대극 자동 감지 컨텍스트 추출
+        _locked_text, _idea_text = _get_period_scan_context({
+            "genre": genre,
+            "core_data": core_data or {},
+            "locked_items": [locked_block] if locked_block else [],
+        })
+        system_prompt = P.build_system_structure_story(
+            fact_based=fact_based, historical=historical, film_type=film_type,
+            locked_text=_locked_text, idea_text=_idea_text,
+        )
 
         user_prompt = f"""[Core Build 요약]
 로그라인: {lp.get("washed", lp.get("original", ""))}
@@ -1757,7 +1806,16 @@ def call_structure_diagnosis(core_data, story_data, genre, fmt, locked_block="",
         nd = core_data.get("narrative_drive", {})
         chars = core_data.get("characters", []) + core_data.get("extended_characters", [])
 
-        system_prompt = P.build_system_structure_diagnosis(fact_based=fact_based, historical=historical, film_type=film_type)
+        # v2.4.0: 시대극 자동 감지 컨텍스트 추출
+        _locked_text, _idea_text = _get_period_scan_context({
+            "genre": genre,
+            "core_data": core_data or {},
+            "locked_items": [locked_block] if locked_block else [],
+        })
+        system_prompt = P.build_system_structure_diagnosis(
+            fact_based=fact_based, historical=historical, film_type=film_type,
+            locked_text=_locked_text, idea_text=_idea_text,
+        )
 
         user_prompt = f"""[입력]
 장르: {genre} / 포맷: {fmt}
@@ -1943,7 +2001,16 @@ def call_scene_design(core_data, story_data, diag_data, genre, fmt, locked_block
         chars = core_data.get("characters", []) + core_data.get("extended_characters", [])
         storyline = story_data.get("storyline", [])
 
-        system_prompt = P.build_system_scene_design(genre, fact_based=fact_based, historical=historical, film_type=film_type)
+        # v2.4.0: 시대극 자동 감지 컨텍스트 추출
+        _locked_text, _idea_text = _get_period_scan_context({
+            "genre": genre,
+            "core_data": core_data or {},
+            "locked_items": [locked_block] if locked_block else [],
+        })
+        system_prompt = P.build_system_scene_design(
+            genre, fact_based=fact_based, historical=historical, film_type=film_type,
+            locked_text=_locked_text, idea_text=_idea_text,
+        )
 
         chars_simple = json.dumps(
             [{"name": c.get("name",""), "role": c.get("role","")} for c in chars],
@@ -2184,8 +2251,15 @@ Water Cooler Moment: {wc.get("scene_or_setup", "")}
 """
 
         # ── 시스템 프롬프트 (fmt + b_story 전달) ──
+        # v2.4.0: 시대극 자동 감지 컨텍스트 추출
+        _locked_text, _idea_text = _get_period_scan_context({
+            "genre": genre,
+            "core_data": core_data or {},
+            "locked_items": [locked_block] if locked_block else [],
+        })
         system_prompt = P.build_system_treatment(genre, act_label, fmt=fmt, b_story_context=b_story_context,
-                                                   fact_based=fact_based, historical=historical, film_type=film_type)
+                                                   fact_based=fact_based, historical=historical, film_type=film_type,
+                                                   locked_text=_locked_text, idea_text=_idea_text)
 
         # ── 시리즈용 추가 정보 ──
         series_info = ""
@@ -2578,8 +2652,15 @@ def call_tone_document(core_data, structure_data, scene_data, treatment_data, ch
                 for b in act.get("beats", []):
                     treatment_summary += f"Beat {b.get('beat_no','')}: {b.get('beat_name','')}. "
 
+        # v2.4.0: 시대극 자동 감지 컨텍스트 추출
+        _locked_text, _idea_text = _get_period_scan_context({
+            "genre": genre,
+            "core_data": core_data or {},
+            "locked_items": [locked_block] if locked_block else [],
+        })
         system_prompt = P.build_system_tone_document(genre, fmt,
-                                                       fact_based=fact_based, historical=historical, film_type=film_type)
+                                                       fact_based=fact_based, historical=historical, film_type=film_type,
+                                                       locked_text=_locked_text, idea_text=_idea_text)
 
         user_prompt = f"""[로그라인]
 {lp.get("washed","")}
