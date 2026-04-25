@@ -222,11 +222,12 @@ details[open] > div { background-color: var(--card) !important; }
    ═══════════════════════════════════ */
 
 .header {
-    font-size: 0.85rem;
+    font-size: 0.95rem;
     font-weight: 700;
     color: var(--navy);
-    letter-spacing: 0.15em;
-    margin-bottom: 0;
+    letter-spacing: 0.2em;
+    margin-top: 0.5rem;
+    margin-bottom: 0.3rem;
     font-family: var(--heading);
 }
 
@@ -3411,7 +3412,7 @@ def generate_docx(project):
 
 # ─── 공통 헤더 ───
 st.markdown(
-    '<div style="text-align:center;padding:1rem 0 0 0">'
+    '<div style="text-align:center;padding:2rem 0 0 0">'
     '<div class="header">B L U E &nbsp; J E A N S &nbsp; P I C T U R E S</div>'
     '<div class="brand-title">CREATOR ENGINE</div>'
     '<div class="sub">Y O U N G &nbsp; · &nbsp; V I N T A G E &nbsp; · &nbsp; F R E E &nbsp; · &nbsp; I N N O V A T I V E</div>'
