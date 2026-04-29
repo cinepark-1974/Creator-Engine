@@ -70,6 +70,29 @@ with st.sidebar:
     """, unsafe_allow_html=True)
     st.caption("버전이 최신인지 확인하세요.")
 
+    # ─── v2.4.2: 리서치 기준일 표시 (한국 시간) ───
+    try:
+        from zoneinfo import ZoneInfo
+        _today = datetime.now(ZoneInfo("Asia/Seoul"))
+    except Exception:
+        _today = datetime.now()
+    st.caption(f"📅 리서치 기준일: {_today.strftime('%Y-%m-%d')}")
+
+    # ─── v2.4.2: 마지막 리서치 사용량 표시 ───
+    _usage = st.session_state.get("last_research_usage")
+    if _usage:
+        st.markdown(f"""
+        <div style="padding:10px;background:#FFFEF0;border-radius:6px;border-left:3px solid #FFCB05;font-family:'Pretendard',sans-serif;margin-top:8px;">
+            <div style="font-size:.7rem;color:#191970;font-weight:700;letter-spacing:.05em;margin-bottom:4px;">🔍 마지막 리서치</div>
+            <div style="font-size:.72rem;color:#444;line-height:1.5;">
+                검색 <b>{_usage['search_count']}회</b><br>
+                입력 {_usage['input_tokens']:,} 토큰<br>
+                출력 {_usage['output_tokens']:,} 토큰<br>
+                <span style="color:#191970;font-weight:700;">약 ${_usage['est_cost_usd']:.3f}</span>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
 # ─── Custom CSS ───
 st.markdown("""
 <style>
@@ -448,6 +471,7 @@ defaults = {
     "projects": {},
     "cur": None,
     "last_research_raw": "",
+    "last_research_usage": None,  # v2.4.2: 검색 횟수 + 토큰 + 비용 추정
     "last_cards_raw": "",
     "last_analysis_raw": "",
     "last_core_raw": "",
@@ -896,12 +920,21 @@ def _build_project_locked_block(project: dict) -> str:
     return P.build_locked_block(locked)
 
 
-# ─── API Call: Research ───
+# ─── API Call: Research (v2.4.2: web_search 통합 + 최신 작품 우선 + 토큰 로깅) ───
 def call_research(idea, genre, market):
+    """
+    v2.4.2 변경:
+      - web_search 도구 활성화 (max_uses=3, 4개 도메인 화이트리스트)
+      - SYSTEM_RESEARCH 함수형 호출로 동적 날짜 주입
+      - existing_works 스키마에 platform 필드 추가
+      - max_tokens 16000 → 8000 (토큰 절약)
+      - 토큰 사용량 + 검색 횟수 세션 로깅 (사이드바 표시용)
+    """
     try:
         client = get_client()
 
-        system_prompt = P.SYSTEM_RESEARCH
+        # v2.4.2: 함수 호출로 변경 (동적 날짜 주입)
+        system_prompt = P.get_system_research()
 
         user_prompt = f"""[입력]
 아이디어: {idea}
@@ -929,6 +962,7 @@ def call_research(idea, genre, market):
       "type": "",
       "country": "",
       "year": "",
+      "platform": "",
       "summary": "",
       "similarity": "",
       "difference_opportunity": ""
@@ -942,20 +976,66 @@ def call_research(idea, genre, market):
 }}
 
 규칙:
-- real_events 3~7개
-- existing_works 3~7개
+- real_events 3~7개 (학습 데이터 우선, 검색은 최신 사건만)
+- existing_works 3~7개 (검색 적극 활용 — 최신 영화·드라마 우선)
+- existing_works의 70% 이상은 최근 3년 작품
 - source는 가능한 한 짧게
 - key_insight는 2문장 이내
+- platform 필드 필수 (극장/Netflix/Wavve/Watcha/TVING/Disney+/IPTV/미상 중)
 """
 
+        # v2.4.2: web_search 도구 추가 (max_uses=3, 5개 도메인 화이트리스트)
         response = client.messages.create(
             model=ANTHROPIC_MODEL,
-            max_tokens=16000,
+            max_tokens=8000,
             temperature=0.2,
             system=system_prompt,
-            messages=[{"role": "user", "content": user_prompt}]
+            messages=[{"role": "user", "content": user_prompt}],
+            tools=[{
+                "type": "web_search_20250305",
+                "name": "web_search",
+                "max_uses": 3,
+                "allowed_domains": [
+                    "vkobis.or.kr",   # 영진위 온라인 통합전산망 (IPTV+OTT 박스오피스)
+                    "kobis.or.kr",    # 영진위 영화 정보 DB
+                    "imdb.com",       # 글로벌 영화·드라마 DB
+                    "variety.com",    # 할리우드 산업·신작 보도
+                    "yna.co.kr",      # 연합뉴스 (한국 콘텐츠 산업 보도)
+                ],
+            }],
         )
 
+        # v2.4.2: 토큰 사용량 + 검색 횟수 세션 로깅
+        try:
+            usage = getattr(response, 'usage', None)
+            if usage:
+                # 검색 횟수: server_tool_use.web_search_requests (모델 응답에 따라 키 다를 수 있음)
+                search_count = 0
+                stu = getattr(usage, 'server_tool_use', None)
+                if stu:
+                    search_count = getattr(stu, 'web_search_requests', 0) or 0
+
+                input_tokens = getattr(usage, 'input_tokens', 0) or 0
+                output_tokens = getattr(usage, 'output_tokens', 0) or 0
+
+                # 비용 추정 (Sonnet 4.6 기준 입력 $3/M, 출력 $15/M, 검색 $0.01/회)
+                est_cost = (
+                    (input_tokens / 1_000_000) * 3.0
+                    + (output_tokens / 1_000_000) * 15.0
+                    + search_count * 0.01
+                )
+
+                st.session_state["last_research_usage"] = {
+                    "search_count": search_count,
+                    "input_tokens": input_tokens,
+                    "output_tokens": output_tokens,
+                    "est_cost_usd": round(est_cost, 4),
+                }
+        except Exception:
+            # 사용량 로깅 실패는 본 기능에 영향 주지 않도록 무시
+            pass
+
+        # 텍스트 블록만 추출 (web_search tool_use/tool_result 블록은 자동 무시)
         txt = "".join(
             block.text for block in response.content if hasattr(block, "text")
         ).strip()

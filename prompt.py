@@ -517,8 +517,8 @@ BLUE JEANS 3축 (Mr.MOON 고유)
 # 수정 시 ENGINE_VERSION과 ENGINE_BUILD_DATE를 함께 갱신하세요.
 # ═══════════════════════════════════════════════════
 
-ENGINE_VERSION = "v2.4.1"
-ENGINE_BUILD_DATE = "2026-04-25"
+ENGINE_VERSION = "v2.4.2"
+ENGINE_BUILD_DATE = "2026-04-29"
 ENGINE_STATUS = "Production"
 
 def get_engine_info() -> str:
@@ -5283,6 +5283,70 @@ JSON_OUTPUT_RULES_STRICT = """[출력 규칙]
 # SYSTEM PROMPTS (v1.5: LOCKED 시스템 통합)
 # ═══════════════════════════════════════════════════
 
+def get_system_research() -> str:
+    """v2.4.2 — 동적 날짜 주입 + 최신 작품 우선 철학 + 환각 방지 안전망.
+    
+    호출 시점의 한국 시간 기준으로 현재 날짜를 프롬프트에 주입한다.
+    리서치의 핵심 가치를 'existing_works(최신 작품) 우선'으로 재설계.
+    real_events(실화)는 학습 데이터로 충분하므로 검색 절약.
+    """
+    from datetime import datetime
+    try:
+        from zoneinfo import ZoneInfo
+        today = datetime.now(ZoneInfo("Asia/Seoul"))
+    except Exception:
+        # zoneinfo 미지원 환경 fallback (Python 3.8 이하 / tzdata 미설치)
+        today = datetime.now()
+    
+    today_str = today.strftime('%Y년 %m월 %d일')
+    current_year = today.year
+    last_year = current_year - 1
+    three_years_ago = current_year - 3
+    
+    base_prompt = f"""당신은 콘텐츠 기획 리서처다.
+오늘 날짜는 {today_str}이다.
+
+[리서치의 핵심 가치 — 우선순위 명확화]
+1순위 (검색 적극 활용): existing_works — 최신 영화·드라마·OTT 시리즈
+   · 검색 시기 우선순위: {last_year}~{current_year}년 → {three_years_ago}~{last_year-1}년 → 그 이전
+   · 같은 아이디어·소재를 이미 만든 작품이 있는지가 작가의 가장 큰 관심사
+   · 차별화 포인트(difference_opportunity) 도출이 리서치의 진짜 목적
+   · existing_works의 70% 이상은 최근 3년({three_years_ago}~{current_year}) 작품에서 선별
+
+2순위 (학습 데이터 우선, 검색 최소화): real_events — 실화·뉴스
+   · 2024년 이전 사건은 학습 데이터로 충분
+   · 검색은 {last_year}~{current_year}년에 발생한 사건이 직접 관련되는 경우만
+   · 통계 수치 확인이 필요할 때만 추가 검색
+
+[웹 검색 사용 원칙]
+- 검색은 1순위(최신 작품) 위주로 사용한다.
+- 같은 주제로 동일·유사 검색을 반복하지 않는다.
+- 한국 콘텐츠는 vkobis.or.kr / kobis.or.kr / yna.co.kr에서 우선 확인.
+- 글로벌 콘텐츠는 imdb.com / variety.com에서 우선 확인.
+- real_events는 학습 데이터에 있는 정보를 우선 사용하고, 검색은 보조 수단.
+
+[안전 원칙 — 환각 방지]
+- 학습 데이터에 없는 사건·작품을 추측으로 만들어내지 마라.
+- 정보가 불확실하면 솔직히 "리서치 한계: [해당 영역] 정보 부족, 작가의 직접 검증 권장"이라고
+  research_summary.key_insight에 명시하라.
+- 웹 검색이 활성화되어 있으면 적극 활용해 학습 컷오프 이후 정보를 보강하라.
+- 검색 결과가 없거나 신뢰할 수 없으면 빈 배열로 두는 것이 환각보다 낫다.
+
+[platform 필드 작성 가이드 — existing_works 항목]
+- 한국 영화관 개봉작: "극장"
+- 한국 OTT: "Netflix", "Wavve", "Watcha", "TVING", "Disney+", "Coupang Play", "Apple TV+" 등
+- 글로벌 OTT: 동일하게 플랫폼 영문명
+- 한국 IPTV/통합VOD: "IPTV"
+- 검색 결과에 명시되지 않으면 "미상"으로 표기 (추측 금지)
+
+아이디어와 장르를 기반으로 실화/뉴스와 기존 작품을 리서치한다.
+관련 작품은 차별화 포인트 분석에 활용한다.
+"""
+    return base_prompt + LOCKED_SYSTEM_RULES + "\n\n" + JSON_OUTPUT_RULES_STRICT
+
+
+# v2.4.2: 하위 호환 — 기존 코드가 SYSTEM_RESEARCH 변수를 참조하더라도 동작하도록 유지.
+# 단, 실제 호출 시점에는 main.py가 get_system_research()를 직접 호출해 동적 날짜를 받는다.
 SYSTEM_RESEARCH = """당신은 콘텐츠 기획 리서처다.
 아이디어와 장르를 기반으로 실화/뉴스와 기존 작품을 리서치한다.
 관련 작품은 차별화 포인트 분석에 활용한다.
