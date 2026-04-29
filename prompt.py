@@ -517,7 +517,7 @@ BLUE JEANS 3축 (Mr.MOON 고유)
 # 수정 시 ENGINE_VERSION과 ENGINE_BUILD_DATE를 함께 갱신하세요.
 # ═══════════════════════════════════════════════════
 
-ENGINE_VERSION = "v2.4.2"
+ENGINE_VERSION = "v2.4.2.2"
 ENGINE_BUILD_DATE = "2026-04-29"
 ENGINE_STATUS = "Production"
 
@@ -5321,7 +5321,8 @@ def get_system_research() -> str:
 [웹 검색 사용 원칙]
 - 검색은 1순위(최신 작품) 위주로 사용한다.
 - 같은 주제로 동일·유사 검색을 반복하지 않는다.
-- 한국 콘텐츠는 vkobis.or.kr / kobis.or.kr / yna.co.kr에서 우선 확인.
+- 한국 콘텐츠는 vkobis.or.kr / kobis.or.kr (영진위 통합전산망 — 박스오피스·메타데이터)
+  + cine21.co.kr / cine21.com (씨네21 — 인터뷰·비평·라인업 분석)에서 우선 확인.
 - 글로벌 콘텐츠는 imdb.com / variety.com에서 우선 확인.
 - real_events는 학습 데이터에 있는 정보를 우선 사용하고, 검색은 보조 수단.
 
