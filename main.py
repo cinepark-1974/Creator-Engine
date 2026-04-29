@@ -998,9 +998,11 @@ def call_research(idea, genre, market):
                 "allowed_domains": [
                     "vkobis.or.kr",   # 영진위 온라인 통합전산망 (IPTV+OTT 박스오피스)
                     "kobis.or.kr",    # 영진위 영화 정보 DB
+                    "cine21.co.kr",   # 씨네21 — 한국 영화 매체 (인터뷰·비평·라인업)
+                    "cine21.com",     # 씨네21 — 같은 매체 다른 도메인
                     "imdb.com",       # 글로벌 영화·드라마 DB
                     "variety.com",    # 할리우드 산업·신작 보도
-                    "yna.co.kr",      # 연합뉴스 (한국 콘텐츠 산업 보도)
+                    # v2.4.2.1: yna.co.kr 제거 — Anthropic crawler 차단 (invalid_request_error)
                 ],
             }],
         )
