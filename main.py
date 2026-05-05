@@ -645,7 +645,7 @@ def _get_project_stage(project: dict) -> str:
     return "초기"
 
 
-def save_project_to_json(project: dict, engine_version: str = "v2.5.0") -> str:
+def save_project_to_json(project: dict, engine_version: str = "v2.5.2") -> str:
     """프로젝트 전체를 JSON 문자열로 직렬화.
     
     Args:
@@ -703,7 +703,7 @@ def load_project_from_json(json_str: str) -> dict:
     
     # 엔진 버전 호환성 체크 (경고만, 실패 아님)
     saved_version = meta.get("engine_version", "unknown")
-    current_version = "v2.5.0"
+    current_version = "v2.5.2"
     if saved_version != current_version:
         warnings.append(
             f"엔진 버전 차이 — 저장 시: {saved_version} / 현재: {current_version}. "
@@ -1696,11 +1696,11 @@ def call_character_bible_single(char_data, all_chars_names, core_data, genre, fm
 {P.CHAR_BIBLE_RULES}"""
 
         response = client.messages.create(
-            model=ANTHROPIC_MODEL_OPUS, max_tokens=16000, temperature=0.3,
+            model=ANTHROPIC_MODEL_OPUS, max_tokens=24000, temperature=0.3,
             system=system_prompt,
             messages=[{"role": "user", "content": user_prompt}]
         )
-        # max_tokens 잘림 시 분량 줄여서 재시도
+        # max_tokens 잘림 시 분량 줄여서 재시도 (v2.5.1: max_tokens 24000으로 상향)
         if response.stop_reason == "max_tokens":
             retry_prompt = user_prompt.replace(
                 "외형·첫인상 3문장", "외형·첫인상 2문장"
@@ -1714,28 +1714,44 @@ def call_character_bible_single(char_data, all_chars_names, core_data, genre, fm
                 "클라이맥스 상태 2문장", "클라이맥스 상태 1문장"
             )
             response = client.messages.create(
-                model=ANTHROPIC_MODEL_OPUS, max_tokens=16000, temperature=0.3,
+                model=ANTHROPIC_MODEL_OPUS, max_tokens=24000, temperature=0.3,
                 system=system_prompt,
                 messages=[{"role": "user", "content": retry_prompt}]
             )
         txt = "".join(b.text for b in response.content if hasattr(b, "text")).strip()
         st.session_state[f"last_char_bible_{role}_raw"] = txt
 
-        # JSON 파싱 시도 — 실패 시 자동 재시도 1회
+        # ─── v2.5.1: JSON 파싱 시도 — 실패 시 자동 재시도 2회 ───
+        # 1차 실패 → temperature 0.15로 재시도 (소프트 강화)
+        # 2차 실패 → temperature 0.05 + JSON_OUTPUT_RULES_STRICT 주입 (하드 강화)
         try:
             return safe_json_loads(txt)
         except json.JSONDecodeError:
-            st.warning(f"⚠️ {name} JSON 파싱 실패 — 자동 재시도 중...")
-            # 재시도: JSON 규칙을 더 강하게 강조
-            retry_system = system_prompt + "\n\n★ 최우선 규칙: 반드시 유효한 JSON만 출력. 대사 안의 따옴표는 작은따옴표만. 줄바꿈 금지. 역슬래시 금지. ★"
+            st.warning(f"⚠️ {name} JSON 파싱 실패 — 1차 재시도 중 (temp 0.15)...")
+            # 1차 재시도: JSON 규칙을 더 강하게 강조 + temperature 하강
+            retry_system_1 = system_prompt + "\n\n★ 최우선 규칙: 반드시 유효한 JSON만 출력. 대사 안의 따옴표는 작은따옴표만. 줄바꿈 금지. 역슬래시 금지. 후행 쉼표 금지. 코드 펜스(```) 금지. 출력 시작은 { 끝은 }. ★"
             response2 = client.messages.create(
-                model=ANTHROPIC_MODEL_OPUS, max_tokens=16000, temperature=0.2,
-                system=retry_system,
+                model=ANTHROPIC_MODEL_OPUS, max_tokens=24000, temperature=0.15,
+                system=retry_system_1,
                 messages=[{"role": "user", "content": user_prompt}]
             )
             txt2 = "".join(b.text for b in response2.content if hasattr(b, "text")).strip()
             st.session_state[f"last_char_bible_{role}_raw"] = txt2
-            return safe_json_loads(txt2)
+
+            try:
+                return safe_json_loads(txt2)
+            except json.JSONDecodeError:
+                st.warning(f"⚠️ {name} 1차 재시도도 실패 — 2차 재시도 중 (temp 0.05, STRICT 룰 주입)...")
+                # 2차 재시도: temperature 최저 + JSON_OUTPUT_RULES_STRICT 추가 주입
+                retry_system_2 = system_prompt + "\n\n" + P.JSON_OUTPUT_RULES_STRICT + "\n\n★ 절대 위반 금지: 단일 JSON 객체. 코드 펜스 금지. 설명 텍스트 금지. 첫 문자는 { 마지막 문자는 }. 대사 안의 인용은 작은따옴표만. 줄바꿈·역슬래시·후행 쉼표 모두 금지. ★"
+                response3 = client.messages.create(
+                    model=ANTHROPIC_MODEL_OPUS, max_tokens=24000, temperature=0.05,
+                    system=retry_system_2,
+                    messages=[{"role": "user", "content": user_prompt}]
+                )
+                txt3 = "".join(b.text for b in response3.content if hasattr(b, "text")).strip()
+                st.session_state[f"last_char_bible_{role}_raw"] = txt3
+                return safe_json_loads(txt3)
 
     except Exception as e:
         st.error(f"Character Bible ({name}) 생성 실패: {e}")
@@ -3711,6 +3727,7 @@ if st.session_state.view == "home":
         _seed_default_format = _seed_full.get("format", "") or _seed_locked.get("locked_format", {}).get("primary", "")
 
         # LOCKED 자동 생성 — 시드의 핵심 항목을 한 줄씩 텍스트로
+        # ─── v2.5.2: Idea Engine 시드의 핵심 결정·모티프·규약까지 확장 추출 ───
         _seed_default_locked = ""
         if _seed_locked:
             _lock_lines = []
@@ -3722,6 +3739,8 @@ if st.session_state.view == "home":
                 gtxt = lg["primary"]
                 if lg.get("secondary"):
                     gtxt += f" / {lg['secondary']}"
+                if lg.get("tertiary"):
+                    gtxt += f" / {lg['tertiary']}"
                 _lock_lines.append(f"장르: {gtxt}")
             lt = _seed_locked.get("locked_theme", {})
             if isinstance(lt, dict):
@@ -3733,6 +3752,8 @@ if st.session_state.view == "home":
             if isinstance(ltg, dict):
                 if ltg.get("domestic"):
                     _lock_lines.append(f"국내 타겟: {ltg['domestic']}")
+                if ltg.get("global"):
+                    _lock_lines.append(f"글로벌 타겟: {ltg['global']}")
             lf = _seed_locked.get("locked_format", {})
             if isinstance(lf, dict):
                 if lf.get("episode_count"):
@@ -3752,6 +3773,92 @@ if st.session_state.view == "home":
                 _lock_lines.append("[Treatment에서 다룰 위험 요소]")
                 for r in risks:
                     _lock_lines.append(f"- {r}")
+
+            # ─── v2.5.2 신규 추출 영역 5종 ──────────────────────────
+            # 1. 확정된 핵심 결정 (포맷·결말·음악·스타일 등 작품 본질 LOCK)
+            core_decisions = _seed_locked.get("locked_core_decisions", [])
+            if isinstance(core_decisions, list) and core_decisions:
+                _lock_lines.append("")
+                _lock_lines.append("[★ 확정된 핵심 결정 LOCK ★ — 절대 변경 금지]")
+                for d in core_decisions:
+                    if isinstance(d, dict):
+                        cat = d.get("category", "")
+                        rule = d.get("rule", "") or d.get("decision", "")
+                        if cat and rule:
+                            _lock_lines.append(f"- [{cat}] {rule}")
+                        elif rule:
+                            _lock_lines.append(f"- {rule}")
+                    elif isinstance(d, str):
+                        _lock_lines.append(f"- {d}")
+
+            # 2. 음악 사용 규약 (장르 특화 — 멜로/음악·청춘물에서 자주 나타남)
+            music_rules = _seed_locked.get("locked_music_rules", {})
+            if music_rules:
+                _lock_lines.append("")
+                _lock_lines.append("[★ 음악 사용 규약 LOCK ★]")
+                if isinstance(music_rules, dict):
+                    for k, v in music_rules.items():
+                        if isinstance(v, list):
+                            for item in v:
+                                _lock_lines.append(f"- [{k}] {item}")
+                        else:
+                            _lock_lines.append(f"- [{k}] {v}")
+                elif isinstance(music_rules, list):
+                    for r in music_rules:
+                        _lock_lines.append(f"- {r}")
+                elif isinstance(music_rules, str):
+                    _lock_lines.append(f"- {music_rules}")
+
+            # 3. 시각 모티프 (오브제 연결핀 — 두 타임라인/두 세계 연결의 시각 장치)
+            visual_motifs = _seed_locked.get("locked_visual_motifs", [])
+            if isinstance(visual_motifs, list) and visual_motifs:
+                _lock_lines.append("")
+                _lock_lines.append("[★ 시각 모티프 LOCK ★ — Treatment·Scene Design에서 보존]")
+                for m in visual_motifs:
+                    if isinstance(m, dict):
+                        motif = m.get("motif", "") or m.get("name", "")
+                        function = m.get("function", "") or m.get("role", "")
+                        if motif and function:
+                            _lock_lines.append(f"- {motif} → {function}")
+                        elif motif:
+                            _lock_lines.append(f"- {motif}")
+                    elif isinstance(m, str):
+                        _lock_lines.append(f"- {m}")
+
+            # 4. 결말 형식 (헤어짐/결합/모호 등 결말의 본질 LOCK)
+            ending_form = _seed_locked.get("locked_ending_form", {})
+            if ending_form:
+                _lock_lines.append("")
+                _lock_lines.append("[★ 결말 형식 LOCK ★]")
+                if isinstance(ending_form, dict):
+                    if ending_form.get("type"):
+                        _lock_lines.append(f"- 결말 유형: {ending_form['type']}")
+                    if ending_form.get("emotional_resolution"):
+                        _lock_lines.append(f"- 정서적 해소: {ending_form['emotional_resolution']}")
+                    if ending_form.get("final_image"):
+                        _lock_lines.append(f"- 마지막 이미지: {ending_form['final_image']}")
+                    if ending_form.get("forbidden"):
+                        _lock_lines.append(f"- 금지 패턴: {ending_form['forbidden']}")
+                elif isinstance(ending_form, str):
+                    _lock_lines.append(f"- {ending_form}")
+
+            # 5. Creator Engine 결정 의제 (Idea가 미해결로 남긴 핵심 질문 — Creator가 답해야 함)
+            creator_questions = _seed_locked.get("locked_creator_questions", [])
+            if isinstance(creator_questions, list) and creator_questions:
+                _lock_lines.append("")
+                _lock_lines.append("[Creator Engine에서 답해야 할 핵심 의제]")
+                for q in creator_questions:
+                    if isinstance(q, dict):
+                        question = q.get("question", "")
+                        options = q.get("options", [])
+                        if question:
+                            line = f"- {question}"
+                            if isinstance(options, list) and options:
+                                line += f" (후보: {' / '.join(str(o) for o in options)})"
+                            _lock_lines.append(line)
+                    elif isinstance(q, str):
+                        _lock_lines.append(f"- {q}")
+
             _seed_default_locked = "\n".join(_lock_lines)
 
         col1, col2 = st.columns([2, 1])
