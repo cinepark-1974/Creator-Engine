@@ -645,7 +645,7 @@ def _get_project_stage(project: dict) -> str:
     return "초기"
 
 
-def save_project_to_json(project: dict, engine_version: str = "v2.5.2") -> str:
+def save_project_to_json(project: dict, engine_version: str = "v2.5.3") -> str:
     """프로젝트 전체를 JSON 문자열로 직렬화.
     
     Args:
@@ -703,7 +703,7 @@ def load_project_from_json(json_str: str) -> dict:
     
     # 엔진 버전 호환성 체크 (경고만, 실패 아님)
     saved_version = meta.get("engine_version", "unknown")
-    current_version = "v2.5.2"
+    current_version = "v2.5.3"
     if saved_version != current_version:
         warnings.append(
             f"엔진 버전 차이 — 저장 시: {saved_version} / 현재: {current_version}. "
@@ -1695,11 +1695,13 @@ def call_character_bible_single(char_data, all_chars_names, core_data, genre, fm
 
 {P.CHAR_BIBLE_RULES}"""
 
-        response = client.messages.create(
+        # ─── v2.5.3: 스트리밍 호출로 전환 (long requests 정책 대응) ───
+        with client.messages.stream(
             model=ANTHROPIC_MODEL_OPUS, max_tokens=24000, temperature=0.3,
             system=system_prompt,
             messages=[{"role": "user", "content": user_prompt}]
-        )
+        ) as stream:
+            response = stream.get_final_message()
         # max_tokens 잘림 시 분량 줄여서 재시도 (v2.5.1: max_tokens 24000으로 상향)
         if response.stop_reason == "max_tokens":
             retry_prompt = user_prompt.replace(
@@ -1713,11 +1715,12 @@ def call_character_bible_single(char_data, all_chars_names, core_data, genre, fm
             ).replace(
                 "클라이맥스 상태 2문장", "클라이맥스 상태 1문장"
             )
-            response = client.messages.create(
+            with client.messages.stream(
                 model=ANTHROPIC_MODEL_OPUS, max_tokens=24000, temperature=0.3,
                 system=system_prompt,
                 messages=[{"role": "user", "content": retry_prompt}]
-            )
+            ) as stream:
+                response = stream.get_final_message()
         txt = "".join(b.text for b in response.content if hasattr(b, "text")).strip()
         st.session_state[f"last_char_bible_{role}_raw"] = txt
 
@@ -1730,11 +1733,12 @@ def call_character_bible_single(char_data, all_chars_names, core_data, genre, fm
             st.warning(f"⚠️ {name} JSON 파싱 실패 — 1차 재시도 중 (temp 0.15)...")
             # 1차 재시도: JSON 규칙을 더 강하게 강조 + temperature 하강
             retry_system_1 = system_prompt + "\n\n★ 최우선 규칙: 반드시 유효한 JSON만 출력. 대사 안의 따옴표는 작은따옴표만. 줄바꿈 금지. 역슬래시 금지. 후행 쉼표 금지. 코드 펜스(```) 금지. 출력 시작은 { 끝은 }. ★"
-            response2 = client.messages.create(
+            with client.messages.stream(
                 model=ANTHROPIC_MODEL_OPUS, max_tokens=24000, temperature=0.15,
                 system=retry_system_1,
                 messages=[{"role": "user", "content": user_prompt}]
-            )
+            ) as stream:
+                response2 = stream.get_final_message()
             txt2 = "".join(b.text for b in response2.content if hasattr(b, "text")).strip()
             st.session_state[f"last_char_bible_{role}_raw"] = txt2
 
@@ -1744,11 +1748,12 @@ def call_character_bible_single(char_data, all_chars_names, core_data, genre, fm
                 st.warning(f"⚠️ {name} 1차 재시도도 실패 — 2차 재시도 중 (temp 0.05, STRICT 룰 주입)...")
                 # 2차 재시도: temperature 최저 + JSON_OUTPUT_RULES_STRICT 추가 주입
                 retry_system_2 = system_prompt + "\n\n" + P.JSON_OUTPUT_RULES_STRICT + "\n\n★ 절대 위반 금지: 단일 JSON 객체. 코드 펜스 금지. 설명 텍스트 금지. 첫 문자는 { 마지막 문자는 }. 대사 안의 인용은 작은따옴표만. 줄바꿈·역슬래시·후행 쉼표 모두 금지. ★"
-                response3 = client.messages.create(
+                with client.messages.stream(
                     model=ANTHROPIC_MODEL_OPUS, max_tokens=24000, temperature=0.05,
                     system=retry_system_2,
                     messages=[{"role": "user", "content": user_prompt}]
-                )
+                ) as stream:
+                    response3 = stream.get_final_message()
                 txt3 = "".join(b.text for b in response3.content if hasattr(b, "text")).strip()
                 st.session_state[f"last_char_bible_{role}_raw"] = txt3
                 return safe_json_loads(txt3)
@@ -4512,6 +4517,25 @@ elif st.session_state.view == "project" and st.session_state.cur:
 
             if passed:
                 st.success("✅ Gate A 통과. Core Build 진행 가능.")
+
+                # v2.5.3: Brainstorm 완료 시점 JSON 저장
+                with st.expander("💾 프로젝트 JSON 저장 (Brainstorm 완료 시점)", expanded=False):
+                    st.caption(
+                        "브라우저를 닫거나 세션이 끊겨도 여기서 JSON 파일을 저장하면 "
+                        "다음에 홈 화면의 '프로젝트 불러오기'로 복원 후 Core부터 이어서 진행할 수 있습니다."
+                    )
+                    title_safe_json = project.get("title", "프로젝트").replace(" ", "_")
+                    ts_json = datetime.now().strftime("%Y%m%d_%H%M")
+                    project_json_str = save_project_to_json(project)
+                    st.download_button(
+                        label="💾 프로젝트 저장 (Brainstorm 완료)",
+                        data=project_json_str.encode("utf-8"),
+                        file_name=f"{title_safe_json}_Brainstorm완료_{ts_json}.json",
+                        mime="application/json",
+                        use_container_width=True,
+                        key="dl_brainstorm",
+                    )
+
                 if st.button("🎯 Core Build 진행 →", type="primary", use_container_width=True):
                     project["stage"] = "core"
                     st.session_state.view = "core"
@@ -4521,6 +4545,22 @@ elif st.session_state.view == "project" and st.session_state.cur:
                     f"⚠️ Gate A 미통과 (평균 {avg}). "
                     f"아이디어 보강 또는 재실행 권장."
                 )
+
+                # v2.5.3: Override 전에도 JSON 저장 가능
+                with st.expander("💾 프로젝트 JSON 저장 (Brainstorm 완료 시점)", expanded=False):
+                    st.caption("Gate A 미통과 상태이지만 현재까지의 작업을 저장할 수 있습니다.")
+                    title_safe_json = project.get("title", "프로젝트").replace(" ", "_")
+                    ts_json = datetime.now().strftime("%Y%m%d_%H%M")
+                    project_json_str = save_project_to_json(project)
+                    st.download_button(
+                        label="💾 프로젝트 저장 (Brainstorm 완료, Gate 미통과)",
+                        data=project_json_str.encode("utf-8"),
+                        file_name=f"{title_safe_json}_Brainstorm_{ts_json}.json",
+                        mime="application/json",
+                        use_container_width=True,
+                        key="dl_brainstorm_fail",
+                    )
+
                 col_o1, col_o2 = st.columns(2)
                 with col_o1:
                     if st.button("🔓 Override (강제 통과)"):
@@ -4915,11 +4955,47 @@ elif st.session_state.view == "core" and st.session_state.cur:
 
             if verdict == "개발 진행":
                 st.success(f"✅ {verdict}. Character Bible 진행 가능.")
+
+                # v2.5.3: Core 완료 시점 JSON 저장
+                with st.expander("💾 프로젝트 JSON 저장 (Core 완료 시점)", expanded=False):
+                    st.caption(
+                        "Core Build까지 완료되었습니다. 여기서 JSON 파일을 저장하면 "
+                        "Character Bible 단계에서 문제가 생겨도 Core까지의 작업을 잃지 않습니다. "
+                        "다음에 홈 화면의 '프로젝트 불러오기'로 복원 후 Character Bible부터 이어서 진행할 수 있습니다."
+                    )
+                    title_safe_json = project.get("title", "프로젝트").replace(" ", "_")
+                    ts_json = datetime.now().strftime("%Y%m%d_%H%M")
+                    project_json_str = save_project_to_json(project)
+                    st.download_button(
+                        label="💾 프로젝트 저장 (Core 완료)",
+                        data=project_json_str.encode("utf-8"),
+                        file_name=f"{title_safe_json}_Core완료_{ts_json}.json",
+                        mime="application/json",
+                        use_container_width=True,
+                        key="dl_core",
+                    )
+
                 if st.button("📖 Character Bible 진행 →", type="primary", use_container_width=True):
                     st.session_state.view = "char_bible"
                     st.rerun()
             elif verdict == "개발 보류":
                 st.warning(f"⚠️ {verdict}. Core Build 보강 필요.")
+
+                # v2.5.3: Core 보류 상태에서도 저장 가능
+                with st.expander("💾 프로젝트 JSON 저장 (Core 완료, Gate 보류)", expanded=False):
+                    st.caption("Gate B+C 보류 상태이지만 현재까지의 작업을 저장할 수 있습니다.")
+                    title_safe_json = project.get("title", "프로젝트").replace(" ", "_")
+                    ts_json = datetime.now().strftime("%Y%m%d_%H%M")
+                    project_json_str = save_project_to_json(project)
+                    st.download_button(
+                        label="💾 프로젝트 저장 (Core, Gate 보류)",
+                        data=project_json_str.encode("utf-8"),
+                        file_name=f"{title_safe_json}_Core_{ts_json}.json",
+                        mime="application/json",
+                        use_container_width=True,
+                        key="dl_core_hold",
+                    )
+
                 col_cv1, col_cv2 = st.columns(2)
                 with col_cv1:
                     if st.button("🔓 Override → Character Bible"):
@@ -5244,6 +5320,26 @@ elif st.session_state.view == "char_bible" and st.session_state.cur:
         # Structure 진행 버튼
         st.markdown("---")
         st.success("✅ Character Bible 완료. Structure Build 진행 가능.")
+
+        # v2.5.3: Character Bible 완료 시점 JSON 저장
+        with st.expander("💾 프로젝트 JSON 저장 (Character Bible 완료 시점)", expanded=False):
+            st.caption(
+                "Character Bible까지 완료되었습니다. 여기서 JSON 파일을 저장하면 "
+                "Structure 단계에서 문제가 생겨도 Character Bible까지의 작업을 잃지 않습니다. "
+                "다음에 홈 화면의 '프로젝트 불러오기'로 복원 후 Structure부터 이어서 진행할 수 있습니다."
+            )
+            title_safe_json = project.get("title", "프로젝트").replace(" ", "_")
+            ts_json = datetime.now().strftime("%Y%m%d_%H%M")
+            project_json_str = save_project_to_json(project)
+            st.download_button(
+                label="💾 프로젝트 저장 (Character Bible 완료)",
+                data=project_json_str.encode("utf-8"),
+                file_name=f"{title_safe_json}_Bible완료_{ts_json}.json",
+                mime="application/json",
+                use_container_width=True,
+                key="dl_bible",
+            )
+
         if st.button("🏗️ Structure Build 진행 →", type="primary", use_container_width=True):
             st.session_state.view = "structure"
             st.rerun()
@@ -5420,11 +5516,46 @@ elif st.session_state.view == "structure" and st.session_state.cur:
 
         if gd_ok:
             st.success("✅ Gate D 통과. Scene Design 진행 가능.")
+
+            # v2.5.3: Structure 완료 시점 JSON 저장
+            with st.expander("💾 프로젝트 JSON 저장 (Structure 완료 시점)", expanded=False):
+                st.caption(
+                    "Structure Build까지 완료되었습니다. 여기서 JSON 파일을 저장하면 "
+                    "Scene Design 단계에서 문제가 생겨도 Structure까지의 작업을 잃지 않습니다."
+                )
+                title_safe_json = project.get("title", "프로젝트").replace(" ", "_")
+                ts_json = datetime.now().strftime("%Y%m%d_%H%M")
+                project_json_str = save_project_to_json(project)
+                st.download_button(
+                    label="💾 프로젝트 저장 (Structure 완료)",
+                    data=project_json_str.encode("utf-8"),
+                    file_name=f"{title_safe_json}_Structure완료_{ts_json}.json",
+                    mime="application/json",
+                    use_container_width=True,
+                    key="dl_structure",
+                )
+
             if st.button("🎬 Scene Design 진행 →", type="primary", use_container_width=True):
                 st.session_state.view = "scene_design"
                 st.rerun()
         else:
             st.warning(f"⚠️ Gate D 미통과 (평균 {gd_avg}).")
+
+            # v2.5.3: Gate D 미통과 시에도 저장 가능
+            with st.expander("💾 프로젝트 JSON 저장 (Structure 완료, Gate D 보류)", expanded=False):
+                st.caption("Gate D 미통과 상태이지만 현재까지의 작업을 저장할 수 있습니다.")
+                title_safe_json = project.get("title", "프로젝트").replace(" ", "_")
+                ts_json = datetime.now().strftime("%Y%m%d_%H%M")
+                project_json_str = save_project_to_json(project)
+                st.download_button(
+                    label="💾 프로젝트 저장 (Structure, Gate D 보류)",
+                    data=project_json_str.encode("utf-8"),
+                    file_name=f"{title_safe_json}_Structure_{ts_json}.json",
+                    mime="application/json",
+                    use_container_width=True,
+                    key="dl_structure_hold",
+                )
+
             col_sd1, col_sd2 = st.columns(2)
             with col_sd1:
                 if st.button("🔓 Override → Scene Design"):
@@ -5561,7 +5692,7 @@ elif st.session_state.view == "scene_design" and st.session_state.cur:
         )
         title_safe_json = project.get("title", "프로젝트").replace(" ", "_")
         ts_json = datetime.now().strftime("%Y%m%d_%H%M")
-        project_json_str = save_project_to_json(project, engine_version="v2.3.5")
+        project_json_str = save_project_to_json(project)
         st.download_button(
             label="💾 프로젝트 저장 (Scene 완료 시점)",
             data=project_json_str.encode("utf-8"),
@@ -5817,7 +5948,7 @@ elif st.session_state.view == "treatment" and st.session_state.cur:
 
         # JSON 프로젝트 저장 (세션 복구용)
         st.markdown("#### 💾 프로젝트 JSON 저장 (세션 복구용)")
-        project_json_str = save_project_to_json(project, engine_version="v2.3.5")
+        project_json_str = save_project_to_json(project)
         st.download_button(
             label="💾 프로젝트 저장 (Treatment 완료 시점)",
             data=project_json_str.encode("utf-8"),
@@ -5988,7 +6119,7 @@ elif st.session_state.view == "tone_doc" and st.session_state.cur:
         # 최종 프로젝트 JSON 저장 (완성 상태 백업)
         st.markdown("#### 💾 프로젝트 JSON 저장 (완성 상태 백업)")
         st.caption("완성된 프로젝트 전체 상태. 나중에 Writer Engine 투입 전 참고용 또는 백업용.")
-        project_json_str = save_project_to_json(project, engine_version="v2.3.5")
+        project_json_str = save_project_to_json(project)
         st.download_button(
             label="💾 프로젝트 저장 (최종 완성)",
             data=project_json_str.encode("utf-8"),

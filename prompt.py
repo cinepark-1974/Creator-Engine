@@ -2,8 +2,8 @@
 👖 BLUE JEANS Creator Engine — Prompt Library
 
 ╔══════════════════════════════════════════════════════════╗
-║  VERSION: v2.5.2                                         ║
-║  BUILD DATE: 2026-05-04                                  ║
+║  VERSION: v2.5.3                                         ║
+║  BUILD DATE: 2026-05-12                                  ║
 ║  STATUS: Production                                      ║
 ╚══════════════════════════════════════════════════════════╝
 
@@ -12,6 +12,42 @@
 - Streamlit UI 좌측 사이드바 하단 "Engine Info" 확인
 - README.md 최상단 확인
 세 곳의 버전이 일치해야 정상.
+
+─────────────────────────────────────────────────────────
+v2.5.3 핫픽스 (2026-05-12) — long requests 정책 대응 + 단계별 JSON 저장
+─────────────────────────────────────────────────────────
+
+[v2.5.3 핵심 — 2축 핫픽스]
+
+진단:
+1. Anthropic API의 long requests 정책 적용으로 캐릭터 바이블 생성 실패.
+   v2.5.1에서 max_tokens 16000→24000 상향 후 비스트리밍 호출이
+   "Streaming is required for operations that may take longer than 10 minutes"
+   에러로 차단됨.
+
+2. JSON 저장 기능이 Scene/Treatment/완성 시점에만 존재.
+   Brainstorm/Core/Bible/Structure 완료 시점에는 저장 버튼 없어
+   세션 끊김 또는 다음 단계 에러 시 작업 손실 위험.
+
+v2.5.3 변경:
+1. 캐릭터 바이블 4개 API 호출 모두 스트리밍 방식으로 전환
+   client.messages.create() → client.messages.stream()
+   - 1차 시도 (max_tokens 잘림 재시도 포함)
+   - 1차 JSON 재시도 (temp 0.15)
+   - 2차 JSON 재시도 (temp 0.05 + STRICT 룰)
+2. JSON 저장 버튼 4개 시점 신설
+   - Brainstorm 완료 (Gate A 통과 + 미통과 모두)
+   - Core Build 완료 (Gate B+C 통과 + 보류 모두)
+   - Character Bible 완료
+   - Structure Build 완료 (Gate D 통과 + 미통과 모두)
+3. 기존 3곳의 engine_version="v2.3.5" 하드코딩 제거
+   → 디폴트 사용으로 통일 (현재 v2.5.3 자동 적용)
+
+[하위 호환성]
+- 캐릭터 바이블 출력 스키마 그대로 (스트리밍은 호출 방식만 변경)
+- JSON 저장 양식 동일 (save_project_to_json 함수 무수정)
+- main.py 시그니처 무수정
+- 기존 프로젝트 100% 호환
 
 ─────────────────────────────────────────────────────────
 v2.5.2 핫픽스 (2026-05-04) — Idea→Creator 인계 LOCKED 추출 확장
@@ -645,8 +681,8 @@ BLUE JEANS 3축 (Mr.MOON 고유)
 # 수정 시 ENGINE_VERSION과 ENGINE_BUILD_DATE를 함께 갱신하세요.
 # ═══════════════════════════════════════════════════
 
-ENGINE_VERSION = "v2.5.2"
-ENGINE_BUILD_DATE = "2026-05-04"
+ENGINE_VERSION = "v2.5.3"
+ENGINE_BUILD_DATE = "2026-05-12"
 ENGINE_STATUS = "Production"
 
 def get_engine_info() -> str:

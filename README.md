@@ -1,12 +1,70 @@
 # 👖 BLUE JEANS · Creator Engine
 
-**Version: v2.5.2** · Build: 2026-05-04 · Status: Production
+**Version: v2.5.3** · Build: 2026-05-12 · Status: Production
 
 > **아이디어 한 줄 → 글로벌 스튜디오 수준 기획개발 패키지**
 >
 > BLUE JEANS PICTURES 고유 서사동력 프레임워크(BJND) + 창작자 감성 엔진
 
 > ⚠️ **버전 확인 방법**: `prompt.py` 최상단 VERSION 블록 / Streamlit UI 사이드바 Engine Info / 이 README 최상단 — 세 곳의 버전이 일치해야 정상입니다. 불일치 시 최신 파일로 덮어쓰세요.
+
+---
+
+## v2.5.3 핫픽스 (2026-05-12) — long requests 정책 대응 + 단계별 JSON 저장
+
+### 진단 — 운영 중 발견된 2가지 결함
+
+**결함 1. 캐릭터 바이블 생성 실패 — long requests 정책**
+
+Anthropic API의 정책 적용으로 비스트리밍 호출이 차단되었다. 에러 메시지:
+
+> "Streaming is required for operations that may take longer than 10 minutes."
+
+원인 — v2.5.1에서 캐릭터 바이블 안정성을 위해 max_tokens를 16,000 → 24,000으로 상향했을 때, 이 변경이 Anthropic API의 long requests 정책 임계값을 넘었다. v2.5.1·v2.5.2 적용 후 운영 중 발견된 회귀 결함.
+
+**결함 2. JSON 저장이 Scene 단계 이후에만 존재**
+
+v2.3.5에서 JSON 저장 기능 도입 시 Scene/Treatment/완성 시점에만 버튼이 배치되어, **Core/Bible 단계에서 다음 단계 에러 발생 시 작업 손실 위험.** Mr. MOON이 실제 운영 중 Core 완료 후 Character Bible 단계에서 long requests 에러를 만나 작업 손실 직전 상황 발생.
+
+### 축 1: 캐릭터 바이블 스트리밍 전환
+
+`call_character_bible_single()` 함수의 4개 API 호출을 모두 스트리밍 방식으로 전환.
+
+| 호출 위치 | 변경 전 | 변경 후 |
+|---|---|---|
+| 1차 시도 | `client.messages.create()` | `client.messages.stream()` + `get_final_message()` |
+| max_tokens 잘림 재시도 | `client.messages.create()` | `client.messages.stream()` + `get_final_message()` |
+| JSON 1차 재시도 (temp 0.15) | `client.messages.create()` | `client.messages.stream()` + `get_final_message()` |
+| JSON 2차 재시도 (temp 0.05) | `client.messages.create()` | `client.messages.stream()` + `get_final_message()` |
+
+스트리밍 호출은 API 응답을 토큰 단위로 받으므로 long requests 정책을 통과한다. 출력 스키마·max_tokens·temperature·재시도 로직 모두 v2.5.1·v2.5.2 그대로 유지.
+
+### 축 2: 단계별 JSON 저장 버튼 4종 신설
+
+| 신설 위치 | 시점 | 비고 |
+|---|---|---|
+| Brainstorm 완료 | Gate A 통과 / 미통과 양쪽 | 미통과 시에도 저장 가능 |
+| Core Build 완료 | Gate B+C 통과 / 보류 양쪽 | 보류 상태에도 저장 가능 |
+| Character Bible 완료 | 7명 생성 완료 후 | 가장 시급한 보호 시점 |
+| Structure Build 완료 | Gate D 통과 / 미통과 양쪽 | 미통과 시에도 저장 가능 |
+
+기존 Scene/Treatment/완성 시점 3개와 합쳐 **총 7개 시점**에서 JSON 저장 가능. 어느 단계에서 멈춰도 그 시점까지의 작업이 보존된다.
+
+### 축 3: v2.3.5 하드코딩 정리
+
+기존 3곳의 `save_project_to_json(project, engine_version="v2.3.5")` 호출을 디폴트 사용으로 변경. v2.3.5 마이그레이션 잔재 제거.
+
+### 하위 호환성
+
+- 캐릭터 바이블 출력 스키마 그대로 (스트리밍은 호출 방식만 변경)
+- JSON 저장 양식 동일 (`save_project_to_json` 함수 무수정)
+- main.py 시그니처 무수정
+- 기존 v2.5.0/v2.5.1/v2.5.2 프로젝트 100% 호환
+
+### 다음 사이클 의제
+
+- 다른 큰 max_tokens 호출(Treatment Build 16000 등)도 예방적으로 스트리밍 전환 검토
+- JSON 저장 자동화 (각 단계 완료 시 자동으로 백업 파일 다운로드 트리거)
 
 ---
 
@@ -1618,6 +1676,7 @@ ANTHROPIC_API_KEY = "sk-ant-..."
 | **v2.5.0** | **Writer Engine v3.5.1 환류 반영 + 5축 데이터 인터페이스 신설 — OBSTACLE DESIGN(장벽 4유형 + Beat 6/10/13 에스컬레이션) / CHARACTER ACTIVE DESIRE(메인 역할 능동 행동 3개+) / PLANT DISTRIBUTION(plant_beat/audience_inference_beat/payoff_beat 분산) / EMOTIONAL CLIMAX DESIGN(폭발 7형식 + 온도 변화 ≥4) / B-STORY INDEPENDENCE(서브 역할 독립 욕망). 모든 장르 적용. 메타데이터 3중 정합성 복원(prompt.py 헤더 v2.4.0/main.py v2.3.5 누락분 갱신). Writer Engine이 직접 흡수하는 JSON 인터페이스 — Creator→Writer 환류 루프 폐쇄.** |
 | **v2.5.1** | **[핫픽스] 캐릭터 바이블 JSON 출력 안정화 — v2.5.0 신규 4개 필드 추가로 페이로드가 무거워져 JSON 파싱 실패 빈발. 3축으로 해결: ① CHAR_BIBLE_RULES에 9개 강제 JSON 출력 룰 신설(BAD/GOOD 예시 + 자가 검증 5항목) ② max_tokens 16,000 → 24,000 ③ 자동 재시도 1회 → 2회(temp 0.3 → 0.15 → 0.05 단계적 하강 + JSON_OUTPUT_RULES_STRICT 추가 주입). 1차 시도 성공률 ~60% → ≥85%, 누적 성공률 ≥95% 목표. 출력 스키마 무수정으로 100% 하위 호환.** |
 | **v2.5.2** | **[핫픽스] Idea→Creator 인계 LOCKED 추출 확장 — 「오랜만에」 검증에서 핵심 모티프 18개 중 11개(61%) 휘발 발견. 원인은 LOCKED 시스템 강도가 아닌 main.py의 데이터 인계 결함(Idea Engine 시드 7개 키만 추출, 추가 5개 영역 무시). 2축으로 해결: ① main.py에 5개 신규 LOCKED 영역 추출(locked_core_decisions / locked_music_rules / locked_visual_motifs / locked_ending_form / locked_creator_questions) ② LOCKED_SYSTEM_RULES에 4종 신규 보호 카테고리 명시(확정된 핵심 결정 / 음악 사용 규약 / 시각 모티프 / 결말 형식). LOCKED 검증 체크리스트 5개 신규 항목 추가. 구버전 Idea Engine 시드 100% 호환(fallback 메커니즘). genre.tertiary / target.global 보너스 추출. Idea Engine v1.1 업그레이드 요청서 별도 작성 권장.** |
+| **v2.5.3** | **[핫픽스] long requests 정책 대응 + 단계별 JSON 저장 — 운영 중 발견된 2가지 결함 해결. ① 캐릭터 바이블 4개 API 호출을 모두 스트리밍 방식으로 전환(client.messages.stream() + get_final_message())해 long requests 정책 통과. v2.5.1의 max_tokens 24000 안정성 유지. ② JSON 저장 버튼 4개 시점 신설(Brainstorm/Core/Bible/Structure 완료) — 기존 Scene/Treatment/완성과 합쳐 총 7개 시점 보호. ③ engine_version="v2.3.5" 하드코딩 3곳 제거 → 디폴트 사용으로 통일. 출력 스키마·시그니처 무수정, 100% 하위 호환.** |
 
 ---
 
