@@ -645,7 +645,7 @@ def _get_project_stage(project: dict) -> str:
     return "초기"
 
 
-def save_project_to_json(project: dict, engine_version: str = "v2.5.3") -> str:
+def save_project_to_json(project: dict, engine_version: str = "v2.5.5") -> str:
     """프로젝트 전체를 JSON 문자열로 직렬화.
     
     Args:
@@ -703,7 +703,7 @@ def load_project_from_json(json_str: str) -> dict:
     
     # 엔진 버전 호환성 체크 (경고만, 실패 아님)
     saved_version = meta.get("engine_version", "unknown")
-    current_version = "v2.5.3"
+    current_version = "v2.5.5"
     if saved_version != current_version:
         warnings.append(
             f"엔진 버전 차이 — 저장 시: {saved_version} / 현재: {current_version}. "
@@ -2533,35 +2533,71 @@ Goal: {gns.get("goal","")} / Need: {gns.get("need","")} / Strategy: {gns.get("st
 {P.TREATMENT_BEAT_RULES_TEMPLATE.format(beat_count=len(beats))}
 """
 
-        response = client.messages.create(
+        # ─── v2.5.4: 스트리밍 호출 전환 + 2단계 자동 재시도 ───
+        with client.messages.stream(
             model=ANTHROPIC_MODEL_OPUS, max_tokens=16000, temperature=0.4,
             system=system_prompt,
             messages=[{"role": "user", "content": user_prompt}]
-        )
+        ) as stream:
+            response = stream.get_final_message()
         if response.stop_reason == "max_tokens":
             retry = user_prompt.replace("2500~4000자", "2000~3000자").replace("4000~6000자", "3000~4000자")
-            response = client.messages.create(
+            with client.messages.stream(
                 model=ANTHROPIC_MODEL_OPUS, max_tokens=16000, temperature=0.4,
                 system=system_prompt,
                 messages=[{"role": "user", "content": retry}]
-            )
+            ) as stream:
+                response = stream.get_final_message()
         txt = "".join(b.text for b in response.content if hasattr(b, "text")).strip()
         st.session_state[f"last_treatment_act{act_number}_raw"] = txt
 
-        # JSON 파싱 시도 — 실패 시 자동 재시도 1회
+        # JSON 파싱 시도 — 실패 시 자동 재시도 2회 (v2.5.4)
+        # 1차 실패 → temperature 0.2로 재시도 + 강화 룰 (소프트)
+        # 2차 실패 → temperature 0.05 + JSON_OUTPUT_RULES_STRICT 주입 (하드)
         try:
             return safe_json_loads(txt)
         except json.JSONDecodeError:
-            st.warning(f"⚠️ Treatment {act_label} JSON 파싱 실패 — 자동 재시도 중...")
-            retry_system = system_prompt + "\n\n★ 최우선: 반드시 유효한 JSON만 출력. narrative 안에 쌍따옴표 절대 금지. 작은따옴표만. ★"
-            response2 = client.messages.create(
-                model=ANTHROPIC_MODEL_OPUS, max_tokens=16000, temperature=0.3,
-                system=retry_system,
+            st.warning(f"⚠️ Treatment {act_label} JSON 파싱 실패 — 1차 재시도 중 (temp 0.2)...")
+            # 1차 재시도: 제어 문자 금지 강조
+            retry_system_1 = system_prompt + "\n\n★ 최우선 규칙: 반드시 유효한 JSON만 출력. narrative 안에 줄바꿈(\\n) 절대 금지. 탭(\\t) 절대 금지. 캐리지리턴(\\r) 절대 금지. 대사 인용은 작은따옴표만. 후행 쉼표 금지. 코드 펜스(```) 금지. 출력 시작은 { 끝은 }. ★"
+            with client.messages.stream(
+                model=ANTHROPIC_MODEL_OPUS, max_tokens=16000, temperature=0.2,
+                system=retry_system_1,
                 messages=[{"role": "user", "content": user_prompt}]
-            )
+            ) as stream:
+                response2 = stream.get_final_message()
             txt2 = "".join(b.text for b in response2.content if hasattr(b, "text")).strip()
             st.session_state[f"last_treatment_act{act_number}_raw"] = txt2
-            return safe_json_loads(txt2)
+
+            try:
+                return safe_json_loads(txt2)
+            except json.JSONDecodeError:
+                st.warning(f"⚠️ Treatment {act_label} 1차 재시도도 실패 — 2차 재시도 중 (temp 0.05, STRICT 룰 주입)...")
+                # 2차 재시도: temperature 최저 + STRICT 룰 주입
+                retry_system_2 = system_prompt + "\n\n" + P.JSON_OUTPUT_RULES_STRICT + "\n\n★ 절대 위반 금지: 단일 JSON 객체. narrative 안에 줄바꿈/탭/캐리지리턴 모두 금지. 첫 문자는 { 마지막 문자는 }. 대사 안의 인용은 작은따옴표만. 후행 쉼표 금지. 코드 펜스 금지. ★"
+                with client.messages.stream(
+                    model=ANTHROPIC_MODEL_OPUS, max_tokens=16000, temperature=0.05,
+                    system=retry_system_2,
+                    messages=[{"role": "user", "content": user_prompt}]
+                ) as stream:
+                    response3 = stream.get_final_message()
+                txt3 = "".join(b.text for b in response3.content if hasattr(b, "text")).strip()
+                st.session_state[f"last_treatment_act{act_number}_raw"] = txt3
+                # 마지막 시도: 제어 문자 사후 정리 후 파싱 시도 (v2.5.4 안전망)
+                try:
+                    return safe_json_loads(txt3)
+                except json.JSONDecodeError:
+                    # 제어 문자 사후 정리 — 마지막 안전망
+                    import re
+                    # JSON 문자열 안의 제어 문자(\n, \r, \t)를 공백으로 치환
+                    # 단, JSON 구조의 줄바꿈은 보존하기 위해 "..." 안의 것만 처리
+                    def _clean_control_chars(match):
+                        s = match.group(0)
+                        # 큰따옴표 안의 제어 문자를 공백으로 치환
+                        return re.sub(r'[\n\r\t]+', ' ', s)
+                    txt4 = re.sub(r'"(?:[^"\\]|\\.)*"', _clean_control_chars, txt3)
+                    st.session_state[f"last_treatment_act{act_number}_raw"] = txt4
+                    return safe_json_loads(txt4)
 
     except Exception as e:
         st.error(f"Treatment {act_label} 실패: {e}")
