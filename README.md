@@ -1,6 +1,6 @@
 # 👖 BLUE JEANS · Creator Engine
 
-**Version: v2.5.6** · Build: 2026-05-20 · Status: Production
+**Version: v2.5.6.1** · Build: 2026-05-20 · Status: Production
 
 > **아이디어 한 줄 → 글로벌 스튜디오 수준 기획개발 패키지**
 >
@@ -10,7 +10,86 @@
 
 ---
 
-## v2.5.6 핵심 패치 (2026-05-20) — Tone Document 자막 가시성 가드 신설
+## v2.5.6.1 핫픽스 (2026-05-20) — v2.5.6 자막 프레임 오류 정정
+
+### 진단 — Mr. MOON 직접 지적
+
+v2.5.6 패치 완료 직후 Mr. MOON이 운영 원칙을 명확히 했다:
+
+> "시장이 한국이 아니더라도 기획서는 한국어로 작성되어야 해. 번역버전은 translator engine에서 사용할 거야."
+
+이 한 문장이 v2.5.6 가드의 **자막 프레임이 잘못된 전제 위에 서 있음**을 드러냈다.
+
+### v2.5.6 가드의 무엇이 틀렸나
+
+BLUE JEANS Creator Engine은 **기획개발 엔진**이다. 출력물은 모두 한국어 기획서다. 시나리오는 Writer Engine이 쓴다. **자막은 영화 완성 후 OTT 배포 단계의 문제 — Creator Engine 영역 밖**.
+
+그런데 v2.5.6 가드 본문이 "한국 OTT 자막에서 외국어가 사라진다"는 잘못된 전제로 작성되어 있었다.
+
+| 위치 | v2.5.6 본문 (틀린 프레임) |
+|---|---|
+| `SUBTITLE_VISIBILITY_GUARD` 룰 2 | "언어학적 미묘함은 한국 OTT 자막에서 동일하게 번역되어 사라진다" |
+| `SUBTITLE_VISIBILITY_GUARD` 룰 3 | "이 룰이 한국 자막 시청자에게 도달하는가?" |
+| `MULTILINGUAL_TONE_GUARD` 룰 1 | "한국 자막에서 동일한 한국어로 번역된다" |
+
+진짜 결함은 자막이 아니라 **"Writer Engine 구현 가능성"** 이었다 — 톤 디자이너가 시(詩)적 톤 지시를 자유롭게 작성하는데, Writer Engine이 한국어 시나리오를 쓸 때 "어떻게 옮기란 말인가"가 되는 지시가 많다는 것.
+
+### v2.5.6.1 변경 — 프레임 정정
+
+**① `SUBTITLE_VISIBILITY_GUARD` → `WRITER_IMPLEMENTABILITY_GUARD` 명칭 변경 + 본문 재작성**
+
+| 항목 | v2.5.6 (자막 프레임) | v2.5.6.1 (구현 가능성 프레임) |
+|---|---|---|
+| 상수명 | `SUBTITLE_VISIBILITY_GUARD` | `WRITER_IMPLEMENTABILITY_GUARD` |
+| 출발 전제 | "한국 OTT 자막에서 외국어가 사라진다" | "Writer Engine이 한국어 시나리오에 박을 수 있는 형태여야 한다" |
+| 룰 2 본문 | "자막에서 사라지는 정보 금지" | "언어 자체에 의미를 의존하지 말 것" |
+| 자가검증 질문 | "한국 자막 시청자에게 도달하는가?" | "Writer가 한국어 시나리오 페이지에 어떻게 박는가?" |
+
+**② `MULTILINGUAL_TONE_GUARD` 본문 재작성**
+
+| 항목 | v2.5.6 (자막 프레임) | v2.5.6.1 (Translator 인계 프레임) |
+|---|---|---|
+| 출발 전제 | "한국 OTT 자막을 거치는 외국어 대사" | "한국어 시나리오 작성 + Translator Engine 인계 준비" |
+| 외국어 지문 명시 사유 | "자막에서 사라지므로 시각 신호 보강" | "한국어로 쓰되 언어 표식을 남겨야 Translator Engine이 인계받음" |
+| 룰 4 본문 | "외국어 자장가는 자막 번역만으로 끝내지 말 것" | "Writer Engine은 외국어 가사를 한국어로 옮기되 지문에 '(네덜란드어 자장가)' 명시" |
+
+**③ `TONE_DOC_SCHEMA.dialogue_rules` 항목 설명 미세 조정**
+
+- `overall_tone`: "자막에서도 살아남는" → "Writer Engine이 한국어 시나리오에 구현 가능한"
+- `subtext_rule`: "Writer가 페이지에 박는" → "Writer가 한국어 시나리오 페이지에 박는"
+- `forbidden_phrases`: "외국어만으로 의미를 운반하는 대사 금지" → "한국어 시나리오에서 외국어 표식(자바어로 등) 없이 외국어 의미를 운반하는 대사 금지 — Translator Engine 인계가 작동하지 않게 된다"
+
+### 핵심 룰 — 모두 보존
+
+다음 5개 룰은 프레임 정정 후에도 그대로 유효하므로 본문에 보존되었다.
+
+- 시(詩) 금지 (구체 구현 강제)
+- Writer 구현 가능성 자가검증
+- 반응 앵커 강제 (외국어 전환 시 동석 인물 반응 지문 동반)
+- 호칭·자리·동선으로 위계 표현
+- 외국어 대사 시 `(자바어로)` 같은 지문 명시 의무
+
+### 하위 호환성
+
+- `TONE_DOC_SCHEMA` 키 전부 보존 (v2.5.6에서 추가한 `reaction_anchor_rule` 포함)
+- 함수 시그니처 무수정 (`build_system_tone_document` 7개 인자 그대로)
+- 동작 로직 무수정 (`_detect_multilingual` / 가드 주입 흐름 동일)
+- 상수명 변경은 `prompt.py` 내부 참조만 — 외부 호출 영향 없음
+- v2.5.6 시드 100% 호환 (단지 다음 톤 문서 생성부터 정정된 가드 적용)
+
+### 운영 원칙 명문화
+
+v2.5.6.1과 함께 다음 운영 원칙이 엔진 헤더 주석과 README에 명문화된다.
+
+> BLUE JEANS Creator Engine은 기획개발 엔진이다. 시장이 한국이 아니더라도 모든 산출물(Brainstorm/Core/Character/Structure/Scene/Treatment/Tone Document)은 한국어로 작성한다. 외국어 번역은 별도 Translator Engine 단계에서 처리한다.
+
+이 원칙은 향후 모든 패치 작업의 전제 위에 놓인다.
+
+---
+
+## v2.5.6 핵심 패치 (2026-05-20) — Tone Document Writer 구현 가능성 가드 신설
+
+> ⚠️ v2.5.6 패치 직후 Mr. MOON의 지적으로 자막 프레임 오류가 발견됨. v2.5.6.1 핫픽스로 정정. 아래 본문은 v2.5.6 시점 기록이며, **현재 운영 중인 가드는 v2.5.6.1 기준**입니다.
 
 ### 진단 — 「바타비아 호러」 다국어 톤 문서 운영 중 발견한 결함
 
