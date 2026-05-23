@@ -1,12 +1,212 @@
 # 👖 BLUE JEANS · Creator Engine
 
-**Version: v2.5.6.1** · Build: 2026-05-20 · Status: Production
+**Version: v2.6.0** · Build: 2026-05-23 · Status: Production
 
 > **아이디어 한 줄 → 글로벌 스튜디오 수준 기획개발 패키지**
 >
 > BLUE JEANS PICTURES 고유 서사동력 프레임워크(BJND) + 창작자 감성 엔진
 
 > ⚠️ **버전 확인 방법**: `prompt.py` 최상단 VERSION 블록 / Streamlit UI 사이드바 Engine Info / 이 README 최상단 — 세 곳의 버전이 일치해야 정상입니다. 불일치 시 최신 파일로 덮어쓰세요.
+
+---
+
+## v2.6.0 메이저 패치 (2026-05-23) — 8점 진입 사전 방지 4종 신설
+
+### 발견 경위 — Writer Engine v3.7.0 연계 + 「바타비아 호러」 검증
+
+Writer Engine v3.7.0이 Rewrite Engine 7점대 정체 작품 분석에서 공통 결함 2종(A28 행동 사이클 반복 / A29 물리적 대가 에스컬레이션)을 사후 감지·교정 룰로 추가. 효과를 극대화하려면 **Creator Engine이 기획 단계에서 사전 방지하는 짝**이 필요하다는 보강 요청서가 발신됨.
+
+「바타비아 호러」 진단 JSON에서 실제 검증된 결함 4종:
+
+| # | 결함 | 발견 위치 |
+|---|---|---|
+| ① | Hendra 카페 만남 3회 반복 → 시퀀스 사이클 루프 | 진단 항목 1 |
+| ② | Reza 능동 적대 행동 부재 (침묵·외면 위주) | 시나리오 분석 |
+| ③ | Pak Wiranto(S#8), 검은 세단(S#54) Payoff 부재 | 진단 항목 2, 5 |
+| ④ | Maya 신체 대가 단편적, 4단계 누적 부재 | 진단 항목 4 |
+
+이 4종 결함은 비트 집필 단계에서는 발견이 어렵고 **기획 단계의 의도적 설계**가 필요하다.
+
+### 업무 분장
+
+| 구분 | 역할 | 적용 단계 |
+|---|---|---|
+| **Creator (v2.6.0)** | 사전 방지 — 루프 없는 시퀀스 설계 / 능동 적대자 / Setup-Payoff 의도 배치 / 대가 4단계 계획 | 기획 단계 |
+| **Writer (v3.7.0)** | 사후 감지·교정 — A28·A29 비트 단위 자가 점검 | 집필 단계 |
+
+### v2.6.0 변경 — 4축 동시 보강
+
+#### ① 시퀀스 사이클 사전 설계 (Action Cycle Design)
+
+**문제:** Writer가 비트 단위로 사이클 반복을 감지해도, 씬 플랜이 이미 루프 구조로 짜여 있으면 변주 여지가 좁다.
+
+**처방:** Treatment 비트 스키마에 `action_cycle` 필드 신설. Beat 6~12 구간에서 의무 작성.
+
+- 공간 시퀀스 4단계 분해: `[시작 공간 → 사건 공간 → 외부 조력 공간 → 복귀 공간]`
+- 동일 사이클 패턴 3회 이상 반복 → 자동 경고
+- 같은 외부 공간 + 같은 조력자 만남 3회 이상 → 자동 경고
+- 사이클 변주 4기법 처방: 순서 역전 / 압축 / 차단 / 침범
+
+**구현 위치:**
+- `prompt.py` `CYCLE_DESIGN_RULES` (1,604 chars, 신규 모듈)
+- `prompt.py` `TREATMENT_BEAT_SCHEMA_TEMPLATE.action_cycle` 필드 추가
+- `prompt.py` `TREATMENT_BEAT_RULES_TEMPLATE` [V26-1] 룰 추가
+- `main.py` `build_cycle_design_block()` 후처리 함수 신설
+
+#### ② 적대자 능동성 설계 (Antagonist Active Action)
+
+**문제:** 7점대 정체 작품의 공통 결함 중 하나가 수동적 적대자. 침묵·외면만으로는 주인공과 정보전이 성립하지 않는다.
+
+**처방:** Character Bible 적대자 카드에 비트별 능동 행위 필드 신설.
+
+- `antagonist_active_actions_per_beat` 필드: 비트별 능동 행위 1개 명시
+- 수동 회피(침묵·외면) ≠ 적대 행위 — 절대 룰 명문화
+- 적대자 아크 3단계 격상 강제: 1막(은폐자) → 2막(능동 방해자) → 3막(직접 충돌자)
+- Treatment 비트에 `antagonist_active_action` 필드도 추가하여 매 비트 확인
+
+**구현 위치:**
+- `prompt.py` `ANTAGONIST_ACTIVE_DESIGN_RULES` (1,410 chars, 신규 모듈)
+- `prompt.py` `CHAR_BIBLE_SCHEMA.antagonist_active_actions_per_beat` 필드 추가
+- `prompt.py` `CHAR_BIBLE_RULES` v2.6.0 의무 룰 추가
+- `prompt.py` `TREATMENT_BEAT_SCHEMA_TEMPLATE.antagonist_active_action` 필드 추가
+- `main.py` `build_antagonist_actions_block()` 후처리 함수 신설 (수동 회피만 처리된 비트 자동 감지)
+
+#### ③ Setup-Payoff 의도 배치 (Setup-Payoff Table)
+
+**문제:** 도입된 명명 인물·소품이 회수되지 않음. 비트 집필 단계에서는 발견 어려움.
+
+**처방:** Treatment 비트에 `setup_payoff_id` 필드 신설 + 후처리에서 자동 추적 테이블 생성.
+
+- 명명 인물(고유명사 부여 조연 이상) + 명명 소품(서사적 의미) 자동 리스트화
+- 형식: `SETUP:Pak Wiranto`, `PAYOFF:검은 세단`
+- 회수 없는 항목 → '회수 필요' 자동 표시
+- 도입 없는 회수 → 'Plant 없는 Payoff (데우스 엑스 마키나 위험)' 경고
+- 메이저 작품(100분 영화·시리즈)일수록 회수 의무 강화
+
+**구현 위치:**
+- `prompt.py` `SETUP_PAYOFF_DESIGN_RULES` (1,736 chars, 신규 모듈)
+- `prompt.py` `TREATMENT_BEAT_SCHEMA_TEMPLATE.setup_payoff_id` 필드 추가
+- `prompt.py` `TREATMENT_BEAT_RULES_TEMPLATE` [V26-2] 룰 추가
+- `main.py` `build_setup_payoff_table()` 후처리 함수 신설
+
+#### ④ 물리적 대가 에스컬레이션 계획 (Physical Cost Plan)
+
+**문제:** Writer A29가 비트 단위로 대가를 강제해도, 전체 4단계 누적 계획이 기획에 없으면 작품마다 일관성 부족.
+
+**처방:** Character Bible 주인공 카드에 `physical_cost_plan` 4단계 계획 필드 신설.
+
+| 단계 | 비트 구간 | 대가 성격 | 호러 예시 | 스릴러 예시 |
+|---|---|---|---|---|
+| 1단계 | Beat 1~5 | 일시적·심리적 흔적 | 손바닥 열기 자국 | 손 떨림, 식은땀 |
+| 2단계 | Beat 6~8 | 가시적·일시적 흔적 | 손등 봉인 문양 | 멍, 찰과상 |
+| 3단계 | Beat 9~11 | 영구적·국부적 흔적 | 손끝 먹선 스밈 | 봉합 흉터, 인대 손상 |
+| 4단계 | Beat 12~ | 기능적·전신적 손상 | 목소리 변화, 체온 저하 | 청력 저하, 보행 장애 |
+
+**대가의 절대 원칙 4가지:**
+1. 대가는 주인공 자신의 몸에 남아야 함 (타인 신체 카운트 안 됨)
+2. 이전 대가는 사라지지 않아야 함 (리셋 금지)
+3. 단계 격상은 강제 (1→2→3→4 순서, 점프 금지)
+4. 4단계는 클라이맥스 도달 증거
+
+**구현 위치:**
+- `prompt.py` `PHYSICAL_COST_ESCALATION_RULES` (2,110 chars, 신규 모듈)
+- `prompt.py` `CHAR_BIBLE_SCHEMA.physical_cost_plan` 필드 추가
+- `prompt.py` `TREATMENT_BEAT_SCHEMA_TEMPLATE.physical_cost_stage` / `physical_cost_description` 필드 추가
+- `prompt.py` `TREATMENT_BEAT_RULES_TEMPLATE` [V26-3] 룰 추가
+- `main.py` `build_physical_cost_plan_block()` 후처리 함수 신설 (점프·리셋 자동 감지)
+
+### Writer Engine v3.7.1 인계 — JSON 출력 스키마 신규 4블록
+
+Treatment Build 완료 시 `project["treatment"]["writer_handoff_v26"]` 필드가 자동 생성되어 Writer Engine v3.7.1로 인계:
+
+```json
+{
+  "cycle_design": {
+    "beats_6_to_12": [
+      {"beat": 6, "cycle": ["저택", "봉인실", "카페", "저택"], "function": "..."},
+      ...
+    ],
+    "external_helper_meetings": [...],
+    "warnings": ["같은 사이클 패턴 4회 반복 감지: ..."]
+  },
+  "antagonist_actions": {
+    "Reza": {"beat_6": "문서 파기", "beat_8": "감시 지시", "beat_10": "직접 위협"},
+    "warnings": ["수동 회피만으로 처리된 적대자 비트 감지: ..."]
+  },
+  "setup_payoff_table": [
+    {"item": "Pak Wiranto", "setup_beat": 3, "payoff_beat": 10, "status": "회수 완료"},
+    {"item": "검은 세단", "setup_beat": 8, "payoff_beat": null, "status": "회수 필요"}
+  ],
+  "physical_cost_plan": {
+    "stage_1": {"beats": "1~5", "cost": "..."},
+    "stage_2": {"beats": "6~8", "cost": "..."},
+    "stage_3": {"beats": "9~11", "cost": "..."},
+    "stage_4": {"beats": "12~", "cost": "..."},
+    "beat_stages": [...],
+    "warnings": [...]
+  },
+  "version": "v2.6.0"
+}
+```
+
+Writer v3.7.1의 `extract_from_creator_json()`이 이 4블록을 받아 비트 집필 시 system prompt에 주입.
+
+### 검증 효과 예측 — 바타비아 사례 기준
+
+| 결함 | v2.5.6.1 (이전) | v2.6.0 (현재) |
+|---|---|---|
+| Hendra 카페 3회 반복 | 후처리 감지 없음 | `cycle_design.warnings`에 자동 경고 |
+| Reza 수동 적대 | 캐릭터 카드에 능동 행위 의무 없음 | `antagonist_active_actions_per_beat` 필수, 비트별 능동 행위 의무 |
+| Pak Wiranto 미회수 | 회수 누락 자동 감지 없음 | `setup_payoff_table.status='회수 필요'` 자동 표시 |
+| Maya 단편적 대가 | 4단계 계획 부재 | `physical_cost_plan` 4단계 강제 작성, 비트별 stage 검증 |
+
+### 시뮬레이션 검증 결과
+
+「바타비아 호러」 결함 시나리오를 비트 JSON으로 재구성하여 후처리 함수 5종에 입력한 결과:
+
+| 검증 항목 | 결과 |
+|---|---|
+| 카페 패턴 4회 반복 자동 감지 | ✓ 통과 (경고 1건 발생) |
+| Reza 비트별 능동 행위 매핑 | ✓ 통과 (`beat_6/8/9/14`) |
+| Pak Wiranto 회수 완료 추적 | ✓ 통과 (setup_beat=3, payoff_beat=10) |
+| 검은 세단 회수 필요 자동 표시 | ✓ 통과 (status='회수 필요') |
+| 청동 거울 회수 필요 추가 감지 | ✓ 통과 (Maya 진단에서 누락됐던 항목까지 잡음) |
+| Maya 4단계 대가 계획 추출 | ✓ 통과 (stage_1~stage_4 모두 cost 채워짐) |
+| 구버전 v2.5.x 시드 호환성 | ✓ 통과 (신규 필드 없는 비트도 예외 없이 처리) |
+
+### 하위 호환성 — 100% 보장
+
+- 기존 v2.5.0~v2.5.6.1 프로젝트 JSON 100% 호환
+- 함수 시그니처 무수정 (`build_system_treatment` / `build_system_char_bible` / `save_project_to_json` / `load_project_from_json` 모두 인자 변경 없음)
+- 신규 필드는 추가만, 기존 필드 전부 보존
+- 구버전 시드는 신규 필드를 `.get()` 기반 fallback으로 안전 처리 (빈 값 반환, 예외 없음)
+- 신규 후처리 함수 5종은 모두 try/except 보호 — 후처리 실패해도 Treatment 본체 저장은 정상
+
+### 새 패치로 갱신된 4곳 (3중 동기화 + 1 후처리)
+
+| 위치 | 변경 내용 |
+|---|---|
+| `prompt.py` L5 헤더 VERSION 블록 | v2.5.6.1 → v2.6.0, 2026-05-20 → 2026-05-23 |
+| `prompt.py` L929 `ENGINE_VERSION` | `"v2.6.0"` |
+| `main.py` `save_project_to_json` 디폴트 | `engine_version: str = "v2.6.0"` |
+| `main.py` `load_project_from_json` current_version | `"v2.6.0"` |
+| `README.md` 최상단 | v2.6.0 |
+
+### 운영 방법
+
+| 단계 | Mr. MOON 액션 |
+|---|---|
+| 1 | GitHub Push (prompt.py / main.py / README.md 세 파일 함께 push) |
+| 2 | Streamlit Cloud 자동 빌드 대기 (1~2분) |
+| 3 | UI 사이드바 하단 Engine Info에서 v2.6.0 확인 |
+| 4 | 새 프로젝트로 Treatment Build 실행 시 신규 4축 자동 적용 |
+| 5 | Treatment 완료 직후 UI에 v2.6.0 사전 방지 경고 expander 표시 (경고 있을 시) |
+
+### 운영 원칙 — 모든 패치의 기준
+
+> "코미디 영화는 웃겨야 하고 공포영화는 무서워야 하며, 로맨스는 사랑을 하고 싶게 만들어야 한다."
+
+v2.6.0의 4축 보강은 이 본질이 작품에 도달하는 길에서 가장 자주 막히는 4가지 구조적 결함 — 사이클 루프 / 수동 적대자 / 회수 누락 / 단편적 대가 — 을 기획 단계에서 차단하는 룰이다. v2.5.5에서 박은 본질 3중 선언(절대 목표 / Fun / 3요소)이 작품에 도달하기 전에 이 4가지 결함이 길을 막는 빈도가 높았다. 그래서 사전 방지 룰로 박는다.
 
 ---
 

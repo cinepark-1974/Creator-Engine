@@ -645,7 +645,7 @@ def _get_project_stage(project: dict) -> str:
     return "초기"
 
 
-def save_project_to_json(project: dict, engine_version: str = "v2.5.6.1") -> str:
+def save_project_to_json(project: dict, engine_version: str = "v2.6.0") -> str:
     """프로젝트 전체를 JSON 문자열로 직렬화.
     
     Args:
@@ -703,7 +703,7 @@ def load_project_from_json(json_str: str) -> dict:
     
     # 엔진 버전 호환성 체크 (경고만, 실패 아님)
     saved_version = meta.get("engine_version", "unknown")
-    current_version = "v2.5.6.1"
+    current_version = "v2.6.0"
     if saved_version != current_version:
         warnings.append(
             f"엔진 버전 차이 — 저장 시: {saved_version} / 현재: {current_version}. "
@@ -2606,6 +2606,343 @@ Goal: {gns.get("goal","")} / Need: {gns.get("need","")} / Strategy: {gns.get("st
             with st.expander(f"🔧 Treatment {act_label} Raw (디버그)"):
                 st.text_area("Raw", raw, height=400)
         return None
+
+
+# ═══════════════════════════════════════════════════
+# v2.6.0 — 8점 진입 사전 방지 후처리 4종
+# Treatment Build 완료 후 비트 JSON에서 신규 필드를 추출하여
+# Writer Engine v3.7.1 인계용 4블록을 자동 생성한다.
+#
+# 출력 블록:
+#   - cycle_design (시퀀스 사이클 분석)
+#   - antagonist_actions (적대자별 비트 매핑)
+#   - setup_payoff_table (회수 상태 추적)
+#   - physical_cost_plan (4단계 비트 매핑)
+#
+# 하위 호환성: 모든 함수는 .get() 기반 fallback 사용.
+# 구버전 시드(v2.5.x 이전)에 신규 필드가 없으면 빈 결과 반환.
+# ═══════════════════════════════════════════════════
+
+def _collect_all_beats(act1: dict, act2: dict, act3: dict) -> list:
+    """3개 막의 비트를 단일 리스트로 합친다 (비트 번호 순)."""
+    all_beats = []
+    for act_data in [act1, act2, act3]:
+        if act_data and isinstance(act_data, dict):
+            beats = act_data.get("beats", [])
+            if isinstance(beats, list):
+                all_beats.extend(beats)
+    # 비트 번호 기준 정렬 (안전망)
+    try:
+        all_beats.sort(key=lambda b: int(b.get("beat_no", 0)) if b.get("beat_no") not in (None, "") else 0)
+    except Exception:
+        pass
+    return all_beats
+
+
+def build_cycle_design_block(act1: dict, act2: dict, act3: dict) -> dict:
+    """v2.6.0 ① 시퀀스 사이클 사전 설계 — Beat 6~12 action_cycle 분석.
+
+    출력:
+        {
+          "beats_6_to_12": [
+            {"beat": 6, "cycle": ["저택", "봉인실", "카페", "저택"], "function": "..."},
+            ...
+          ],
+          "external_helper_meetings": [
+            {"helper": "Hendra", "location": "카페", "occurrences": [10], "form": "대면"},
+            ...
+          ],
+          "warnings": ["같은 사이클 패턴 3회 반복 감지: ...", ...]
+        }
+    """
+    all_beats = _collect_all_beats(act1, act2, act3)
+    result = {
+        "beats_6_to_12": [],
+        "external_helper_meetings": [],
+        "warnings": []
+    }
+
+    # Beat 6~12 action_cycle 수집
+    cycle_patterns = {}  # 패턴 빈도 카운트
+    for beat in all_beats:
+        try:
+            beat_no = int(beat.get("beat_no", 0))
+        except (ValueError, TypeError):
+            continue
+        if not (6 <= beat_no <= 12):
+            continue
+        cycle_str = beat.get("action_cycle", "") or ""
+        if not cycle_str:
+            continue
+        # 공간 시퀀스 파싱 (→ 또는 -> 구분자)
+        cycle_list = [s.strip() for s in cycle_str.replace("->", "→").split("→") if s.strip()]
+        result["beats_6_to_12"].append({
+            "beat": beat_no,
+            "cycle": cycle_list,
+            "function": beat.get("event_summary", "") or beat.get("beat_name", "")
+        })
+        # 패턴 빈도 카운트
+        pattern_key = " → ".join(cycle_list)
+        if pattern_key:
+            cycle_patterns[pattern_key] = cycle_patterns.get(pattern_key, 0) + 1
+
+    # 사이클 반복 경고
+    for pattern, count in cycle_patterns.items():
+        if count >= 3:
+            result["warnings"].append(
+                f"같은 사이클 패턴 {count}회 반복 감지: '{pattern}' — 변주 4기법 적용 필요 "
+                f"(순서 역전 / 압축 / 차단 / 침범)"
+            )
+
+    return result
+
+
+def build_antagonist_actions_block(act1: dict, act2: dict, act3: dict,
+                                    char_bible: dict = None) -> dict:
+    """v2.6.0 ② 적대자 능동성 설계 — 비트별 적대자 행위 매핑.
+
+    출력:
+        {
+          "Reza": {
+            "beat_6": "문서 파기",
+            "beat_8": "Maya 감시 지시",
+            "beat_10": "직접 위협"
+          },
+          "warnings": [...]
+        }
+    """
+    all_beats = _collect_all_beats(act1, act2, act3)
+    result = {"warnings": []}
+
+    # 캐릭터 바이블에서 적대자 이름 추출 (가능하면)
+    antagonist_names = []
+    if char_bible and isinstance(char_bible, dict):
+        chars = char_bible.get("characters", []) if isinstance(char_bible.get("characters"), list) else []
+        for c in chars:
+            if isinstance(c, dict) and c.get("role") == "antagonist":
+                name = c.get("name", "")
+                if name:
+                    antagonist_names.append(name)
+
+    # 비트별 antagonist_active_action 수집 (이름 매칭 불가 시 단일 antagonist로 처리)
+    has_passive_only = []
+    for beat in all_beats:
+        try:
+            beat_no = int(beat.get("beat_no", 0))
+        except (ValueError, TypeError):
+            continue
+        action = beat.get("antagonist_active_action", "") or ""
+        if not action:
+            continue
+        # 적대자 이름 매칭 시도 (없으면 default antagonist)
+        matched_name = None
+        for name in antagonist_names:
+            if name and name in action:
+                matched_name = name
+                break
+        target = matched_name or "antagonist"
+        if target not in result:
+            result[target] = {}
+        result[target][f"beat_{beat_no}"] = action
+
+        # 수동 회피만으로 처리된 비트 감지
+        passive_keywords = ["침묵", "외면", "돌아보지 않", "대답하지 않", "자리를 뜬"]
+        is_passive_only = (
+            any(kw in action for kw in passive_keywords)
+            and not any(active_kw in action for active_kw in [
+                "파기", "지시", "위협", "차단", "감시", "조작", "공격",
+                "함정", "협박", "회유", "매수", "결성", "유도", "압박"
+            ])
+        )
+        if is_passive_only:
+            has_passive_only.append(beat_no)
+
+    if has_passive_only:
+        result["warnings"].append(
+            f"수동 회피만으로 처리된 적대자 비트 감지: Beat {has_passive_only} — "
+            f"능동 행위(파기·지시·위협 등)로 교체 필요"
+        )
+
+    return result
+
+
+def build_setup_payoff_table(act1: dict, act2: dict, act3: dict) -> list:
+    """v2.6.0 ③ Setup-Payoff 의도 배치 — 도입·회수 추적 테이블.
+
+    출력:
+        [
+          {"item": "Pak Wiranto", "setup_beat": 3, "payoff_beat": 10, "status": "회수 완료"},
+          {"item": "검은 세단", "setup_beat": 8, "payoff_beat": None, "status": "회수 필요"},
+          ...
+        ]
+    """
+    all_beats = _collect_all_beats(act1, act2, act3)
+    setup_map = {}  # item -> setup_beat
+    payoff_map = {}  # item -> payoff_beat
+
+    for beat in all_beats:
+        try:
+            beat_no = int(beat.get("beat_no", 0))
+        except (ValueError, TypeError):
+            continue
+        sp_id = beat.get("setup_payoff_id", "") or ""
+        if not sp_id:
+            continue
+        # 복수 항목 처리 (쉼표 구분)
+        for entry in sp_id.split(","):
+            entry = entry.strip()
+            if ":" not in entry:
+                continue
+            kind, item = entry.split(":", 1)
+            kind = kind.strip().upper()
+            item = item.strip()
+            if not item:
+                continue
+            if kind == "SETUP":
+                if item not in setup_map:  # 첫 도입 비트만 기록
+                    setup_map[item] = beat_no
+            elif kind == "PAYOFF":
+                if item not in payoff_map:  # 첫 회수 비트만 기록
+                    payoff_map[item] = beat_no
+
+    # 통합 테이블 생성
+    all_items = set(setup_map.keys()) | set(payoff_map.keys())
+    table = []
+    for item in sorted(all_items):
+        setup_beat = setup_map.get(item)
+        payoff_beat = payoff_map.get(item)
+        if setup_beat and payoff_beat:
+            status = "회수 완료"
+        elif setup_beat and not payoff_beat:
+            status = "회수 필요"
+        elif not setup_beat and payoff_beat:
+            status = "Plant 없는 Payoff (데우스 엑스 마키나 위험)"
+        else:
+            continue
+        table.append({
+            "item": item,
+            "setup_beat": setup_beat,
+            "payoff_beat": payoff_beat,
+            "status": status
+        })
+    return table
+
+
+def build_physical_cost_plan_block(act1: dict, act2: dict, act3: dict,
+                                    char_bible: dict = None) -> dict:
+    """v2.6.0 ④ 물리적 대가 4단계 계획 — 주인공 카드 + 비트별 단계 매핑.
+
+    출력:
+        {
+          "stage_1": {"beats": "1~5", "cost": "..."},
+          "stage_2": {"beats": "6~8", "cost": "..."},
+          "stage_3": {"beats": "9~11", "cost": "..."},
+          "stage_4": {"beats": "12~", "cost": "..."},
+          "beat_stages": [{"beat": 1, "stage": 1, "description": "..."}, ...],
+          "warnings": [...]
+        }
+    """
+    all_beats = _collect_all_beats(act1, act2, act3)
+    result = {
+        "stage_1": {"beats": "1~5", "cost": ""},
+        "stage_2": {"beats": "6~8", "cost": ""},
+        "stage_3": {"beats": "9~11", "cost": ""},
+        "stage_4": {"beats": "12~", "cost": ""},
+        "beat_stages": [],
+        "warnings": []
+    }
+
+    # 캐릭터 바이블에서 주인공의 physical_cost_plan 추출
+    if char_bible and isinstance(char_bible, dict):
+        chars = char_bible.get("characters", []) if isinstance(char_bible.get("characters"), list) else []
+        for c in chars:
+            if isinstance(c, dict) and c.get("role") == "protagonist":
+                plan_str = c.get("physical_cost_plan", "") or ""
+                if plan_str:
+                    # 'stage_1 (beats 1-5): ... / stage_2 (beats 6-8): ...' 파싱
+                    import re
+                    # 각 단계 패턴 추출
+                    for stage_num in [1, 2, 3, 4]:
+                        pattern = rf"stage_{stage_num}\s*\([^)]*\):\s*([^/]+?)(?=\s*/\s*stage_|\s*$)"
+                        match = re.search(pattern, plan_str)
+                        if match:
+                            result[f"stage_{stage_num}"]["cost"] = match.group(1).strip()
+                break
+
+    # 비트별 단계 수집
+    prev_stage = 0
+    has_jump = []
+    has_reset = []
+    for beat in all_beats:
+        try:
+            beat_no = int(beat.get("beat_no", 0))
+        except (ValueError, TypeError):
+            continue
+        try:
+            stage = int(beat.get("physical_cost_stage", 0))
+        except (ValueError, TypeError):
+            stage = 0
+        description = beat.get("physical_cost_description", "") or ""
+        result["beat_stages"].append({
+            "beat": beat_no,
+            "stage": stage,
+            "description": description
+        })
+        # 단계 점프 감지 (1 → 3 같은 비정상 격상)
+        if prev_stage > 0 and stage > prev_stage + 1:
+            has_jump.append((prev_stage, stage, beat_no))
+        # 단계 리셋 감지 (대가 진행 후 0으로 회귀)
+        if prev_stage > 0 and stage == 0 and beat_no >= 6:
+            has_reset.append(beat_no)
+        if stage > 0:
+            prev_stage = max(prev_stage, stage)
+
+    # 경고 생성
+    if has_jump:
+        jumps_str = ", ".join([f"Beat {b}: {a}→{c}" for a, c, b in has_jump])
+        result["warnings"].append(
+            f"단계 점프 감지 ({jumps_str}) — 1→2→3→4 순서대로 격상되어야 함"
+        )
+    if has_reset:
+        result["warnings"].append(
+            f"단계 리셋 의심 (Beat {has_reset}): 대가 진행 후 stage=0으로 회귀 — "
+            f"이전 단계 흔적은 사라지지 않아야 함"
+        )
+    if prev_stage < 4:
+        result["warnings"].append(
+            f"최종 단계가 {prev_stage}단계 — 4단계까지 도달해야 클라이맥스의 무게가 생김"
+        )
+
+    return result
+
+
+def build_writer_engine_handoff_v26(act1: dict, act2: dict, act3: dict,
+                                     char_bible: dict = None) -> dict:
+    """v2.6.0 통합 후처리 — Writer Engine v3.7.1 인계용 4블록 산출.
+
+    Treatment Build 완료 후 호출. 결과는 프로젝트 JSON의
+    treatment.writer_handoff_v26 필드로 저장된다.
+
+    Args:
+        act1, act2, act3: Treatment Build 3개 막 출력
+        char_bible: Character Bible (적대자·주인공 이름 매칭용, 없으면 fallback)
+
+    Returns:
+        {
+          "cycle_design": {...},
+          "antagonist_actions": {...},
+          "setup_payoff_table": [...],
+          "physical_cost_plan": {...},
+          "version": "v2.6.0"
+        }
+    """
+    return {
+        "cycle_design": build_cycle_design_block(act1, act2, act3),
+        "antagonist_actions": build_antagonist_actions_block(act1, act2, act3, char_bible),
+        "setup_payoff_table": build_setup_payoff_table(act1, act2, act3),
+        "physical_cost_plan": build_physical_cost_plan_block(act1, act2, act3, char_bible),
+        "version": "v2.6.0"
+    }
 
 
 def call_treatment_meta(act1, act2, act3, core_data):
@@ -5824,6 +6161,34 @@ elif st.session_state.view == "treatment" and st.session_state.cur:
                     meta = call_treatment_meta(act1, act2, act3, core)
                 if meta:
                     project["treatment"]["meta"] = meta
+
+                # v2.6.0 — Writer Engine v3.7.1 인계용 4블록 자동 생성
+                # (시퀀스 사이클 / 적대자 행위 / Setup-Payoff / 물리적 대가)
+                try:
+                    handoff = build_writer_engine_handoff_v26(
+                        act1, act2, act3,
+                        char_bible=project.get("characters")
+                    )
+                    project["treatment"]["writer_handoff_v26"] = handoff
+                    # 경고가 있으면 사용자에게 표시 (선택적)
+                    all_warnings = []
+                    all_warnings.extend(handoff.get("cycle_design", {}).get("warnings", []))
+                    all_warnings.extend(handoff.get("antagonist_actions", {}).get("warnings", []))
+                    all_warnings.extend(handoff.get("physical_cost_plan", {}).get("warnings", []))
+                    # Setup-Payoff 미회수 항목 경고
+                    sp_table = handoff.get("setup_payoff_table", [])
+                    unrecovered = [x["item"] for x in sp_table if x.get("status") == "회수 필요"]
+                    if unrecovered:
+                        all_warnings.append(
+                            f"Setup-Payoff 미회수 항목 {len(unrecovered)}개: {', '.join(unrecovered)} — "
+                            f"삭제 후보 또는 Payoff 추가 필요"
+                        )
+                    if all_warnings:
+                        with st.expander(f"⚠️ v2.6.0 사전 방지 경고 {len(all_warnings)}건"):
+                            for w in all_warnings:
+                                st.warning(w)
+                except Exception as e:
+                    st.warning(f"v2.6.0 후처리 중 비치명적 오류 (Treatment는 정상 저장됨): {e}")
 
                 with st.spinner("⑤ Gate E 채점... (약 15초, 장르·엔딩·논리 검증 포함)"):
                     gate_e = call_treatment_gate(
