@@ -2,8 +2,8 @@
 👖 BLUE JEANS Creator Engine — Prompt Library
 
 ╔══════════════════════════════════════════════════════════╗
-║  VERSION: v2.6.0                                         ║
-║  BUILD DATE: 2026-05-23                                  ║
+║  VERSION: v2.6.1                                         ║
+║  BUILD DATE: 2026-06-20                                  ║
 ║  STATUS: Production                                      ║
 ╚══════════════════════════════════════════════════════════╝
 
@@ -1003,8 +1003,8 @@ BLUE JEANS 3축 (Mr.MOON 고유)
 # 수정 시 ENGINE_VERSION과 ENGINE_BUILD_DATE를 함께 갱신하세요.
 # ═══════════════════════════════════════════════════
 
-ENGINE_VERSION = "v2.6.0"
-ENGINE_BUILD_DATE = "2026-05-23"
+ENGINE_VERSION = "v2.6.1"
+ENGINE_BUILD_DATE = "2026-06-20"
 ENGINE_STATUS = "Production"
 
 def get_engine_info() -> str:
@@ -8092,6 +8092,71 @@ Tone Document는 Writer Engine이 한국어 시나리오를 쓸 때 참조하는
 """
 
 
+DIRECTION_AUTHORITY_BOUNDARY = """
+[★★★ v2.6.1 — 연출 권한 경계 (상업영화 기본 / 자동 주입) ★★★]
+
+이 작품은 상업영화(스릴러·액션·드라마 등)로 판단되었다.
+작가주의 신호가 감지되지 않았으므로, 아래 연출 권한 경계를 엄격히 지켜라.
+
+[원칙 — Creator는 기획개발 엔진이다]
+Creator Engine은 기획개발(企劃開發) 단계다. 카메라 워크·쇼트 분해·배우의
+미시 동작 설계는 감독·촬영감독·Writer Engine의 영역이다. 톤 문서는 그들이
+판단할 '방향'만 제시하고, 그들이 채울 연출 여백을 미리 메우지 마라.
+
+[금지 — 다음을 생성하지 마라]
+1. 카메라 지시: '클로즈업', '풀백', '카메라가 손끝에서 멈춘다', '극단적
+   클로즈업', '카메라가 천천히 내려온다' 등 쇼트·앵글·무빙 지시.
+2. 배우 미시 동작 설계: '볼펜 뚜껑을 연다/닫는다', '손가락으로 돌린다',
+   '딸깍 소리', '0.5초 정지', '손떨림' 등 배우·감독이 현장에서 만들 동작을
+   기획 단계에서 못 박지 마라.
+3. 소품 연출 안무: 특정 소품을 '몇 초 비추고', '몇 회 반복하고', '어느
+   쇼트로 잡는지'를 지정하지 마라.
+4. 침묵의 초 단위 연출: '5~8초 무음', '환경음만 남긴다' 같은 사운드 디자인
+   타이밍 지시.
+
+[허용 — 다음만 생성하라]
+- signature_shot: 쇼트가 아니라 '시각 컨셉'으로. 이 작품의 색·공간·인상이
+  주는 전체 시각 정체성을 1~2문장으로. (예: "차가운 형광등과 회색 사무
+  공간이 만드는 관료적 무게감" — O / "볼펜 끝 극단적 클로즈업 풀백" — X)
+- recurring_objects: 소품의 '서사적 의미·기능'만. 그 소품이 무엇을
+  상징하고 어떤 정보를 운반하는지. 촬영·반복 횟수·쇼트 지시는 금지.
+  (예: "공무원증 — 주인공의 유일한 무기이자 정체성" — O /
+   "공무원증을 3회 클로즈업으로 반복" — X)
+- silence_usage: 침묵의 '서사적 기능'만 1문장. 초 단위·카메라 지시 금지.
+- too_wet_guard: 감정을 직접 명명하지 않는다는 '원칙'만. 구체적 미시 동작
+  예시(손떨림·뚜껑 여닫기 등)를 처방으로 박지 마라. 감정의 간접 전달은
+  Writer와 감독이 장면 단위로 설계한다.
+- tone_floor: 작품의 정서적 하한선만. '매 비트마다 신체 반응 1회 강제' 같은
+  비트별 연출 할당량을 만들지 마라.
+
+[핵심]
+상업영화의 톤 문서는 "이 작품이 어떤 느낌이어야 하는가"를 말하고,
+"그 느낌을 어떤 쇼트·동작으로 만들 것인가"는 말하지 않는다.
+후자는 Writer·감독의 영역이다.
+"""
+
+
+ARTHOUSE_MOTIF_LICENSE = """
+[★★★ v2.6.1 — 작가주의 연출 라이선스 (작가주의 작품에만 자동 주입) ★★★]
+
+이 작품은 작가주의/예술영화로 자동 감지되었다.
+이 작품에 한해, 시그니처 오브제·반복 모티프·절제 미학 연출을 톤 문서에
+설계해도 된다 — 작가주의 영화는 연출 디테일 자체가 작품의 본질이기 때문이다.
+
+[허용]
+- signature_shot: 이 작품만의 시그니처 쇼트를 구체적으로 설계 가능.
+- recurring_objects: 시그니처 오브제(반복 소품)와 그 연출 방식(반복·변주·
+  최종 회수)을 설계 가능. 단, 오브제가 서사·정서와 유기적으로 연결될 것.
+- silence_usage / too_wet_guard / tone_floor: 절제 미학·침묵·미시 신체
+  반응을 연출 차원에서 정밀하게 설계 가능.
+
+[주의]
+연출 디테일이 '작가의 시그니처'로 기능하도록 설계하라. 단순히 분위기를
+위한 장식적 미시 동작이 아니라, 작품 주제·인물 내면과 직결된 오브제·연출만
+설계하라.
+"""
+
+
 MULTILINGUAL_TONE_GUARD = """
 [★★★ v2.5.6.1 — 다국어 작품 추가 가드 (해당 작품에만 자동 주입) ★★★]
 
@@ -8171,6 +8236,40 @@ def _detect_multilingual(locked_text: str, idea_text: str) -> bool:
     return False
 
 
+def _detect_arthouse(locked_text: str, idea_text: str) -> bool:
+    """작가주의/예술영화 작품 자동 감지.
+
+    locked_text·idea_text에서 작가주의·예술영화·절제 미학 키워드를 탐색.
+    하나라도 발견되면 True → ARTHOUSE_MOTIF_LICENSE 주입 (시그니처 오브제·
+    미시 연출 모티프 허용).
+    발견되지 않으면 False → DIRECTION_AUTHORITY_BOUNDARY 주입 (상업영화 기본:
+    카메라·쇼트·배우 미시 동작 생성 금지).
+
+    v2.6.1: 신규. '볼펜 뚜껑 여닫기' 같은 독립영화풍 미시 연출이 상업
+    스릴러·액션 기획개발에 과잉 주입되던 결함(Mr. MOON 운영 중 발견)을
+    작가주의 작품에만 한정하기 위한 트리거. 다국어 감지와 동일 패턴.
+    """
+    if not locked_text and not idea_text:
+        return False
+    combined = (locked_text or "") + " " + (idea_text or "")
+    # 작가주의 작품 시그널 키워드
+    arthouse_keywords = [
+        # 작가주의·예술영화 명시
+        "작가주의", "예술영화", "아트하우스", "arthouse", "art house",
+        "독립영화", "인디영화", "작가 영화", "작가영화",
+        # 절제·미니멀 미학 명시
+        "절제 미학", "미니멀 연출", "롱테이크 중심", "정적 미학",
+        "관조적", "느린 호흡", "여백의 미학", "미장센 중심",
+        # 영화제·작가 지향 시그널
+        "영화제 출품", "칸 지향", "베니스 지향", "예술성 우선",
+        "시그니처 오브제", "반복 모티프 연출",
+    ]
+    for kw in arthouse_keywords:
+        if kw in combined:
+            return True
+    return False
+
+
 def build_system_tone_document(genre: str, fmt: str,
                                 fact_based: bool = False, historical: bool = False, film_type: str = "",
                                 locked_text: str = "", idea_text: str = "") -> str:
@@ -8180,11 +8279,19 @@ def build_system_tone_document(genre: str, fmt: str,
     v2.5.6: Writer 구현 가능성 가드 + 다국어 작품 자동 감지 가드 추가
     v2.5.6.1: 자막 프레임 오류 정정 — SUBTITLE_VISIBILITY_GUARD → WRITER_IMPLEMENTABILITY_GUARD
               한국어 시나리오 작성 원칙 + Translator Engine 인계 프레임으로 전환
+    v2.6.1: 연출 권한 경계 분기 추가 — _detect_arthouse로 작가주의/상업영화 자동 판별.
+            작가주의면 ARTHOUSE_MOTIF_LICENSE(시그니처 오브제·미시 연출 허용),
+            상업영화(기본)면 DIRECTION_AUTHORITY_BOUNDARY(카메라·미시 동작·소품
+            연출 생성 금지). 함수 시그니처 무수정.
     """
     fact_block = get_fact_based_rules(fact_based)
     historical_block = get_historical_film_rules(historical, film_type, locked_text=locked_text, idea_text=idea_text)
     # v2.5.6 — 다국어 작품 자동 감지
     multilingual_block = MULTILINGUAL_TONE_GUARD if _detect_multilingual(locked_text, idea_text) else ""
+    # v2.6.1 — 작가주의/상업영화 자동 분기
+    #   작가주의 감지 시: 시그니처 오브제·미시 연출 허용 (ARTHOUSE_MOTIF_LICENSE)
+    #   미감지(상업영화 기본) 시: 카메라·미시 동작·소품 연출 생성 금지 (DIRECTION_AUTHORITY_BOUNDARY)
+    direction_block = ARTHOUSE_MOTIF_LICENSE if _detect_arthouse(locked_text, idea_text) else DIRECTION_AUTHORITY_BOUNDARY
     return f"""당신은 헐리우드 최고 수준의 톤 디자이너(Tone Designer)이자 비주얼 스토리텔러다.
 기획개발 패키지를 기반으로, Writer Engine이 시나리오를 쓸 때 참조할 '톤 & 연출 문서'를 작성한다.
 
@@ -8196,6 +8303,7 @@ def build_system_tone_document(genre: str, fmt: str,
 [장르: {genre} / 포맷: {fmt}]
 
 {WRITER_IMPLEMENTABILITY_GUARD}
+{direction_block}
 {multilingual_block}
 {SORKIN_CURTIS["curtis_3pct"]}
 
