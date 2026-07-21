@@ -645,7 +645,7 @@ def _get_project_stage(project: dict) -> str:
     return "초기"
 
 
-def save_project_to_json(project: dict, engine_version: str = "v2.6.3") -> str:
+def save_project_to_json(project: dict, engine_version: str = "v2.6.5") -> str:
     """프로젝트 전체를 JSON 문자열로 직렬화.
     
     Args:
@@ -703,7 +703,7 @@ def load_project_from_json(json_str: str) -> dict:
     
     # 엔진 버전 호환성 체크 (경고만, 실패 아님)
     saved_version = meta.get("engine_version", "unknown")
-    current_version = "v2.6.3"
+    current_version = "v2.6.5"
     if saved_version != current_version:
         warnings.append(
             f"엔진 버전 차이 — 저장 시: {saved_version} / 현재: {current_version}. "
@@ -2534,20 +2534,31 @@ Goal: {gns.get("goal","")} / Need: {gns.get("need","")} / Strategy: {gns.get("st
 """
 
         # ─── v2.5.4: 스트리밍 호출 전환 + 2단계 자동 재시도 ───
+        # ─── v2.6.4: max_tokens 16000 → 24000 (시리즈 6비트 출력량 대응, v2.5.1 캐릭터 바이블과 동일 조치) ───
         with client.messages.stream(
-            model=ANTHROPIC_MODEL_OPUS, max_tokens=16000, temperature=0.4,
+            model=ANTHROPIC_MODEL_OPUS, max_tokens=24000, temperature=0.4,
             system=system_prompt,
             messages=[{"role": "user", "content": user_prompt}]
         ) as stream:
             response = stream.get_final_message()
         if response.stop_reason == "max_tokens":
-            retry = user_prompt.replace("2500~4000자", "2000~3000자").replace("4000~6000자", "3000~4000자")
+            # v2.6.4: 축소 프롬프트를 user_prompt 자체에 반영 — 이후 JSON 파싱 재시도도
+            # 축소된 프롬프트를 사용하게 함 (기존에는 재시도가 원래 긴 프롬프트로 회귀해
+            # 절단이 원인일 경우 재시도가 구조적으로 성공 불가능했음)
+            st.warning(f"⚠️ Treatment {act_label} 출력 절단(max_tokens) — 분량 축소 후 재시도 중...")
+            user_prompt = user_prompt.replace("1500~2500자", "1200~1800자")
             with client.messages.stream(
-                model=ANTHROPIC_MODEL_OPUS, max_tokens=16000, temperature=0.4,
+                model=ANTHROPIC_MODEL_OPUS, max_tokens=24000, temperature=0.4,
                 system=system_prompt,
-                messages=[{"role": "user", "content": retry}]
+                messages=[{"role": "user", "content": user_prompt}]
             ) as stream:
                 response = stream.get_final_message()
+            if response.stop_reason == "max_tokens":
+                st.warning(
+                    f"⚠️ Treatment {act_label} 분량 축소 후에도 출력 절단 지속 — "
+                    f"이후 파싱 실패는 JSON 문법이 아닌 출력량 초과가 원인입니다. "
+                    f"비트 수·narrative 분량 스펙 조정이 필요합니다."
+                )
         txt = "".join(b.text for b in response.content if hasattr(b, "text")).strip()
         st.session_state[f"last_treatment_act{act_number}_raw"] = txt
 
@@ -2561,7 +2572,7 @@ Goal: {gns.get("goal","")} / Need: {gns.get("need","")} / Strategy: {gns.get("st
             # 1차 재시도: 제어 문자 금지 강조
             retry_system_1 = system_prompt + "\n\n★ 최우선 규칙: 반드시 유효한 JSON만 출력. narrative 안에 줄바꿈(\\n) 절대 금지. 탭(\\t) 절대 금지. 캐리지리턴(\\r) 절대 금지. 대사 인용은 작은따옴표만. 후행 쉼표 금지. 코드 펜스(```) 금지. 출력 시작은 { 끝은 }. ★"
             with client.messages.stream(
-                model=ANTHROPIC_MODEL_OPUS, max_tokens=16000, temperature=0.2,
+                model=ANTHROPIC_MODEL_OPUS, max_tokens=24000, temperature=0.2,
                 system=retry_system_1,
                 messages=[{"role": "user", "content": user_prompt}]
             ) as stream:
@@ -2576,7 +2587,7 @@ Goal: {gns.get("goal","")} / Need: {gns.get("need","")} / Strategy: {gns.get("st
                 # 2차 재시도: temperature 최저 + STRICT 룰 주입
                 retry_system_2 = system_prompt + "\n\n" + P.JSON_OUTPUT_RULES_STRICT + "\n\n★ 절대 위반 금지: 단일 JSON 객체. narrative 안에 줄바꿈/탭/캐리지리턴 모두 금지. 첫 문자는 { 마지막 문자는 }. 대사 안의 인용은 작은따옴표만. 후행 쉼표 금지. 코드 펜스 금지. ★"
                 with client.messages.stream(
-                    model=ANTHROPIC_MODEL_OPUS, max_tokens=16000, temperature=0.05,
+                    model=ANTHROPIC_MODEL_OPUS, max_tokens=24000, temperature=0.05,
                     system=retry_system_2,
                     messages=[{"role": "user", "content": user_prompt}]
                 ) as stream:
@@ -3029,6 +3040,7 @@ def call_treatment_gate(treatment_data, core_data=None, genre=""):
                         "beat_no": b.get("beat_no"),
                         "beat_name": b.get("beat_name"),
                         "length": len(narrative),
+                        "story_position": b.get("story_position", ""),  # v2.6.5: 기승전결 좌표
                         "narrative_summary": narrative_compact,
                     })
         
