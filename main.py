@@ -645,7 +645,7 @@ def _get_project_stage(project: dict) -> str:
     return "초기"
 
 
-def save_project_to_json(project: dict, engine_version: str = "v2.6.1") -> str:
+def save_project_to_json(project: dict, engine_version: str = "v2.6.2") -> str:
     """프로젝트 전체를 JSON 문자열로 직렬화.
     
     Args:
@@ -703,7 +703,7 @@ def load_project_from_json(json_str: str) -> dict:
     
     # 엔진 버전 호환성 체크 (경고만, 실패 아님)
     saved_version = meta.get("engine_version", "unknown")
-    current_version = "v2.6.1"
+    current_version = "v2.6.2"
     if saved_version != current_version:
         warnings.append(
             f"엔진 버전 차이 — 저장 시: {saved_version} / 현재: {current_version}. "
@@ -6121,40 +6121,59 @@ elif st.session_state.view == "treatment" and st.session_state.cur:
 
     scene_data = project.get("scene_design", {})
 
+    # ── v2.6.2: 막별 증분 저장 + 이어하기 (연결 끊김·중단 대비) ──
+    # 기존: 3개 막이 전부 끝나야 저장 → 중간 끊김 시 완성분까지 전체 유실.
+    # 변경: 각 막 완성 즉시 treatment_partial에 저장, 재실행 시 없는 막부터 이어서 생성.
+    _partial = project.get("treatment_partial", {})
+    _saved_acts = [n for n in (1, 2, 3) if _partial.get(f"act{n}")]
+    force_regen = False
+    if _saved_acts:
+        st.info(
+            f"이전 실행에서 완성된 막이 저장되어 있습니다: {', '.join(f'{n}막' for n in _saved_acts)} "
+            f"— 실행 시 남은 막부터 이어서 생성합니다."
+        )
+        force_regen = st.checkbox("전체 재생성 (저장된 막을 버리고 처음부터)", value=False)
+
     if st.button("📝 Treatment Build 실행", type="primary"):
         if not story:
             st.error("Structure Build가 없습니다.")
         else:
-            with st.spinner("① 1막 Treatment (Beat 1~6)... (약 40~50초)"):
-                act1 = call_treatment_beats(
-                    core, story, scene_data, project["genre"], project["format"], 1,
-                    locked_block=_build_project_locked_block(project),
-                    fact_based=project.get("fact_based", False),
-                    historical=project.get("historical", False),
-                    film_type=project.get("film_type", ""),
-                    research=project.get("research"),
-                )
-            with st.spinner("② 2막 Treatment (Beat 7~12)... (약 40~50초)"):
-                act2 = call_treatment_beats(
-                    core, story, scene_data, project["genre"], project["format"], 2,
-                    locked_block=_build_project_locked_block(project),
-                    fact_based=project.get("fact_based", False),
-                    historical=project.get("historical", False),
-                    film_type=project.get("film_type", ""),
-                    research=project.get("research"),
-                )
-            with st.spinner("③ 3막 Treatment (Beat 13~16)... (약 30~40초)"):
-                act3 = call_treatment_beats(
-                    core, story, scene_data, project["genre"], project["format"], 3,
-                    locked_block=_build_project_locked_block(project),
-                    fact_based=project.get("fact_based", False),
-                    historical=project.get("historical", False),
-                    film_type=project.get("film_type", ""),
-                    research=project.get("research"),
+            if force_regen:
+                project["treatment_partial"] = {}
+
+            def _run_treatment_act(act_n, spinner_label):
+                """v2.6.2: 완성된 막은 건너뛰고, 새로 생성한 막은 즉시 세션에 저장."""
+                saved = project.get("treatment_partial", {}).get(f"act{act_n}")
+                if saved:
+                    return saved
+                with st.spinner(spinner_label):
+                    result = call_treatment_beats(
+                        core, story, scene_data, project["genre"], project["format"], act_n,
+                        locked_block=_build_project_locked_block(project),
+                        fact_based=project.get("fact_based", False),
+                        historical=project.get("historical", False),
+                        film_type=project.get("film_type", ""),
+                        research=project.get("research"),
+                    )
+                if result:
+                    project.setdefault("treatment_partial", {})[f"act{act_n}"] = result
+                    project["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
+                return result
+
+            act1 = _run_treatment_act(1, "① 1막 Treatment (Beat 1~6)... (약 1~3분)")
+            act2 = _run_treatment_act(2, "② 2막 Treatment (Beat 7~12)... (약 1~3분)")
+            act3 = _run_treatment_act(3, "③ 3막 Treatment (Beat 13~16)... (약 1~2분)")
+
+            if not (act1 and act2 and act3):
+                _missing = [f"{n}막" for n, a in ((1, act1), (2, act2), (3, act3)) if not a]
+                st.error(
+                    f"{', '.join(_missing)} 생성 실패 — 완성된 막은 저장되어 있습니다. "
+                    f"버튼을 다시 누르면 실패한 막부터 이어서 생성합니다."
                 )
 
-            if act1 or act2 or act3:
+            if act1 and act2 and act3:
                 project["treatment"] = {"act1": act1, "act2": act2, "act3": act3}
+                project.pop("treatment_partial", None)  # v2.6.2: 완성 시 부분 저장분 정리
                 project["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
 
                 with st.spinner("④ 감정 곡선 + 감독 포인트... (약 10초)"):

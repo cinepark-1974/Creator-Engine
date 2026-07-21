@@ -2,10 +2,27 @@
 👖 BLUE JEANS Creator Engine — Prompt Library
 
 ╔══════════════════════════════════════════════════════════╗
-║  VERSION: v2.6.1                                         ║
-║  BUILD DATE: 2026-06-20                                  ║
+║  VERSION: v2.6.2                                         ║
+║  BUILD DATE: 2026-07-21                                  ║
 ║  STATUS: Production                                      ║
 ╚══════════════════════════════════════════════════════════╝
+
+─────────────────────────────────────────────────────────
+v2.6.2 패치 (2026-07-21) — Treatment Build 막별 증분 저장 + 이어하기
+─────────────────────────────────────────────────────────
+발견 경위: Mr. MOON 운영 중 발견 — Treatment 생성이 4회 연속 중단.
+진단: 코드 결함이 아닌 실행 구조 결함. Treatment Build가 Opus 호출
+  5회(1·2·3막 + 메타 + Gate E)를 원자적으로 묶어 5~10분 연속 실행,
+  중간에 웹소켓 끊김·탭 절전이 발생하면 완성된 막까지 전체 유실.
+  매 재시도가 0에서 재시작되어 실패 노출 시간이 계속 최대치 유지.
+해결 (main.py 단독 변경, prompt.py는 버전 동기화만):
+  ① 각 막 완성 즉시 project["treatment_partial"]["actN"]에 저장
+  ② 재실행 시 저장된 막 건너뛰고 없는 막부터 이어서 생성
+  ③ 전체 재생성 체크박스 별도 제공 (부분 저장분 폐기 후 처음부터)
+  ④ 3개 막 완성 시 treatment로 조립 후 treatment_partial 정리
+하위 호환: 함수 시그니처 무수정. treatment 필드 구조 동일.
+  treatment_partial은 신규 임시 필드(완성 시 자동 삭제) — 기존
+  프로젝트 JSON 100% 호환.
 
 ★ 버전 확인 방법 ★
 - 파일 최상단 VERSION 블록 확인
@@ -1003,8 +1020,8 @@ BLUE JEANS 3축 (Mr.MOON 고유)
 # 수정 시 ENGINE_VERSION과 ENGINE_BUILD_DATE를 함께 갱신하세요.
 # ═══════════════════════════════════════════════════
 
-ENGINE_VERSION = "v2.6.1"
-ENGINE_BUILD_DATE = "2026-06-20"
+ENGINE_VERSION = "v2.6.2"
+ENGINE_BUILD_DATE = "2026-07-21"
 ENGINE_STATUS = "Production"
 
 def get_engine_info() -> str:
