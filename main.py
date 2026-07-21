@@ -645,7 +645,7 @@ def _get_project_stage(project: dict) -> str:
     return "초기"
 
 
-def save_project_to_json(project: dict, engine_version: str = "v2.6.2") -> str:
+def save_project_to_json(project: dict, engine_version: str = "v2.6.3") -> str:
     """프로젝트 전체를 JSON 문자열로 직렬화.
     
     Args:
@@ -703,7 +703,7 @@ def load_project_from_json(json_str: str) -> dict:
     
     # 엔진 버전 호환성 체크 (경고만, 실패 아님)
     saved_version = meta.get("engine_version", "unknown")
-    current_version = "v2.6.2"
+    current_version = "v2.6.3"
     if saved_version != current_version:
         warnings.append(
             f"엔진 버전 차이 — 저장 시: {saved_version} / 현재: {current_version}. "
@@ -6121,105 +6121,110 @@ elif st.session_state.view == "treatment" and st.session_state.cur:
 
     scene_data = project.get("scene_design", {})
 
-    # ── v2.6.2: 막별 증분 저장 + 이어하기 (연결 끊김·중단 대비) ──
-    # 기존: 3개 막이 전부 끝나야 저장 → 중간 끊김 시 완성분까지 전체 유실.
-    # 변경: 각 막 완성 즉시 treatment_partial에 저장, 재실행 시 없는 막부터 이어서 생성.
+    # ── v2.6.3: 막별 독립 실행 버튼 (Mr. MOON 요청) ──
+    # v2.6.2의 막별 증분 저장(treatment_partial) 위에 실행 단위를 분리.
+    #   ①②③ 각 막을 독립 버튼으로 생성 — 한 클릭 = Opus 호출 1회 (재시도 포함 최대 3회)
+    #   ④ 3개 막이 모이면 '확정' 버튼 등장 — 메타 + Writer 인계 + Gate E 실행 후 확정
+    # 효과: JSON 파싱 실패·연결 끊김이 발생해도 피해 범위가 막 1개로 한정.
     _partial = project.get("treatment_partial", {})
-    _saved_acts = [n for n in (1, 2, 3) if _partial.get(f"act{n}")]
-    force_regen = False
-    if _saved_acts:
-        st.info(
-            f"이전 실행에서 완성된 막이 저장되어 있습니다: {', '.join(f'{n}막' for n in _saved_acts)} "
-            f"— 실행 시 남은 막부터 이어서 생성합니다."
-        )
-        force_regen = st.checkbox("전체 재생성 (저장된 막을 버리고 처음부터)", value=False)
 
-    if st.button("📝 Treatment Build 실행", type="primary"):
+    def _run_treatment_act(act_n, spinner_label):
+        """v2.6.3: 해당 막 1개만 생성하고 완성 즉시 저장 후 화면 갱신."""
         if not story:
             st.error("Structure Build가 없습니다.")
-        else:
-            if force_regen:
-                project["treatment_partial"] = {}
+            return
+        with st.spinner(spinner_label):
+            result = call_treatment_beats(
+                core, story, scene_data, project["genre"], project["format"], act_n,
+                locked_block=_build_project_locked_block(project),
+                fact_based=project.get("fact_based", False),
+                historical=project.get("historical", False),
+                film_type=project.get("film_type", ""),
+                research=project.get("research"),
+            )
+        if result:
+            project.setdefault("treatment_partial", {})[f"act{act_n}"] = result
+            project["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
+            st.rerun()
 
-            def _run_treatment_act(act_n, spinner_label):
-                """v2.6.2: 완성된 막은 건너뛰고, 새로 생성한 막은 즉시 세션에 저장."""
-                saved = project.get("treatment_partial", {}).get(f"act{act_n}")
-                if saved:
-                    return saved
-                with st.spinner(spinner_label):
-                    result = call_treatment_beats(
-                        core, story, scene_data, project["genre"], project["format"], act_n,
-                        locked_block=_build_project_locked_block(project),
-                        fact_based=project.get("fact_based", False),
-                        historical=project.get("historical", False),
-                        film_type=project.get("film_type", ""),
-                        research=project.get("research"),
-                    )
-                if result:
-                    project.setdefault("treatment_partial", {})[f"act{act_n}"] = result
-                    project["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
-                return result
+    _act_specs = [
+        (1, "1막", "Beat 1~6", "약 1~3분"),
+        (2, "2막", "Beat 7~12", "약 1~3분"),
+        (3, "3막", "Beat 13~16", "약 1~2분"),
+    ]
+    _cols = st.columns(3)
+    for _col, (_n, _name, _beats_label, _tip) in zip(_cols, _act_specs):
+        with _col:
+            _done = bool(_partial.get(f"act{_n}"))
+            if _done:
+                st.caption(f"✅ {_name} 저장됨 · 비트 {len(_partial[f'act{_n}'].get('beats', []))}개")
+            _btn_label = f"🔄 {_name} 재생성" if _done else f"📝 {_name} 생성 ({_beats_label})"
+            if st.button(_btn_label, key=f"treat_act{_n}_btn"):
+                _run_treatment_act(_n, f"{_name} Treatment ({_beats_label})... ({_tip})")
 
-            act1 = _run_treatment_act(1, "① 1막 Treatment (Beat 1~6)... (약 1~3분)")
-            act2 = _run_treatment_act(2, "② 2막 Treatment (Beat 7~12)... (약 1~3분)")
-            act3 = _run_treatment_act(3, "③ 3막 Treatment (Beat 13~16)... (약 1~2분)")
+    # 저장된 막 미리보기 — 확정 전 검토용
+    for _n, _name, _beats_label, _tip in _act_specs:
+        _act_data = _partial.get(f"act{_n}")
+        if _act_data:
+            with st.expander(f"📖 {_name} 미리보기 (확정 전 · {_beats_label})"):
+                for _b in _act_data.get("beats", []):
+                    st.markdown(f"**Beat {_b.get('beat_no', '')}. {_b.get('beat_name', '')}** · {len(_b.get('narrative', ''))}자")
+                    st.write(_b.get("narrative", ""))
 
-            if not (act1 and act2 and act3):
-                _missing = [f"{n}막" for n, a in ((1, act1), (2, act2), (3, act3)) if not a]
-                st.error(
-                    f"{', '.join(_missing)} 생성 실패 — 완성된 막은 저장되어 있습니다. "
-                    f"버튼을 다시 누르면 실패한 막부터 이어서 생성합니다."
+    if all(_partial.get(f"act{_n}") for _n in (1, 2, 3)):
+        st.success("3개 막 완성 — 확정 실행 시 감정 곡선·Writer 인계 블록·Gate E 채점 후 Treatment가 확정됩니다.")
+        if st.button("✅ ④ Treatment 확정 (메타 + Gate E)", type="primary", key="treat_finalize_btn"):
+            act1 = _partial["act1"]
+            act2 = _partial["act2"]
+            act3 = _partial["act3"]
+            project["treatment"] = {"act1": act1, "act2": act2, "act3": act3}
+            project.pop("treatment_partial", None)  # v2.6.2: 확정 시 부분 저장분 정리
+            project["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
+
+            with st.spinner("④ 감정 곡선 + 감독 포인트... (약 10초)"):
+                meta = call_treatment_meta(act1, act2, act3, core)
+            if meta:
+                project["treatment"]["meta"] = meta
+
+            # v2.6.0 — Writer Engine v3.7.1 인계용 4블록 자동 생성
+            # (시퀀스 사이클 / 적대자 행위 / Setup-Payoff / 물리적 대가)
+            try:
+                handoff = build_writer_engine_handoff_v26(
+                    act1, act2, act3,
+                    char_bible=project.get("characters")
                 )
-
-            if act1 and act2 and act3:
-                project["treatment"] = {"act1": act1, "act2": act2, "act3": act3}
-                project.pop("treatment_partial", None)  # v2.6.2: 완성 시 부분 저장분 정리
-                project["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
-
-                with st.spinner("④ 감정 곡선 + 감독 포인트... (약 10초)"):
-                    meta = call_treatment_meta(act1, act2, act3, core)
-                if meta:
-                    project["treatment"]["meta"] = meta
-
-                # v2.6.0 — Writer Engine v3.7.1 인계용 4블록 자동 생성
-                # (시퀀스 사이클 / 적대자 행위 / Setup-Payoff / 물리적 대가)
-                try:
-                    handoff = build_writer_engine_handoff_v26(
-                        act1, act2, act3,
-                        char_bible=project.get("characters")
+                project["treatment"]["writer_handoff_v26"] = handoff
+                # 경고가 있으면 사용자에게 표시 (선택적)
+                all_warnings = []
+                all_warnings.extend(handoff.get("cycle_design", {}).get("warnings", []))
+                all_warnings.extend(handoff.get("antagonist_actions", {}).get("warnings", []))
+                all_warnings.extend(handoff.get("physical_cost_plan", {}).get("warnings", []))
+                # Setup-Payoff 미회수 항목 경고
+                sp_table = handoff.get("setup_payoff_table", [])
+                unrecovered = [x["item"] for x in sp_table if x.get("status") == "회수 필요"]
+                if unrecovered:
+                    all_warnings.append(
+                        f"Setup-Payoff 미회수 항목 {len(unrecovered)}개: {', '.join(unrecovered)} — "
+                        f"삭제 후보 또는 Payoff 추가 필요"
                     )
-                    project["treatment"]["writer_handoff_v26"] = handoff
-                    # 경고가 있으면 사용자에게 표시 (선택적)
-                    all_warnings = []
-                    all_warnings.extend(handoff.get("cycle_design", {}).get("warnings", []))
-                    all_warnings.extend(handoff.get("antagonist_actions", {}).get("warnings", []))
-                    all_warnings.extend(handoff.get("physical_cost_plan", {}).get("warnings", []))
-                    # Setup-Payoff 미회수 항목 경고
-                    sp_table = handoff.get("setup_payoff_table", [])
-                    unrecovered = [x["item"] for x in sp_table if x.get("status") == "회수 필요"]
-                    if unrecovered:
-                        all_warnings.append(
-                            f"Setup-Payoff 미회수 항목 {len(unrecovered)}개: {', '.join(unrecovered)} — "
-                            f"삭제 후보 또는 Payoff 추가 필요"
-                        )
-                    if all_warnings:
-                        with st.expander(f"⚠️ v2.6.0 사전 방지 경고 {len(all_warnings)}건"):
-                            for w in all_warnings:
-                                st.warning(w)
-                except Exception as e:
-                    st.warning(f"v2.6.0 후처리 중 비치명적 오류 (Treatment는 정상 저장됨): {e}")
+                if all_warnings:
+                    with st.expander(f"⚠️ v2.6.0 사전 방지 경고 {len(all_warnings)}건"):
+                        for w in all_warnings:
+                            st.warning(w)
+            except Exception as e:
+                st.warning(f"v2.6.0 후처리 중 비치명적 오류 (Treatment는 정상 저장됨): {e}")
 
-                with st.spinner("⑤ Gate E 채점... (약 15초, 장르·엔딩·논리 검증 포함)"):
-                    gate_e = call_treatment_gate(
-                        project["treatment"],
-                        core_data=core,
-                        genre=project["genre"],
-                    )
-                if gate_e:
-                    project["treatment_gate"] = gate_e
+            with st.spinner("⑤ Gate E 채점... (약 15초, 장르·엔딩·논리 검증 포함)"):
+                gate_e = call_treatment_gate(
+                    project["treatment"],
+                    core_data=core,
+                    genre=project["genre"],
+                )
+            if gate_e:
+                project["treatment_gate"] = gate_e
 
-                project["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
-                st.rerun()
+            project["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
+            st.rerun()
 
     # ── Treatment 결과 표시 (16비트 줄글) ──
     if project.get("treatment"):

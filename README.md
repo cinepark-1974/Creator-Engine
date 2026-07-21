@@ -1,6 +1,6 @@
 # 👖 BLUE JEANS · Creator Engine
 
-**Version: v2.6.2** · Build: 2026-07-21 · Status: Production
+**Version: v2.6.3** · Build: 2026-07-21 · Status: Production
 
 > **아이디어 한 줄 → 글로벌 스튜디오 수준 기획개발 패키지**
 >
@@ -2215,6 +2215,7 @@ ANTHROPIC_API_KEY = "sk-ant-..."
 | **v2.5.4** | **[핫픽스] Treatment Build JSON 출력 안정화 — v2.5.3 적용 후 운영 중 발견된 회귀 결함. narrative 필드(2500~4000자) 내부에 모델이 줄바꿈/탭/캐리지리턴을 넣어 "Invalid control character" 에러로 Treatment 막 생성 실패. 3축으로 해결: ① TREATMENT_BEAT_RULES_TEMPLATE에 9개 강제 JSON 출력 룰 신설(제어 문자 금지 명문화 + narrative 특수 주의 섹션) ② call_treatment_beats를 스트리밍 전환 + 자동 재시도 1회 → 2회(temp 0.4 → 0.2 → 0.05 + JSON_OUTPUT_RULES_STRICT 주입) ③ 제어 문자 사후 정리 안전망 신설(string value 내부 제어 문자 정규식 치환 후 재파싱). 캐릭터 바이블 v2.5.1 패턴과 v2.5.3 스트리밍 결합. 1차 시도 성공률 ~70% → ≥90% 목표.** |
 | **v2.6.1** | **[패치] 연출 권한 경계 분기 신설 — Mr. MOON 운영 중 발견. Creator가 '볼펜 뚜껑을 연다/닫는다' 같은 독립영화풍 미시 연출(카메라 쇼트·배우 미시 동작·소품 안무·초 단위 침묵)을 상업 스릴러·액션 기획개발에까지 과잉 주입하던 결함 해결. `_detect_arthouse()` 자동 감지 신설(LOCKED/idea 텍스트 스캔, 다국어 감지와 동일 패턴) → 작가주의 작품이면 ARTHOUSE_MOTIF_LICENSE(시그니처 오브제·미시 연출 허용), 상업영화(기본)면 DIRECTION_AUTHORITY_BOUNDARY(카메라·미시 동작·소품 연출 생성 금지, 소품은 서사 의미만). build_system_tone_document 시그니처·TONE_DOC_SCHEMA 무수정 → 100% 하위 호환.** |
 | **v2.6.2** | **[패치] Treatment Build 막별 증분 저장 + 이어하기 — Mr. MOON 운영 중 발견(트리트먼트 생성 4회 연속 중단). 진단: 코드 결함이 아닌 실행 구조 결함 — Opus 호출 5회(1·2·3막+메타+Gate E)를 원자적으로 묶어 5~10분 연속 실행하다 웹소켓 끊김·탭 절전 시 완성된 막까지 전체 유실, 매 재시도가 0에서 재시작. main.py 단독 변경으로 해결: ① 각 막 완성 즉시 `treatment_partial`에 저장 ② 재실행 시 저장된 막 건너뛰고 없는 막부터 이어서 생성 ③ 전체 재생성 체크박스 별도 제공 ④ 3개 막 완성 시 `treatment` 조립 후 `treatment_partial` 자동 삭제. 스피너 소요 시간 표기를 현실화(막당 약 1~3분). 함수 시그니처·treatment 구조 무수정 → 100% 하위 호환.** |
+| **v2.6.3** | **[패치] Treatment Build 막별 독립 실행 버튼 — v2.6.2 배포 직후 Mr. MOON 운영 중 1막 JSON 파싱 재시도 2회 진입 확인. 단일 버튼은 여전히 1클릭당 최대 9회 Opus 호출(막당 재시도 3회 × 3막)에 노출. main.py 단독 변경: ① 단일 실행 버튼 폐지 → ①1막/②2막/③3막 독립 버튼(한 클릭 = 막 1개) ② 완성된 막은 '재생성' 버튼 전환 + 확정 전 미리보기 expander ③ 3개 막 완성 시 '④ Treatment 확정' 버튼 등장(메타 + writer_handoff_v26 + Gate E 실행 후 확정) ④ 확정 시 `treatment_partial` 자동 삭제. 실패·끊김의 피해 범위가 막 1개로 한정. 함수 시그니처·treatment 구조 무수정 → 100% 하위 호환.** |
 
 ---
 
