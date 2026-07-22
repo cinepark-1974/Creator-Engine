@@ -632,6 +632,8 @@ def _get_project_stage(project: dict) -> str:
         return "Tone완료"
     if project.get("treatment"):
         return "Treatment완료"
+    if project.get("treatment_partial"):
+        return "Treatment진행중"
     if project.get("scene_design"):
         return "Scene완료"
     if project.get("structure_story"):
@@ -645,7 +647,7 @@ def _get_project_stage(project: dict) -> str:
     return "초기"
 
 
-def save_project_to_json(project: dict, engine_version: str = "v2.6.5") -> str:
+def save_project_to_json(project: dict, engine_version: str = "v2.6.6") -> str:
     """프로젝트 전체를 JSON 문자열로 직렬화.
     
     Args:
@@ -703,7 +705,7 @@ def load_project_from_json(json_str: str) -> dict:
     
     # 엔진 버전 호환성 체크 (경고만, 실패 아님)
     saved_version = meta.get("engine_version", "unknown")
-    current_version = "v2.6.5"
+    current_version = "v2.6.6"
     if saved_version != current_version:
         warnings.append(
             f"엔진 버전 차이 — 저장 시: {saved_version} / 현재: {current_version}. "
@@ -6182,6 +6184,31 @@ elif st.session_state.view == "treatment" and st.session_state.cur:
                 for _b in _act_data.get("beats", []):
                     st.markdown(f"**Beat {_b.get('beat_no', '')}. {_b.get('beat_name', '')}** · {len(_b.get('narrative', ''))}자")
                     st.write(_b.get("narrative", ""))
+
+    # ── v2.6.6: 확정 전 중간 저장 (Mr. MOON 운영 중 발견) ──
+    # v2.6.3 막별 독립 실행 개편 때 Treatment 페이지의 JSON 저장 버튼이
+    # 확정 이후 블록(if project.get("treatment"))에만 남아, 확정 전에는
+    # 저장 수단이 화면에 없었음. treatment_partial은 세션 메모리에만 있어
+    # 확정 전 세션 끊김 시 생성된 막이 유실 — v2.6.2~v2.6.3의 피해 범위
+    # 한정 취지와 어긋나는 공백. save_project_to_json은 project 전체를
+    # 직렬화하므로 treatment_partial도 포함 → 버튼만 노출하면 복원 작동.
+    if _partial and not project.get("treatment"):
+        with st.expander("💾 프로젝트 JSON 저장 (Treatment 진행중 · 확정 전)", expanded=False):
+            st.caption(
+                "생성된 막은 세션에만 저장되어 있습니다. 확정 전에 세션이 끊겨도 "
+                "여기서 JSON을 저장해 두면 해당 시점부터 이어서 진행할 수 있습니다."
+            )
+            _title_safe = project.get("title", "프로젝트").replace(" ", "_")
+            _ts = datetime.now().strftime("%Y%m%d_%H%M")
+            _partial_json_str = save_project_to_json(project)
+            st.download_button(
+                label="💾 프로젝트 저장 (Treatment 진행중)",
+                data=_partial_json_str.encode("utf-8"),
+                file_name=f"{_title_safe}_Treatment진행중_{_ts}.json",
+                mime="application/json",
+                use_container_width=True,
+                key="treat_partial_save_btn",
+            )
 
     if all(_partial.get(f"act{_n}") for _n in (1, 2, 3)):
         st.success("3개 막 완성 — 확정 실행 시 감정 곡선·Writer 인계 블록·Gate E 채점 후 Treatment가 확정됩니다.")

@@ -2,10 +2,30 @@
 👖 BLUE JEANS Creator Engine — Prompt Library
 
 ╔══════════════════════════════════════════════════════════╗
-║  VERSION: v2.6.5                                         ║
-║  BUILD DATE: 2026-07-21                                  ║
+║  VERSION: v2.6.6                                         ║
+║  BUILD DATE: 2026-07-22                                  ║
 ║  STATUS: Production                                      ║
 ╚══════════════════════════════════════════════════════════╝
+
+─────────────────────────────────────────────────────────
+v2.6.6 패치 (2026-07-22) — Treatment 확정 전 중간 저장 복원
+─────────────────────────────────────────────────────────
+발견 경위: Mr. MOON 운영 중 발견 — "프로젝트 중간 저장 기능이 없어진
+  것 같다." 「지윤 (가제)」 Treatment 단계(1·2막 생성, 확정 전)에서
+  JSON 저장 버튼이 화면에 없음.
+진단: 기능 소멸이 아닌 노출 공백. v2.6.3 막별 독립 실행 개편 때
+  Treatment 페이지의 JSON 저장 버튼이 확정 이후 블록
+  (if project.get("treatment"))에만 남아, treatment_partial 상태에서는
+  저장 수단이 없었음. 부분 생성분은 세션 메모리에만 존재해 확정 전
+  세션 끊김 시 유실 — v2.6.2~v2.6.3의 피해 범위 한정 취지와 모순.
+변경 (main.py 단독 · prompt.py는 버전 메타만):
+  ① Treatment 페이지 확정 전 구간에 저장 expander 추가
+     (막 1개 이상 생성 + 미확정 시 노출). save_project_to_json이
+     project 전체를 직렬화하므로 treatment_partial 포함 저장·복원 작동.
+  ② _get_project_stage()에 "Treatment진행중" 단계 인식 추가 —
+     저장 파일명으로 확정 전 시점 식별 가능.
+하위 호환성: 함수 시그니처 무수정, 필드 추가 없음, UI 노출만 추가.
+  구버전 JSON 복원에 영향 없음. 100% 하위 호환.
 
 ─────────────────────────────────────────────────────────
 v2.6.5 패치 (2026-07-21) — Treatment 아웃라인 정체성 확립 + 기승전결 좌표
@@ -1086,8 +1106,8 @@ BLUE JEANS 3축 (Mr.MOON 고유)
 # 수정 시 ENGINE_VERSION과 ENGINE_BUILD_DATE를 함께 갱신하세요.
 # ═══════════════════════════════════════════════════
 
-ENGINE_VERSION = "v2.6.5"
-ENGINE_BUILD_DATE = "2026-07-21"
+ENGINE_VERSION = "v2.6.6"
+ENGINE_BUILD_DATE = "2026-07-22"
 ENGINE_STATUS = "Production"
 
 def get_engine_info() -> str:
