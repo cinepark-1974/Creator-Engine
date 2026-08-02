@@ -647,7 +647,7 @@ def _get_project_stage(project: dict) -> str:
     return "초기"
 
 
-def save_project_to_json(project: dict, engine_version: str = "v2.6.6") -> str:
+def save_project_to_json(project: dict, engine_version: str = "v2.7.0") -> str:
     """프로젝트 전체를 JSON 문자열로 직렬화.
     
     Args:
@@ -705,7 +705,7 @@ def load_project_from_json(json_str: str) -> dict:
     
     # 엔진 버전 호환성 체크 (경고만, 실패 아님)
     saved_version = meta.get("engine_version", "unknown")
-    current_version = "v2.6.6"
+    current_version = "v2.7.0"
     if saved_version != current_version:
         warnings.append(
             f"엔진 버전 차이 — 저장 시: {saved_version} / 현재: {current_version}. "
@@ -1634,6 +1634,117 @@ def call_core_gate(core_data):
         raw = st.session_state.get("last_gate_raw", "")
         if raw:
             with st.expander("🔧 Gate Raw Response (디버그)"):
+                st.text_area("Raw", raw, height=400)
+        return None
+
+
+# ─── API Call: Reality Gate (v2.7.0 신규) ───
+def call_reality_gate(project, core_data):
+    """Core 직후 사실성 검문 — 제도·절차·직업 역할 위배 전제를 적출.
+
+    LOCKED는 보존 대상이지 검증 대상이 아니므로, 상류(Idea Engine)가
+    틀린 전제를 넘기면 하류 전 단계가 오염된다. 이 함수는 그 오염을
+    Core 시점에서 한 번 걸러내기 위한 검문소다.
+
+    엔진은 적출만 하고, 채택 여부는 전적으로 작가가 결정한다.
+    """
+    try:
+        client = get_client()
+
+        locked_items = project.get("locked_items", []) or []
+        locked_text = "\n".join(f"- {x}" for x in locked_items) if locked_items else "(없음)"
+
+        # 직업 감지 결과를 근거 자료로 함께 주입
+        prof_block = ""
+        try:
+            import profession_pack as PP
+            scan = " ".join(locked_items) + " " + (project.get("idea_text") or "")
+            cats = PP.detect_profession_category(scan)
+            irs = []
+            for c in cats:
+                data = PP.PROFESSION_PACK.get(c, {})
+                ir = data.get("institutional_reality")
+                if ir:
+                    irs.append(f"[{c}]\n{ir}")
+            if irs:
+                prof_block = (
+                    "\n\n[제도 사실성 참조 자료 — 감지된 직군]\n"
+                    "아래는 판정 근거로 쓸 수 있는 확정 자료다. "
+                    "여기에 없는 영역은 일반 지식으로 판단하되, 확신이 없으면 적출하지 말 것.\n\n"
+                    + "\n\n".join(irs)
+                )
+        except Exception:
+            prof_block = ""
+
+        user_prompt = f"""[작품 기본 정보]
+제목: {project.get('title', '')}
+장르: {project.get('genre', '')}
+포맷: {project.get('format', '')}
+타겟 시장: {project.get('target_market', '')}
+실화 기반: {project.get('fact_based', False)}
+시대극: {project.get('historical', False)}
+
+[아이디어 원문]
+{project.get('idea_text', '')}
+
+[LOCKED 항목 — 상류에서 확정되어 넘어온 것]
+{locked_text}
+
+[Core Build 결과]
+{json.dumps(core_data, ensure_ascii=False)}
+{prof_block}
+
+[JSON 스키마]
+{{
+  "verdict": "CLEAR | ISSUES_FOUND",
+  "scanned_domains": ["점검한 영역 1", "점검한 영역 2"],
+  "issues": [
+    {{
+      "id": "R1",
+      "severity": "CRITICAL | MAJOR | MINOR",
+      "domain": "직업 역할 | 법적 효력 | 절차·기간 | 조직·권한 | 물리적 성립",
+      "location": "LOCKED 항목 또는 Core 필드의 원문 일부 (40자 이내)",
+      "error": "무엇이 틀렸는지 1문장",
+      "reality": "실제로는 어떤지 1~2문장. 근거 조문·제도명 있으면 명시",
+      "impact": "이대로 두면 Writer Engine·촬영 단계에서 무엇이 깨지는지 1문장",
+      "alternatives": [
+        "원 설계 의도를 보존하면서 사실만 교정한 대안 1",
+        "원 설계 의도를 보존하면서 사실만 교정한 대안 2"
+      ],
+      "suggested_locked": "대안 1을 반영한 LOCKED 교체 문장 (원문과 같은 형식, 1줄)"
+    }}
+  ],
+  "author_note": "작가가 의도적으로 비튼 것으로 보이는 설정이 있으면 여기에 기록. 없으면 빈 문자열."
+}}
+
+규칙:
+- issues는 최대 5건. 심각도 높은 순 정렬.
+- 위배 사항이 없으면 issues를 빈 배열로 두고 verdict는 "CLEAR".
+- 확신이 없으면 적출하지 않는다. 오탐이 미탐보다 해롭다.
+- 흥행성·완성도·취향에 대한 의견은 절대 포함하지 않는다.
+"""
+
+        response = client.messages.create(
+            model=ANTHROPIC_MODEL,
+            max_tokens=4000,
+            temperature=0.1,
+            system=P.SYSTEM_REALITY_GATE,
+            messages=[{"role": "user", "content": user_prompt}]
+        )
+
+        txt = "".join(
+            block.text for block in response.content if hasattr(block, "text")
+        ).strip()
+        st.session_state["last_reality_raw"] = txt
+
+        return safe_json_loads(txt)
+
+    except Exception as e:
+        st.session_state["last_error"] = str(e)
+        st.error(f"Reality Gate 실패: {e}")
+        raw = st.session_state.get("last_reality_raw", "")
+        if raw:
+            with st.expander("🔧 Reality Gate Raw Response (디버그)"):
                 st.text_area("Raw", raw, height=400)
         return None
 
@@ -5339,6 +5450,140 @@ elif st.session_state.view == "core" and st.session_state.cur:
             with c2:
                 for nm, sc in [("Goal",fa.get("goal",0)),("Need",fa.get("need",0)),("Strategy",fa.get("strategy",0)),("Structure",fa.get("structure",0)),("Character/Concept",fa.get("character_concept",0))]:
                     st.markdown(f'<div style="display:flex;align-items:center;margin:.2rem 0;font-size:.8rem"><div style="width:110px;color:var(--dim)">{nm}</div><div style="flex:1;background:#E0E0E8;border-radius:4px;height:8px;margin:0 .5rem"><div style="width:{sc*10}%;background:var(--y);height:100%;border-radius:4px"></div></div><div style="width:30px;text-align:right">{sc}</div></div>', unsafe_allow_html=True)
+
+            # ═══════════════════════════════════════
+            # REALITY GATE (v2.7.0 신규)
+            # 위치 원칙: Core 직후 · Character Bible 이전.
+            #   Core에서 로그라인·시그니처 모먼트·엔딩 이미지가 확정되므로
+            #   Treatment 직전에 두면 되돌릴 비용이 너무 크다.
+            # ═══════════════════════════════════════
+            st.markdown("---")
+            st.markdown('<div class="section-header">🔍 Reality Gate <span class="en">사실성 검문</span></div>', unsafe_allow_html=True)
+            st.caption(
+                "LOCKED와 Core에 현실 제도·절차·직업 역할에 위배되는 전제가 있는지 점검합니다. "
+                "장르 관습·의도적 왜곡은 적출하지 않습니다. 채택 여부는 전적으로 작가가 결정합니다."
+            )
+
+            rg = project.get("reality_gate")
+
+            if not rg:
+                if st.button("🔍 Reality Gate 실행", key="run_reality_gate", use_container_width=True):
+                    with st.spinner("제도·절차 사실성 점검 중..."):
+                        rg_result = call_reality_gate(project, core)
+                    if rg_result:
+                        for _i, _iss in enumerate(rg_result.get("issues", []) or []):
+                            _iss["status"] = "pending"
+                        project["reality_gate"] = rg_result
+                        project["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
+                        st.rerun()
+                st.info(
+                    "건너뛰어도 Character Bible로 진행할 수 있습니다. "
+                    "다만 LOCKED에 사실 오류가 있으면 Treatment·Writer Engine까지 그대로 전파됩니다."
+                )
+            else:
+                rg_issues = rg.get("issues", []) or []
+                pending = [x for x in rg_issues if x.get("status", "pending") == "pending"]
+                applied = [x for x in rg_issues if x.get("status") == "applied"]
+                ignored = [x for x in rg_issues if x.get("status") == "ignored"]
+
+                if rg.get("verdict") == "CLEAR" or not rg_issues:
+                    st.success("✅ 사실성 위배 사항 없음. 제도·절차 층위에서 깨끗합니다.")
+                else:
+                    sev_color = {"CRITICAL": "var(--r)", "MAJOR": "var(--y)", "MINOR": "var(--dim)"}
+                    n_crit = len([x for x in rg_issues if x.get("severity") == "CRITICAL"])
+                    if n_crit:
+                        st.error(
+                            f"🔴 CRITICAL {n_crit}건 포함 총 {len(rg_issues)}건 적출. "
+                            "CRITICAL은 작품 전제 자체가 성립하지 않는 항목입니다."
+                        )
+                    else:
+                        st.warning(f"⚠️ {len(rg_issues)}건 적출. 미처리 {len(pending)}건.")
+
+                    for idx, iss in enumerate(rg_issues):
+                        sev = iss.get("severity", "MINOR")
+                        status = iss.get("status", "pending")
+                        badge = {"applied": "✅ 반영", "ignored": "⏭️ 무시", "pending": "● 미처리"}[status]
+                        with st.expander(
+                            f"{badge} · [{sev}] {iss.get('domain', '')} — {iss.get('error', '')[:40]}",
+                            expanded=(status == "pending" and sev == "CRITICAL")
+                        ):
+                            st.markdown(
+                                f'<div style="border-left:4px solid {sev_color.get(sev, "var(--dim)")};'
+                                f'padding-left:10px;font-size:.85rem">'
+                                f'<b>위치</b><br>{iss.get("location", "")}<br><br>'
+                                f'<b>오류</b><br>{iss.get("error", "")}<br><br>'
+                                f'<b>실제</b><br>{iss.get("reality", "")}<br><br>'
+                                f'<b>방치 시 영향</b><br>{iss.get("impact", "")}'
+                                f'</div>',
+                                unsafe_allow_html=True
+                            )
+                            alts = iss.get("alternatives", []) or []
+                            if alts:
+                                st.markdown("**대안 (원 설계 의도 보존)**")
+                                for ai, alt in enumerate(alts, 1):
+                                    st.markdown(f"{ai}. {alt}")
+
+                            sug = iss.get("suggested_locked", "")
+                            if sug:
+                                st.markdown("**LOCKED 교체안**")
+                                st.code(sug, language=None)
+
+                            if status == "pending":
+                                cA, cB = st.columns(2)
+                                with cA:
+                                    if st.button("✅ 이 교체안 LOCKED에 반영", key=f"rg_apply_{idx}", use_container_width=True):
+                                        loc = (iss.get("location") or "").strip()
+                                        cur_locked = project.get("locked_items", []) or []
+                                        hit = -1
+                                        if loc:
+                                            probe = loc[:20]
+                                            for li, litem in enumerate(cur_locked):
+                                                if probe and probe in litem:
+                                                    hit = li
+                                                    break
+                                        if hit >= 0 and sug:
+                                            cur_locked[hit] = sug
+                                            project["locked_items"] = cur_locked
+                                            iss["status"] = "applied"
+                                            iss["applied_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
+                                            project["updated_at"] = iss["applied_at"]
+                                            st.success("LOCKED 교체 완료. Core Build를 재실행해야 하류에 반영됩니다.")
+                                            st.rerun()
+                                        else:
+                                            iss["status"] = "applied"
+                                            st.warning(
+                                                "LOCKED에서 해당 항목을 자동으로 찾지 못했습니다. "
+                                                "아이디어 화면의 'LOCKED 편집'에서 위 교체안을 직접 반영해 주십시오."
+                                            )
+                                with cB:
+                                    if st.button("⏭️ 의도된 설정 — 무시", key=f"rg_ignore_{idx}", use_container_width=True):
+                                        iss["status"] = "ignored"
+                                        project["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
+                                        st.rerun()
+
+                if rg.get("author_note"):
+                    st.caption(f"작가 의도로 판단된 항목: {rg['author_note']}")
+
+                if applied:
+                    st.warning(
+                        f"LOCKED가 {len(applied)}건 교체되었습니다. "
+                        "교체된 전제를 Core에 반영하려면 **Core Build 재실행**이 필요합니다. "
+                        "재실행하지 않으면 현재 Core는 교체 전 전제 위에 남아 있습니다."
+                    )
+
+                cR1, cR2 = st.columns(2)
+                with cR1:
+                    if st.button("🔄 Reality Gate 재실행", key="rerun_reality_gate", use_container_width=True):
+                        project["reality_gate"] = None
+                        st.rerun()
+                with cR2:
+                    if applied and st.button("🎯 Core Build 재실행 (교체 LOCKED 반영)", key="rg_core_rebuild", use_container_width=True):
+                        project["core"] = None
+                        project["core_gate"] = None
+                        project["reality_gate"] = None
+                        st.rerun()
+
+            st.markdown("---")
 
             if verdict == "개발 진행":
                 st.success(f"✅ {verdict}. Character Bible 진행 가능.")
