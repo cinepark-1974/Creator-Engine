@@ -2,10 +2,73 @@
 👖 BLUE JEANS Creator Engine — Prompt Library
 
 ╔══════════════════════════════════════════════════════════╗
-║  VERSION: v2.7.2                                         ║
+║  VERSION: v2.7.3                                         ║
 ║  BUILD DATE: 2026-08-03                                  ║
 ║  STATUS: Production                                      ║
 ╚══════════════════════════════════════════════════════════╝
+
+─────────────────────────────────────────────────────────
+v2.7.3 패치 (2026-08-03) — Idea Engine 회신서 반영
+─────────────────────────────────────────────────────────
+발견 경위: Idea Engine v2.3 회신서 수령. 주문 6건 중 5건 적용 완료
+  보고와 함께, Creator Engine 측 확인 요청 3건이 제기되었다.
+  실제 코드로 재현 검증한 결과 3건 모두 사실이었으며,
+  검증 과정에서 Creator Engine 자체 오염원 1건을 추가로 발견했다.
+
+[1] 포맷 매칭 3단화 — 회신서 3-3 (최우선)
+  진단: main.py의 selectbox 매칭이 부분 문자열을 순회 순서대로 적용하고
+    첫 히트에서 break했다. 선택지 배열에서 "시리즈"가 "미니시리즈(4~8화)"
+    보다 앞이므로, "미니시리즈"는 그 안에 "시리즈"가 들어 있다는 이유로
+    항상 "시리즈"로 걸렸다. 상류에서 어떤 값을 보내도 회피 불가.
+    재현: 미니시리즈(4~8화) → 시리즈 / 미니시리즈 → 시리즈 /
+          미니시리즈 6부작 → 시리즈
+  동종 회귀(자체 발견): v2.7.1에서 신설한 STEP 1 포맷 변경 UI는 반대로
+    list.index() 완전 일치만 수행해, 상류 정규화값 "미니시리즈"가 오면
+    인덱스 0("미지정")으로 표시했다. 그 상태에서 저장하면 확정 포맷이
+    미지정으로 덮어써진다. 오인보다 위험한 경로였다.
+  변경: prompt.py에 FORMAT_OPTIONS 상수와 normalize_format() 신설.
+    1단 완전 일치 → 2단 괄호 제거 후 일치 → 3단 부분 일치(핵심 명칭이
+    가장 긴 것 우선). 양쪽 UI가 같은 함수를 쓰므로 두 결함이 동시에 닫힌다.
+    검증 17케이스 전수 통과.
+
+[2] locked_format 소비부 신설 — 회신서 3-1·3-2
+  진단: platform·confidence·rationale을 읽는 지점이 전 코드 0건이었다.
+    episodes는 episode_count만 읽고 있어 회신서 지적대로 미연결.
+    또한 시드 원본(_seed_locked)이 프로젝트 생성 시점에만 쓰이고
+    project dict에 보존되지 않아, 이후 단계에서 참조가 불가능했다.
+  변경:
+    · project에 seed_locked / seed_full 보존 (신규 키, 하위 호환)
+    · episode_count를 정본으로 두고 episodes를 병행 수용
+    · STEP 1 포맷 UI에 상류 메타 표시 — 판정·확신도·회차·분량·플랫폼·근거
+    · confidence가 "잠정"이면 별도 안내 노출.
+      Structure 진입 차단은 "미지정"에만 걸리므로 잠정 상태는 안내로 처리.
+
+[3] Creator Engine 자체 포맷 오염원 제거 (회신서 미기재 — 자체 발견)
+  진단: LOCKED 자동 생성부가 locked_format을 읽어
+    "회차/분량: 6부작 (회당 45~55분)" 라인을 LOCKED 텍스트에 삽입하고
+    있었다. 「연애의 끝」 LOCKED #6의 정체가 이것이다.
+    즉 Idea Engine이 category "포맷" 항목을 만들지 않더라도,
+    Creator Engine이 스스로 포맷 어휘를 LOCKED 본문에 주입해 왔다.
+    상류 조치만으로는 닫히지 않는 구멍이 하나 더 있었던 셈이다.
+  변경: 포맷 관련 정보를 LOCKED 본문에서 완전히 분리.
+    seed_locked에 보존하고 포맷 UI에서 참고 정보로 표시한다.
+    회신서 주문 2의 취지(포맷은 구조화 필드에만)를 하류에서도 관철.
+
+회신 사항 — Idea Engine 측 3건 질의에 대한 Creator Engine 답변:
+  3-1 정본 필드명: episode_count를 정본으로 한다. 기존 필드 보존 원칙과
+      명칭의 명확성(개수임이 드러남)을 근거로 한다. episodes는 별칭으로
+      계속 수용하므로 병행 출력을 유지해도 무방하다.
+  3-2 소비부: 본 패치로 신설 완료. confidence 3단(확정/잠정/미정)을
+      모두 소비하며, 잠정은 안내, 미정은 Structure 진입 차단으로 처리한다.
+  3-3 매칭 결함: 본 패치로 교정 완료. Idea Engine v2.3의 9개 정규화값이
+      모두 정확히 매핑되는 것을 확인했다.
+
+하위 호환성:
+  · v2.5.0~v2.7.2 프로젝트 JSON 100% 호환.
+  · seed_locked / seed_full은 신규 키이며 부재 시 참고 정보 영역만 생략된다.
+  · normalize_format은 신규 함수. 기존 인라인 매칭을 대체하되
+    기존에 정상 매칭되던 8개 값은 결과가 동일하다.
+  · 구버전 시드(locked_format에 primary만 있는 경우)도 정상 동작.
 
 ─────────────────────────────────────────────────────────
 v2.7.2 패치 (2026-08-03) — 후속 정리 3종
@@ -1314,6 +1377,10 @@ BLUE JEANS 3축 (Mr.MOON 고유)
   v2.7.2 후속 정리 3종 — institutional_reality 전 직군 확장(2/20 → 20/20),
          직업 감지 스코어링(1위 대비 30% 문턱 + 상위 3개 제한),
          UI 물결표 취소선 아티팩트 제거.
+  v2.7.3 Idea Engine 회신서 반영 — normalize_format() 3단 매칭 신설
+         (미니시리즈 오인 + v2.7.1 완전일치 회귀 동시 교정),
+         locked_format 소비부 신설(platform/confidence/rationale),
+         LOCKED 자동생성부의 포맷 어휘 주입 제거(자체 오염원).
 
 © 2026 BLUE JEANS PICTURES. All rights reserved.
 """
@@ -1323,7 +1390,7 @@ BLUE JEANS 3축 (Mr.MOON 고유)
 # 수정 시 ENGINE_VERSION과 ENGINE_BUILD_DATE를 함께 갱신하세요.
 # ═══════════════════════════════════════════════════
 
-ENGINE_VERSION = "v2.7.2"
+ENGINE_VERSION = "v2.7.3"
 ENGINE_BUILD_DATE = "2026-08-03"
 ENGINE_STATUS = "Production"
 
@@ -1346,6 +1413,7 @@ def get_engine_info_detail() -> dict:
 
 
 import json
+import re
 
 # ═══════════════════════════════════════════════════
 # LOCKED SYSTEM (v1.5 신규)
@@ -7157,6 +7225,85 @@ LOCKED 블록이나 아이디어 원문에 위 포맷과 다른 포맷 표현
    결말 형식·음악 규약·시각 모티프 등 나머지 LOCKED는 절대 보존 대상이며,
    포맷을 근거로 재해석하거나 약화시켜서는 안 된다.
 """
+
+
+# ═══════════════════════════════════════════════════
+# FORMAT NORMALIZATION (v2.7.3 신규)
+# ───────────────────────────────────────────────────
+# 발견 경위: Idea Engine 회신서(v2.3) 3-3 지적.
+#   Creator Engine의 포맷 selectbox 매칭이 부분 문자열을 순회 순서대로
+#   적용하고 첫 히트에서 break했다. 선택지 배열에서 "시리즈"가
+#   "미니시리즈(4~8화)"보다 앞에 있으므로, "미니시리즈"라는 값은
+#   그 안에 "시리즈"가 들어 있다는 이유로 항상 "시리즈"로 걸렸다.
+#   상류에서 어떤 값을 보내도 회피할 수 없는 하류 결함이다.
+#
+# 재현 (수정 전):
+#   "미니시리즈(4~8화)" → 시리즈   ← 선택지 원문 그대로인데도 오인
+#   "미니시리즈"        → 시리즈
+#   "미니시리즈 6부작"  → 시리즈
+#
+# 동종 회귀: v2.7.1에서 신설한 STEP 1 포맷 변경 UI는 반대로
+#   list.index() 완전 일치만 수행해, 상류가 정규화한 "미니시리즈"가
+#   오면 인덱스 0("미지정")으로 표시했다. 그 상태에서 저장 버튼을
+#   누르면 확정 포맷이 미지정으로 덮어써진다. 더 위험한 경로였다.
+#
+# 해법: 3단 매칭을 공용 함수로 단일화한다.
+#   1단 완전 일치 → 2단 괄호 제거 후 일치 → 3단 부분 일치(긴 것 우선)
+#   양쪽 UI가 같은 함수를 쓰므로 두 결함이 동시에 닫힌다.
+# ═══════════════════════════════════════════════════
+
+FORMAT_OPTIONS = ["미지정", "영화", "시리즈", "미니시리즈(4~8화)",
+                  "웹툰", "웹소설", "숏폼", "다큐멘터리", "애니메이션"]
+
+
+def _format_base(s: str) -> str:
+    """괄호 안 부연을 떼어낸 핵심 명칭. '미니시리즈(4~8화)' → '미니시리즈'"""
+    return re.sub(r"\(.*?\)", "", str(s)).strip()
+
+
+def normalize_format(raw: str, options: list = None):
+    """자유 서술·상류 정규화값을 Creator 선택지로 매핑.
+
+    Returns: (선택지 문자열, 인덱스)
+    매칭 실패 시 ("미지정", 0).
+
+    v2.7.3 신규. 기존 인라인 매칭 로직을 대체한다.
+    """
+    opts = options or FORMAT_OPTIONS
+    if not raw:
+        return opts[0], 0
+
+    s = str(raw).strip()
+    if not s:
+        return opts[0], 0
+
+    # 1단 — 완전 일치
+    if s in opts:
+        return s, opts.index(s)
+
+    # 2단 — 괄호 제거 후 일치 ('미니시리즈' ↔ '미니시리즈(4~8화)')
+    s_base = _format_base(s)
+    for i, opt in enumerate(opts):
+        if s_base and s_base == _format_base(opt):
+            return opt, i
+
+    # 3단 — 부분 일치. 후보가 여럿이면 핵심 명칭이 가장 긴 것을 택한다.
+    #   '미니시리즈 6부작'은 '시리즈'와 '미니시리즈' 양쪽에 걸리므로
+    #   길이 우선 규칙이 없으면 다시 오인이 발생한다.
+    best = None
+    for i, opt in enumerate(opts):
+        if i == 0:  # '미지정'은 부분 일치 대상에서 제외
+            continue
+        ob = _format_base(opt)
+        if not ob:
+            continue
+        if ob in s or (s_base and s_base in ob):
+            if best is None or len(ob) > len(best[2]):
+                best = (opt, i, ob)
+    if best:
+        return best[0], best[1]
+
+    return opts[0], 0
 
 
 def build_system_core(genre: str, fact_based: bool = False, historical: bool = False, film_type: str = "",

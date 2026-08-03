@@ -647,7 +647,7 @@ def _get_project_stage(project: dict) -> str:
     return "초기"
 
 
-def save_project_to_json(project: dict, engine_version: str = "v2.7.2") -> str:
+def save_project_to_json(project: dict, engine_version: str = "v2.7.3") -> str:
     """프로젝트 전체를 JSON 문자열로 직렬화.
     
     Args:
@@ -705,7 +705,7 @@ def load_project_from_json(json_str: str) -> dict:
     
     # 엔진 버전 호환성 체크 (경고만, 실패 아님)
     saved_version = meta.get("engine_version", "unknown")
-    current_version = "v2.7.2"
+    current_version = "v2.7.3"
     if saved_version != current_version:
         warnings.append(
             f"엔진 버전 차이 — 저장 시: {saved_version} / 현재: {current_version}. "
@@ -4275,10 +4275,16 @@ if st.session_state.view == "home":
                     _lock_lines.append(f"국내 타겟: {ltg['domestic']}")
                 if ltg.get("global"):
                     _lock_lines.append(f"글로벌 타겟: {ltg['global']}")
-            lf = _seed_locked.get("locked_format", {})
-            if isinstance(lf, dict):
-                if lf.get("episode_count"):
-                    _lock_lines.append(f"회차/분량: {lf.get('episode_count')} ({lf.get('runtime', '')})")
+            # v2.7.3: 포맷 관련 정보를 LOCKED 본문에서 제거.
+            #   기존에는 locked_format을 읽어 "회차/분량: 6부작" 라인을
+            #   LOCKED 텍스트에 자동 삽입했다. 「연애의 끝」 LOCKED #6의
+            #   정체가 이것이다 — Idea Engine이 category "포맷" 항목을
+            #   만들지 않더라도 Creator Engine이 스스로 포맷 어휘를
+            #   LOCKED에 주입하고 있었다.
+            #   회신서 주문 2의 취지(포맷은 구조화 필드에만)를 하류에서도
+            #   지키기 위해, 이 정보는 seed_locked에 보존하고 LOCKED 본문에는
+            #   넣지 않는다. STEP 1 포맷 UI에서 참고 정보로 표시한다.
+            pass
             lr = _seed_locked.get("locked_references", [])
             if isinstance(lr, list) and lr:
                 ref_titles = []
@@ -4465,13 +4471,14 @@ if st.session_state.view == "home":
                     placeholder="예: 인도네시아+한국 공동제작"
                 )
 
-            _format_options = ["미지정", "영화", "시리즈", "미니시리즈(4~8화)",
-                               "웹툰", "웹소설", "숏폼", "다큐멘터리", "애니메이션"]
-            _format_default_idx = 0
-            for i, opt in enumerate(_format_options):
-                if _seed_default_format and (_seed_default_format == opt or opt in _seed_default_format or _seed_default_format in opt):
-                    _format_default_idx = i
-                    break
+            # v2.7.3: 인라인 부분 문자열 매칭 → P.normalize_format() 3단 매칭.
+            #   기존 로직은 "미니시리즈"를 항상 "시리즈"로 오인했다.
+            _format_options = P.FORMAT_OPTIONS
+            _matched_fmt, _format_default_idx = P.normalize_format(_seed_default_format)
+            if _seed_default_format and _matched_fmt != "미지정":
+                st.caption(f"시드 포맷 `{_seed_default_format}` → **{_matched_fmt}**로 인식")
+            elif _seed_default_format:
+                st.caption(f"시드 포맷 `{_seed_default_format}`를 선택지에 매핑하지 못했습니다. 직접 선택해 주십시오.")
             format_input = st.selectbox(
                 "📐 포맷",
                 _format_options,
@@ -4507,6 +4514,13 @@ if st.session_state.view == "home":
 
             st.session_state.projects[project_id] = {
                 "project_id": project_id,
+                # v2.7.3: 상류 시드 원본 보존.
+                #   locked_format의 confidence·platform·rationale과
+                #   _idea_engine_meta(locked_source·reality_precheck 등)를
+                #   프로젝트 수명 내내 참조할 수 있어야 한다.
+                #   기존에는 프로젝트 생성 시점에만 쓰고 버렸다.
+                "seed_locked": _seed_locked if _seed_locked else {},
+                "seed_full": _seed_full if _seed_full else {},
                 "title": title_input or "새 프로젝트",
                 "idea_text": idea_input,
                 "genre": genre_input,
@@ -4721,15 +4735,26 @@ elif st.session_state.view == "project" and st.session_state.cur:
     # 진단: project["format"] 대입 지점이 프로젝트 생성 시점 단 한 곳뿐이었다.
     #   포맷 판단은 Brainstorm·Core를 본 뒤에 굳는 성질인데
     #   확정 시점이 판단 시점보다 앞서 있었다.
-    _FORMAT_OPTIONS = ["미지정", "영화", "시리즈", "미니시리즈(4~8화)",
-                       "웹툰", "웹소설", "숏폼", "다큐멘터리", "애니메이션"]
-    _cur_fmt = project.get("format", "미지정")
-    _cur_idx = _FORMAT_OPTIONS.index(_cur_fmt) if _cur_fmt in _FORMAT_OPTIONS else 0
+    # v2.7.3: list.index() 완전 일치 → P.normalize_format() 3단 매칭.
+    #   v2.7.1 신설 시 완전 일치만 수행해, 상류가 정규화한 "미니시리즈"가
+    #   들어오면 인덱스 0("미지정")으로 표시하고 저장 시 덮어썼다.
+    _FORMAT_OPTIONS = P.FORMAT_OPTIONS
+    _raw_fmt = project.get("format", "미지정")
+    _cur_fmt, _cur_idx = P.normalize_format(_raw_fmt)
+
+    # 상류 confidence 승계 안내 (회신서 3-2 요청)
+    _seed_lf = (project.get("seed_locked") or {}).get("locked_format", {})
+    _fmt_conf = _seed_lf.get("confidence", "") if isinstance(_seed_lf, dict) else ""
 
     if _cur_fmt == "미지정":
         st.warning(
             "📐 포맷이 **미지정** 상태입니다. 이대로 Structure에 진입하면 "
             "영화 구조(3막 16비트)가 적용됩니다. 아래에서 확정해 주십시오."
+        )
+    elif _fmt_conf == "잠정":
+        st.info(
+            f"📐 상류에서 포맷을 **잠정 {_cur_fmt}**으로 넘겼습니다. "
+            "확정 판정이 아니므로, Brainstorm·Core를 확인한 뒤 아래에서 재검토해 주십시오."
         )
 
     with st.expander(f"📐 포맷 확정·변경 — 현재: **{_cur_fmt}**", expanded=(_cur_fmt == "미지정")):
@@ -4737,6 +4762,34 @@ elif st.session_state.view == "project" and st.session_state.cur:
             "포맷은 Brainstorm·Core를 본 뒤에 확정하는 것이 정확합니다. "
             "여기서 언제든 변경할 수 있으며, 변경 시 이후 생성되는 모든 단계에 반영됩니다."
         )
+
+        # ── 상류 시드의 포맷 메타 (v2.7.3 신규 소비부) ──
+        # 회신서 3-1·3-2 — episodes/episode_count 병행 수용,
+        # platform·confidence·rationale은 소비부가 0건이었다.
+        if isinstance(_seed_lf, dict) and _seed_lf:
+            _eps = _seed_lf.get("episode_count") or _seed_lf.get("episodes")
+            _meta_rows = []
+            if _seed_lf.get("primary"):
+                _meta_rows.append(("상류 판정", str(_seed_lf["primary"])))
+            if _fmt_conf:
+                _meta_rows.append(("확신도", _fmt_conf))
+            if _eps:
+                _meta_rows.append(("회차", str(_eps)))
+            if _seed_lf.get("runtime"):
+                _meta_rows.append(("분량", str(_seed_lf["runtime"])))
+            if _seed_lf.get("platform"):
+                _meta_rows.append(("플랫폼", str(_seed_lf["platform"])))
+            if _meta_rows:
+                st.markdown(
+                    "**Idea Engine 참고 정보** — "
+                    + " · ".join(f"{k} `{v}`" for k, v in _meta_rows)
+                )
+            if _seed_lf.get("rationale"):
+                st.caption(f"상류 판단 근거 — {_seed_lf['rationale']}")
+            st.caption(
+                "위 정보는 참고용입니다. LOCKED 본문에는 포함되지 않으며, "
+                "확정 권한은 아래 선택에 있습니다."
+            )
 
         # LOCKED 내 포맷 어휘 충돌 감지
         _FMT_TOKENS = ["부작", "회차", "시즌", "미니시리즈", "회당", "EP", "에피소드",
