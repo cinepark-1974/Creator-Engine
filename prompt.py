@@ -2,10 +2,133 @@
 👖 BLUE JEANS Creator Engine — Prompt Library
 
 ╔══════════════════════════════════════════════════════════╗
-║  VERSION: v2.7.0                                         ║
-║  BUILD DATE: 2026-08-02                                  ║
+║  VERSION: v2.7.2                                         ║
+║  BUILD DATE: 2026-08-03                                  ║
 ║  STATUS: Production                                      ║
 ╚══════════════════════════════════════════════════════════╝
+
+─────────────────────────────────────────────────────────
+v2.7.2 패치 (2026-08-03) — 후속 정리 3종
+─────────────────────────────────────────────────────────
+v2.7.0/v2.7.1에서 다음 사이클로 미뤄 둔 항목을 모두 처리한다.
+
+[1] institutional_reality 전 직군 확장 (2/20 → 20/20)
+  v2.7.0에서 법률직·예식웨딩직 2종만 넣고 미뤘던 것을 완비.
+  추가 18종: 의료직 / 금융기업직 / 언론창작직 / 공직정치 /
+    요식서비스직 / 교육직 / 엔터테인먼트 / 기술IT직 / 예술전통 /
+    강력수사 / 건설부동산 / 농림수산자영업 / 마약수사 / 지능수사 /
+    대공정보 / 조직폭력 / 마약밀수 / 화이트칼라범죄
+  작성 기준 — '작가가 자주 틀리는 제도 오류'만 수록한다.
+    법률 해설이 목적이 아니라, 설정이 현실에서 성립하는지를
+    판정할 근거를 주는 것이 목적이다.
+  각 항목은 ❌(틀린 전제) → 실제(근거 제도·법령) 형식으로 통일.
+  극작 유용성이 있는 경우 ※로 대체 경로를 병기.
+    예: 강력수사 — "증거는 잡았는데 못 쓴다(위법수집증거배제법칙)"가
+        실제로 가장 자주 벌어지는 극적 상황임을 명시.
+    예: 교육직 — "덮으려다 걸리는 것"이 정확한 갈등 구조임을 명시.
+
+[2] 직업 감지 정밀도 — 스코어링 + 상위 N 제한
+  진단: detect_profession_category()가 카테고리당 첫 키워드 히트에서
+    break하고 무제한 누적하는 구조였다. LOCKED에 '카페'·'축가' 같은
+    단어가 하나만 섞여도 카테고리가 붙었다.
+    「연애의 끝」 실측 — 5개 카테고리 동시 감지, LOCKED 블록 20,584자.
+    정작 핵심 직군(예식웨딩직·법률직)의 디테일이 희석된다.
+  변경: 점수 = Σ(매칭 키워드 길이). 긴 키워드일수록 신뢰도가 높다.
+    ① 1위 점수 대비 min_ratio(기본 0.3) 미만 카테고리 제거
+    ② 상위 max_categories(기본 3)개로 제한
+    ③ 동점 시 PROFESSION_KEYWORDS 등록 순서 유지
+  검증: 「연애의 끝」 5개 → 2개(예식웨딩직 8점 / 법률직 5점).
+    요식서비스직·엔터테인먼트·예술전통 각 2점은 문턱 2.4 미만으로 탈락.
+  [검증 중 추가 발견] build_locked_block의 주입부가 LOCKED를 한 줄씩
+    개별 스캔해 합집합으로 누적하고 있었다. 줄마다 상위 N개가 뽑히므로
+    스코어링을 넣어도 카테고리가 오히려 불어난다(20,584 → 22,304자).
+    전체 텍스트를 합쳐 1회만 감지하도록 수정.
+    결과: LOCKED 블록 20,584자 → 10,733자. 핵심 직군 2종은 그대로 유지.
+  하위 호환: max_categories=0, min_ratio=0 이면 v2.7.1과 동일 동작.
+    with_scores=True로 점수 튜플을 받을 수 있다(디버깅용).
+
+[3] 마크다운 물결표 취소선 아티팩트 제거
+  진단: st.spinner 등 UI 문자열의 숫자 범위 표기 '20~30초'가
+    마크다운에서 취소선·아래첨자로 렌더링되는 문제.
+  변경: UI 호출 라인(st.spinner/caption/info/warning/success/error/
+    markdown/write/subheader/header/title)에 한해
+    숫자 사이 물결표만 en dash(–)로 교체. 10곳.
+    프롬프트·스키마·데이터 문자열은 건드리지 않았다
+    (LLM 입력 텍스트의 물결표는 의미가 있으므로 보존).
+
+하위 호환성:
+  · v2.5.0~v2.7.1 프로젝트 JSON 100% 호환.
+  · detect_profession_category 시그니처는 디폴트 인자 추가만.
+    기존 호출부(build_profession_block, prompt.py 주입부,
+    call_reality_gate) 전부 무수정 동작.
+  · institutional_reality 추가는 자료 확장이며 로직 변경 없음.
+
+─────────────────────────────────────────────────────────
+v2.7.1 패치 (2026-08-03) — Format Authority + 개발 중 포맷 확정
+─────────────────────────────────────────────────────────
+발견 경위: Mr. MOON 질의 2건.
+  ① "아이디어 엔진에서 포맷이 넘어올 때 내가 옵션을 선택한 경우
+     그게 우선이 되나?"
+  ② "아이디어를 받아 크리에이터 개발하면서 포맷을 확정할 수 있나?"
+
+진단 ① — 두 층위가 갈려 있었다:
+  · 구조 계산 층위 — get_beat_structure()/is_series_format()은
+    project["format"]만 참조하므로 작가의 선택이 100% 우선.
+  · LLM 생성 층위 — build_system_core()에 fmt이 전달조차 되지 않았고,
+    유저 프롬프트의 "포맷: {fmt}" 한 줄이 전부였다.
+    반면 LOCKED 블록은 v2.5.2 4대 보호 카테고리 규칙에 의해
+    "절대 재해석·약화·우회하지 마라"는 명령을 달고 들어간다.
+    → 라벨 한 줄 대 절대 준수 명령. LLM은 LOCKED를 따랐다.
+  피해: 「상속」·「연애의 끝」 2건 연속 재발. 두 작품 모두 상류가
+    시리즈로 넘겼으나 작가 판단은 영화였다.
+
+진단 ② — 확정 시점이 판단 시점보다 앞서 있었다:
+  · project["format"] 대입 지점이 전 코드에 단 한 곳
+    (프로젝트 생성 버튼 내부). 생성 이후 변경 UI가 없었다.
+  · "미지정"은 보류가 아니었다. get_beat_structure()가
+    "시리즈"·"미니"가 없으면 영화 구조로 폴백하므로
+    미지정 = 묵시적 영화 확정. 조용한 폴백이 가장 위험하다.
+  · 포맷 적합성을 판정하는 기능도 부재(format_fit 계열 필드 0건).
+    Brainstorm은 fmt을 '입력으로 받아' 카드를 만든다 —
+    포맷이 이미 정해졌다는 전제 위에 서 있었다.
+  · 그러나 포맷 판단은 사건 밀도·인물 수를 봐야 굳는 성질이며,
+    이는 Brainstorm·Core를 본 뒤에야 가능하다.
+
+변경 (prompt.py · main.py · README.md):
+  ① [prompt.py] get_format_authority_block(fmt) 신설.
+     확정 포맷을 LOCKED보다 상위로 선언하고, LOCKED에 남은 다른 포맷
+     표현은 상류 잔재로 간주해 무시하도록 지시.
+     단 무시한 사실은 format_conflict_note 필드로 보고하게 한다.
+     영화면 "회차·시즌·EP 표현 금지", 시리즈면 회차 훅·장기 서사선 요구.
+     fmt이 비었거나 "미지정"이면 빈 문자열 반환 → 하위 호환.
+     ★ 이 예외는 포맷 항목에만 적용된다. 결말 형식·음악 규약·시각 모티프
+       등 나머지 LOCKED의 절대 보존 원칙은 불변임을 블록 말미에 명시.
+  ② [prompt.py] build_system_core()에 fmt 파라미터 추가(디폴트 "").
+     char_bible·treatment·tone_document에도 포맷 권위 블록 연결
+     (이 셋은 이미 fmt을 받고 있었으나 라벨로만 쓰고 있었다).
+  ③ [main.py] call_core_build_main에서 fmt 전달.
+  ④ [main.py] STEP 1에 포맷 확정·변경 UI 신설.
+     LOCKED 내 포맷 어휘(부작·회차·시즌·회당·EP·러닝타임 등) 자동 감지 →
+     확정 포맷과 시리즈/단편 성격이 어긋나는 항목만 충돌로 표시하고
+     [충돌 LOCKED 항목 제거] 버튼 제공.
+     영화 ↔ 시리즈 전환이면서 structure_story가 이미 있으면
+     Structure 재실행 권고를 표시.
+  ⑤ [main.py] Structure 뷰 진입 시 포맷 미지정이면 st.stop()으로 차단하고
+     포맷 확정 화면으로 이동 버튼 제공. 조용한 영화 폴백 제거.
+  ⑥ [main.py] Brainstorm 분석에 format_fit 축 신설.
+     current_format / recommended_format / match / event_density /
+     character_load / rationale / if_forced 7필드.
+     ★ 권고이지 판정이 아니다. 작가의 선택을 바꾸라고 요구하지 않으며,
+       불일치 시 "이 포맷을 유지하려면 무엇을 조정해야 하는지"로 끝낸다.
+       판단 근거는 사건 밀도와 인물 수로 한정 — 흥행성·플랫폼 트렌드 금지.
+
+하위 호환성:
+  · v2.5.0~v2.7.0 프로젝트 JSON 100% 호환.
+  · build_system_core의 fmt은 디폴트 인자 추가이므로 기존 호출부 무수정 동작.
+  · format_fit이 없는 구버전 분석 결과는 .get({}) 처리로 표시만 생략된다.
+  · 포맷이 "미지정"이면 권위 블록이 빈 문자열이므로 v2.7.0과 출력 동일.
+  · 구버전 프로젝트의 format 값이 선택지에 없으면 index 0(미지정)으로
+    표시되나 저장 버튼을 누르기 전까지 원본 값은 보존된다.
 
 ─────────────────────────────────────────────────────────
 v2.7.0 패치 (2026-08-02) — Reality Gate 신설 (사실성 검문소)
@@ -1184,6 +1307,13 @@ BLUE JEANS 3축 (Mr.MOON 고유)
          profession_pack에 institutional_reality 필드 도입(법률직·예식웨딩직)
          + "예식웨딩직" 카테고리 신설.
          작가 주권 원칙 — 모든 항목에 '무시' 선택지를 강제 제공.
+  v2.7.1 Format Authority — 확정 포맷을 LOCKED보다 상위로 선언.
+         STEP 1 포맷 확정·변경 UI 신설(개발 중 확정 가능),
+         Structure 진입 시 미지정 차단(조용한 영화 폴백 제거),
+         Brainstorm 분석에 format_fit 권고 축 신설.
+  v2.7.2 후속 정리 3종 — institutional_reality 전 직군 확장(2/20 → 20/20),
+         직업 감지 스코어링(1위 대비 30% 문턱 + 상위 3개 제한),
+         UI 물결표 취소선 아티팩트 제거.
 
 © 2026 BLUE JEANS PICTURES. All rights reserved.
 """
@@ -1193,8 +1323,8 @@ BLUE JEANS 3축 (Mr.MOON 고유)
 # 수정 시 ENGINE_VERSION과 ENGINE_BUILD_DATE를 함께 갱신하세요.
 # ═══════════════════════════════════════════════════
 
-ENGINE_VERSION = "v2.7.0"
-ENGINE_BUILD_DATE = "2026-08-02"
+ENGINE_VERSION = "v2.7.2"
+ENGINE_BUILD_DATE = "2026-08-03"
 ENGINE_STATUS = "Production"
 
 def get_engine_info() -> str:
@@ -1344,13 +1474,12 @@ def build_locked_block(locked_items: list = None, open_items: list = None, idea_
         if idea_text:
             scan_texts.append(idea_text)
         
-        # 감지된 모든 카테고리 수집 (중복 제거)
-        all_categories = []
-        for text in scan_texts:
-            cats = PP.detect_profession_category(text)
-            for c in cats:
-                if c not in all_categories:
-                    all_categories.append(c)
+        # v2.7.2: 전체 텍스트를 하나로 합쳐 1회만 감지한다.
+        #   기존에는 LOCKED를 한 줄씩 개별 스캔해 합집합으로 누적했다.
+        #   그 구조에서는 줄마다 상위 N개가 뽑혀 카테고리가 오히려 불어나고,
+        #   1위 대비 문턱도 줄 단위로만 적용되어 무력해진다.
+        #   작품 전체를 한 덩어리로 봐야 '이 작품의 주요 직군'이 나온다.
+        all_categories = PP.detect_profession_category("\n".join(scan_texts))
         
         if all_categories:
             # 단일 통합 블록 생성 — 캐릭터 이름 없이 카테고리 기반
@@ -6959,14 +7088,89 @@ def _get_genre_override(genre: str) -> str:
     return "\n".join(blocks)
 
 
+# ═══════════════════════════════════════════════════
+# FORMAT AUTHORITY (v2.7.1 신규)
+# ───────────────────────────────────────────────────
+# 발견 경위: Mr. MOON 질의 — "아이디어 엔진에서 포맷이 넘어올 때
+#   내가 옵션을 선택한 경우 그게 우선이 되나?"
+#
+# 진단: 두 층위가 갈려 있었다.
+#   · 구조 계산 층위 — get_beat_structure()/is_series_format()은
+#     project["format"]만 보므로 작가의 선택이 100% 우선.
+#   · LLM 생성 층위 — build_system_core()에 fmt이 전달조차 되지 않고
+#     유저 프롬프트의 "포맷: {fmt}" 한 줄이 전부였다.
+#     반면 LOCKED 블록은 v2.5.2 4대 보호 카테고리 규칙에 의해
+#     "절대 재해석·약화·우회하지 마라"는 명령을 달고 들어간다.
+#     → 라벨 한 줄 대 절대 준수 명령. LLM은 LOCKED를 따랐다.
+#
+# 피해 사례: 「상속」·「연애의 끝」 2건 연속 재발.
+#   두 작품 모두 상류가 시리즈로 넘겼으나 작가 판단은 영화였다.
+#
+# 예외 근거: 포맷은 예산·편성·계약이 걸린 최상위 제작 결정이며,
+#   UI에서 작가가 직접 확정한 값이다. 이 항목에 한해 LOCKED보다
+#   상위에 둔다. 나머지 LOCKED 항목의 절대 보존 원칙은 불변이다.
+# ═══════════════════════════════════════════════════
+
+def get_format_authority_block(fmt: str) -> str:
+    """포맷 권위 선언 블록. fmt이 비었거나 '미지정'이면 빈 문자열 반환.
+
+    v2.7.1 신규. fmt 미전달 시 빈 문자열이므로 기존 호출부는 동작이 변하지 않는다.
+    """
+    if not fmt or fmt.strip() in ("", "미지정"):
+        return ""
+
+    f = fmt.strip()
+    is_series = is_series_format(f)
+
+    if is_series:
+        shape = (
+            "이 작품은 시리즈다. 회차 단위로 끊기는 구조, 회차 말미의 훅,\n"
+            "회차를 가로지르는 장기 서사선이 설계에 반영되어야 한다."
+        )
+    else:
+        shape = (
+            "이 작품은 단편(1회 완결) 구조다. 회차·에피소드·시즌 개념이 없다.\n"
+            "'1화', '회차', '시즌', 'EP', '다음 화' 같은 표현을 쓰지 마라.\n"
+            "모든 사건은 한 편 안에서 시작되고 닫혀야 한다."
+        )
+
+    return f"""
+[★★★ 포맷 권위 선언 — 최우선 규칙 ★★★]
+확정 포맷: {f}
+
+이 값은 작가가 UI에서 직접 확정한 것이며, 이 작품의 모든 설계에 우선한다.
+★ LOCKED 항목보다 상위다. ★
+
+LOCKED 블록이나 아이디어 원문에 위 포맷과 다른 포맷 표현
+(예: 'N부작', '회차', '시즌', '미니시리즈', '러닝타임 N분', 'OTT 오리지널 N부')이
+남아 있다면, 그것은 상류(Idea Engine)의 잔재이거나 폐기된 초기 구상이다.
+해당 표현을 무시하고 위 확정 포맷을 따르라.
+
+{shape}
+
+단, 무시한 사실은 반드시 보고하라.
+출력 JSON의 최상위에 다음 필드를 추가한다.
+  "format_conflict_note": "LOCKED의 '...' 표현이 확정 포맷 {f}와 충돌하여 무시함"
+충돌이 없으면 이 필드는 빈 문자열로 둔다.
+
+※ 이 예외는 포맷 항목에만 적용된다.
+   결말 형식·음악 규약·시각 모티프 등 나머지 LOCKED는 절대 보존 대상이며,
+   포맷을 근거로 재해석하거나 약화시켜서는 안 된다.
+"""
+
+
 def build_system_core(genre: str, fact_based: bool = False, historical: bool = False, film_type: str = "",
-                      locked_text: str = "", idea_text: str = "") -> str:
+                      locked_text: str = "", idea_text: str = "", fmt: str = "") -> str:
     """Core Build 시스템 프롬프트 — v2.4 (장르 + LOCKED + FACT + OPENING MASTERY + BJND 4축 + 창작자 감성 + 기술 지원 + 시대극 자동 감지)
     
     v2.4.0 신규 파라미터:
         locked_text: LOCKED 블록 텍스트 (시대 자동 감지용)
         idea_text:   원본 아이디어·로그라인 텍스트 (시대 자동 감지 보조)
         둘 다 빈 문자열이면 v2.3.10과 동일하게 동작 (하위 호환).
+
+    v2.7.1 신규 파라미터:
+        fmt: 확정 포맷. 전달되면 LOCKED보다 상위인 포맷 권위 선언이 주입된다.
+             미전달·빈 문자열·"미지정"이면 v2.7.0과 동일하게 동작 (하위 호환).
     """
     genre_rules = get_genre_rules(genre)
     genre_override_block = _get_genre_override(genre)
@@ -6977,13 +7181,14 @@ def build_system_core(genre: str, fact_based: bool = False, historical: bool = F
     bjnd_four_axis = get_bjnd_four_axis()
     creator_sensibility = get_creator_sensibility()  # v2.3 Phase 3
     support_modules = get_creator_support_modules()  # v2.3 Phase 4
+    format_authority = get_format_authority_block(fmt)  # v2.7.1
     return f"""당신은 헐리우드 메이저 스튜디오의 Development Producer이자 Script Architect다.
 Brainstorm에서 선정된 컨셉을 기반으로 Core Build를 수행한다.
 로그라인을 고정하고, 기획의도와 주제를 정리하고, 세계관과 캐릭터를 설계하고,
 주인공의 Goal / Need / Strategy / Cost를 확정하고, 이 작품의 오프닝 전략을 결정한다.
 ★ 모든 BJND 설계 후 4축 자가 검증을 반드시 수행한다. ★
 ★ 창작자 감성 3요소와 기술 지원 7모듈을 준수한다. ★
-
+{format_authority}
 {LOCKED_SYSTEM_RULES}
 
 [장르: {genre}]
@@ -7236,6 +7441,7 @@ Writer Engine(시나리오 생성 AI)이 80~120씬 동안 이 인물을 일관�
 6. 변화 궤적(arc_detail)은 1막/미드포인트/클라이맥스 3단계로 구체적.
 7. tactics는 이 인물이 장애물을 넘기 위해 선택하는 전술 3가지. 전술의 차이가 캐릭터의 차이다.
 8. 장르: {genre} / 포맷: {fmt}
+{get_format_authority_block(fmt)}
 
 [적대자(antagonist) 전용 — Villain 4 Questions]
 이 캐릭터의 role이 antagonist이면 아래를 반드시 설계에 반영하라:
@@ -8003,7 +8209,7 @@ narrative의 모든 씬에 최소 1개의 '관객이 웃는 순간'이 있어야
     
     return f"""당신은 한국 최고 수준의 시나리오 작가다.
 {act_label}의 트리트먼트를 비트 단위 줄글로 작성한다.
-
+{get_format_authority_block(fmt)}
 {LOCKED_SYSTEM_RULES}
 
 ★ LOCKED 블록의 모든 항목을 트리트먼트에 반영하라. ★
@@ -8568,6 +8774,7 @@ def build_system_tone_document(genre: str, fmt: str,
 이 문서가 있으면 AI가 80~120씬 동안 일관된 톤·분위기·연출 스타일을 유지할 수 있다.
 
 [장르: {genre} / 포맷: {fmt}]
+{get_format_authority_block(fmt)}
 
 {WRITER_IMPLEMENTABILITY_GUARD}
 {direction_block}

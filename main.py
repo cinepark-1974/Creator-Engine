@@ -647,7 +647,7 @@ def _get_project_stage(project: dict) -> str:
     return "초기"
 
 
-def save_project_to_json(project: dict, engine_version: str = "v2.7.0") -> str:
+def save_project_to_json(project: dict, engine_version: str = "v2.7.2") -> str:
     """프로젝트 전체를 JSON 문자열로 직렬화.
     
     Args:
@@ -705,7 +705,7 @@ def load_project_from_json(json_str: str) -> dict:
     
     # 엔진 버전 호환성 체크 (경고만, 실패 아님)
     saved_version = meta.get("engine_version", "unknown")
-    current_version = "v2.7.0"
+    current_version = "v2.7.2"
     if saved_version != current_version:
         warnings.append(
             f"엔진 버전 차이 — 저장 시: {saved_version} / 현재: {current_version}. "
@@ -1224,6 +1224,15 @@ def call_brainstorm_analysis(idea, genre, market, fmt, top3_cards, research=None
     "next_step": "",
     "risk": ""
   }},
+  "format_fit": {{
+    "current_format": "작가가 확정한 포맷을 그대로 기재",
+    "recommended_format": "영화 | 시리즈 | 미니시리즈(4~8화) — 소재에 가장 맞는 것 하나",
+    "match": true,
+    "event_density": "이 소재가 지탱할 수 있는 주요 사건 수와 밀도 1문장",
+    "character_load": "축이 되는 인물 수와 각 인물이 요구하는 분량 1문장",
+    "rationale": "왜 그 포맷인지 2문장 이내. 사건 밀도와 인물 수를 근거로 제시",
+    "if_forced": "작가가 확정한 포맷을 유지할 경우 무엇을 덜어내거나 늘려야 하는지 1문장"
+  }},
   "gate_a_scores": {{
     "protagonist_visible": 0.0,
     "conflict_one_line": 0.0,
@@ -1240,6 +1249,15 @@ def call_brainstorm_analysis(idea, genre, market, fmt, top3_cards, research=None
 - hook_sentence는 1위 컨셉의 핵심을 기반으로 작성
 - market_insight, cultural_code, market_risk, format_rationale, structure_note는 각 2문장 이내
 - differentiation은 정확히 3개
+
+[format_fit 작성 규칙 — v2.7.1]
+- current_format에는 위 [입력]의 포맷 값을 그대로 기재한다.
+- recommended_format은 소재 자체가 요구하는 포맷이다. 작가의 선택에 맞추지 마라.
+- match는 두 값이 실질적으로 같으면 true, 다르면 false.
+- ★ 이것은 권고이지 판정이 아니다. 작가의 선택을 바꾸라고 요구하지 마라.
+  match가 false여도 if_forced에 "이 포맷을 유지하려면 무엇을 조정해야 하는지"를
+  건설적으로 제시하는 것으로 끝낸다.
+- 판단 근거는 사건 밀도와 인물 수여야 한다. 흥행성·플랫폼 트렌드를 근거로 들지 마라.
 """
 
         response = client.messages.create(
@@ -1283,7 +1301,7 @@ def call_core_build_main(idea, genre, market, fmt, selected_concept, research=No
         })
         system_prompt = P.build_system_core(
             genre, fact_based=fact_based, historical=historical, film_type=film_type,
-            locked_text=_locked_text, idea_text=_idea_text,
+            locked_text=_locked_text, idea_text=_idea_text, fmt=fmt,
         )
 
         research_block = ""
@@ -4698,6 +4716,100 @@ elif st.session_state.view == "project" and st.session_state.cur:
             st.success("저장 완료. 이후 생성되는 모든 단계에 반영됩니다.")
             st.rerun()
 
+    # ─── 포맷 확정·변경 (v2.7.1 신규) ───
+    # 발견 경위: Mr. MOON 질의 — "아이디어를 받아 개발하면서 포맷을 확정할 수 있나?"
+    # 진단: project["format"] 대입 지점이 프로젝트 생성 시점 단 한 곳뿐이었다.
+    #   포맷 판단은 Brainstorm·Core를 본 뒤에 굳는 성질인데
+    #   확정 시점이 판단 시점보다 앞서 있었다.
+    _FORMAT_OPTIONS = ["미지정", "영화", "시리즈", "미니시리즈(4~8화)",
+                       "웹툰", "웹소설", "숏폼", "다큐멘터리", "애니메이션"]
+    _cur_fmt = project.get("format", "미지정")
+    _cur_idx = _FORMAT_OPTIONS.index(_cur_fmt) if _cur_fmt in _FORMAT_OPTIONS else 0
+
+    if _cur_fmt == "미지정":
+        st.warning(
+            "📐 포맷이 **미지정** 상태입니다. 이대로 Structure에 진입하면 "
+            "영화 구조(3막 16비트)가 적용됩니다. 아래에서 확정해 주십시오."
+        )
+
+    with st.expander(f"📐 포맷 확정·변경 — 현재: **{_cur_fmt}**", expanded=(_cur_fmt == "미지정")):
+        st.caption(
+            "포맷은 Brainstorm·Core를 본 뒤에 확정하는 것이 정확합니다. "
+            "여기서 언제든 변경할 수 있으며, 변경 시 이후 생성되는 모든 단계에 반영됩니다."
+        )
+
+        # LOCKED 내 포맷 어휘 충돌 감지
+        _FMT_TOKENS = ["부작", "회차", "시즌", "미니시리즈", "회당", "EP", "에피소드",
+                       "오리지널 6부", "오리지널 8부", "러닝타임"]
+        _conflicts = []
+        for _li, _item in enumerate(project.get("locked_items", []) or []):
+            if any(t in _item for t in _FMT_TOKENS):
+                _conflicts.append((_li, _item))
+
+        if _conflicts and _cur_fmt not in ("미지정",):
+            _is_series_now = P.is_series_format(_cur_fmt)
+            _mismatch = [(i, x) for i, x in _conflicts
+                         if P.is_series_format(x) != _is_series_now]
+            if _mismatch:
+                # 제거 가능 항목 판별: '[포맷]'·'포맷:' 표식이 있는 포맷 전용 항목만.
+                # 로그라인처럼 다른 내용에 포맷 어휘가 섞인 항목은 삭제하면
+                # 본문까지 함께 사라지므로 제거 대상에서 제외한다.
+                _fmt_only = [(i, x) for i, x in _mismatch
+                             if "[포맷]" in x or x.strip().startswith("포맷:") or "포맷]" in x]
+                _mixed = [(i, x) for i, x in _mismatch if (i, x) not in _fmt_only]
+
+                st.error(
+                    f"⚠️ LOCKED {len(_mismatch)}건이 확정 포맷 **{_cur_fmt}**와 충돌합니다. "
+                    "상류(Idea Engine)의 잔재일 가능성이 높습니다."
+                )
+                if _fmt_only:
+                    st.markdown("**포맷 전용 항목 — 제거 가능**")
+                    for _i, _x in _fmt_only:
+                        st.markdown(f"- `#{_i}` {_x[:90]}")
+                if _mixed:
+                    st.markdown("**혼합 항목 — 문구만 수정 필요 (자동 제거하지 않습니다)**")
+                    for _i, _x in _mixed:
+                        st.markdown(f"- `#{_i}` {_x[:90]}")
+                    st.caption(
+                        "이 항목들은 로그라인처럼 본문과 포맷 표현이 섞여 있어 통째로 지우면 내용이 함께 사라집니다. "
+                        "아래 'LOCKED 편집'에서 포맷 어휘만 직접 고쳐 주십시오."
+                    )
+
+                st.caption(
+                    "v2.7.1부터 포맷은 LOCKED보다 상위로 선언되므로 생성 결과는 확정 포맷을 따릅니다. "
+                    "다만 LOCKED 문구 자체를 정리해 두는 것이 더 깨끗합니다."
+                )
+                if _fmt_only and st.button(
+                    f"🧹 포맷 전용 항목 {len(_fmt_only)}건 제거", key="strip_fmt_locked"
+                ):
+                    _drop = {i for i, _ in _fmt_only}
+                    _keep = [x for i, x in enumerate(project.get("locked_items", []))
+                             if i not in _drop]
+                    project["locked_items"] = _keep
+                    project["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
+                    st.success(f"{len(_fmt_only)}건 제거 완료.")
+                    st.rerun()
+
+        _new_fmt = st.selectbox(
+            "📐 포맷",
+            _FORMAT_OPTIONS,
+            index=_cur_idx,
+            key="edit_format",
+        )
+        if _new_fmt != _cur_fmt:
+            _was_series = P.is_series_format(_cur_fmt)
+            _now_series = P.is_series_format(_new_fmt)
+            if _was_series != _now_series and project.get("structure_story"):
+                st.warning(
+                    "영화 ↔ 시리즈 전환입니다. 비트 구조 자체가 달라지므로 "
+                    "**Structure부터 재실행**을 권합니다. Core와 Character Bible은 유지해도 됩니다."
+                )
+        if st.button("💾 포맷 저장", key="save_format"):
+            project["format"] = _new_fmt
+            project["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
+            st.success(f"포맷 확정: {_new_fmt}. 이후 생성되는 모든 단계에 반영됩니다.")
+            st.rerun()
+
     st.markdown("---")
 
     # ═══════════════════════════════════════
@@ -4781,7 +4893,7 @@ elif st.session_state.view == "project" and st.session_state.cur:
     if st.button("🧠 Brainstorm 실행", type="primary"):
 
         # ── 1단계: 카드 생성 ──
-        with st.spinner("① 컨셉 카드 생성 중... (약 20~30초)"):
+        with st.spinner("① 컨셉 카드 생성 중... (약 20–30초)"):
             cards_result = call_brainstorm_cards(
                 project["idea_text"],
                 project["genre"],
@@ -4807,7 +4919,7 @@ elif st.session_state.view == "project" and st.session_state.cur:
 
             # ── 2단계: 분석 + Gate A ──
             if top3_data:
-                with st.spinner("② 시장 분석 + Gate A 채점 중... (약 10~20초)"):
+                with st.spinner("② 시장 분석 + Gate A 채점 중... (약 10–20초)"):
                     analysis_result = call_brainstorm_analysis(
                         project["idea_text"],
                         project["genre"],
@@ -4880,6 +4992,32 @@ elif st.session_state.view == "project" and st.session_state.cur:
                     f'</div>',
                     unsafe_allow_html=True
                 )
+
+            # ── 포맷 적합성 권고 (v2.7.1 신규) ──
+            ff = ba.get("format_fit", {})
+            if ff:
+                _match = ff.get("match", True)
+                _rec = ff.get("recommended_format", "")
+                _cur = ff.get("current_format", project.get("format", ""))
+                if _match:
+                    st.success(
+                        f"📐 포맷 적합성 — 확정 포맷 **{_cur}**이 소재와 맞습니다. "
+                        f"{ff.get('rationale', '')}"
+                    )
+                else:
+                    st.info(
+                        f"📐 포맷 적합성 — 소재 자체는 **{_rec}** 쪽에 가깝습니다 "
+                        f"(현재 확정: {_cur}). 참고 정보이며 판정이 아닙니다."
+                    )
+                with st.expander("📐 포맷 적합성 근거", expanded=(not _match)):
+                    st.markdown(f"**사건 밀도** — {ff.get('event_density', '')}")
+                    st.markdown(f"**인물 부하** — {ff.get('character_load', '')}")
+                    st.markdown(f"**판단 근거** — {ff.get('rationale', '')}")
+                    if not _match and ff.get("if_forced"):
+                        st.markdown(f"**{_cur}를 유지할 경우** — {ff['if_forced']}")
+                    st.caption(
+                        "포맷 확정 권한은 작가에게 있습니다. 변경하려면 위 '포맷 확정·변경'에서 조정해 주십시오."
+                    )
 
             # ── 훅 문장 ──
             hook = ba.get("hook_sentence", "")
@@ -5178,7 +5316,7 @@ elif st.session_state.view == "core" and st.session_state.cur:
         if not selected_concept:
             st.error("선정된 컨셉이 없습니다. Brainstorm을 먼저 실행해주세요.")
         else:
-            with st.spinner("① Core Build 생성 중... (약 30~40초)"):
+            with st.spinner("① Core Build 생성 중... (약 30–40초)"):
                 core_result = call_core_build_main(
                     project["idea_text"], project["genre"],
                     project["target_market"], project["format"],
@@ -5191,7 +5329,7 @@ elif st.session_state.view == "core" and st.session_state.cur:
             if core_result:
                 project["core"] = core_result
                 project["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
-                with st.spinner("② Gate B + Gate C 채점 중... (약 10~20초)"):
+                with st.spinner("② Gate B + Gate C 채점 중... (약 10–20초)"):
                     gate_result = call_core_gate(core_result)
                 if gate_result:
                     project["core_gate"] = gate_result
@@ -5686,7 +5824,7 @@ elif st.session_state.view == "char_bible" and st.session_state.cur:
 
     if not project.get("char_bible"):
         if st.button("📖 Character Bible 생성", type="primary"):
-            with st.spinner("캐릭터 바이블 설계 중... (캐릭터당 약 30초, 4~8명 기준 약 2~4분)"):
+            with st.spinner("캐릭터 바이블 설계 중... (캐릭터당 약 30초, 4–8명 기준 약 2–4분)"):
                 result = call_character_bible(
                     core, project["genre"], project["format"],
                     locked_block=_build_project_locked_block(project),
@@ -6015,11 +6153,27 @@ elif st.session_state.view == "structure" and st.session_state.cur:
     st.markdown('<div class="section-header">🏗️ Structure Build <span class="en">STORY STRUCTURE</span></div>', unsafe_allow_html=True)
     st.caption("시놉시스 · 스토리라인 · 3막 구조 · 15비트 · 캐릭터 변화표를 설계합니다.")
 
+    # ─── 포맷 미지정 차단 (v2.7.1 신규) ───
+    # 진단: get_beat_structure()는 "시리즈"·"미니"가 없으면 전부 영화 구조로 폴백한다.
+    #   "미지정"은 보류가 아니라 묵시적 "영화" 확정이었다. 조용한 폴백이 가장 위험하다.
+    if project.get("format", "미지정") in ("", "미지정"):
+        st.error(
+            "📐 **포맷이 확정되지 않았습니다.**\n\n"
+            "Structure Build부터는 포맷에 따라 비트 구조 자체가 달라집니다 "
+            "(영화 = 3막 16비트 / 시리즈 = 에피소드 단위). "
+            "미지정 상태로 진행하면 영화 구조가 자동 적용되며, "
+            "나중에 시리즈로 바꾸면 이 단계부터 전부 재실행해야 합니다."
+        )
+        if st.button("📐 포맷 확정하러 가기 →", type="primary", use_container_width=True):
+            st.session_state.view = "project"
+            st.rerun()
+        st.stop()
+
     if st.button("🏗️ Structure Build 실행", type="primary"):
         if not core:
             st.error("Core Build가 없습니다.")
         else:
-            with st.spinner("① 시놉시스 + 스토리라인... (20~30초)"):
+            with st.spinner("① 시놉시스 + 스토리라인... (20–30초)"):
                 story = call_structure_story(
                     core, project["genre"], project["target_market"], project["format"],
                     locked_block=_build_project_locked_block(project),
@@ -6029,7 +6183,7 @@ elif st.session_state.view == "structure" and st.session_state.cur:
                 )
             if story:
                 project["structure_story"] = story
-                with st.spinner("② 구조 진단 + 캐릭터 변화표... (20~30초)"):
+                with st.spinner("② 구조 진단 + 캐릭터 변화표... (20–30초)"):
                     diag = call_structure_diagnosis(
                         core, story, project["genre"], project["format"],
                         locked_block=_build_project_locked_block(project),
@@ -6043,7 +6197,7 @@ elif st.session_state.view == "structure" and st.session_state.cur:
                         gate_d = call_structure_gate(story, diag)
                     if gate_d:
                         project["structure_gate"] = gate_d
-                with st.spinner("④ 기승전결 줄글 시놉시스... (10~15초)"):
+                with st.spinner("④ 기승전결 줄글 시놉시스... (10–15초)"):
                     prose = call_structure_prose(core, story)
                 if prose:
                     project["structure_prose"] = prose
@@ -6256,7 +6410,7 @@ elif st.session_state.view == "scene_design" and st.session_state.cur:
         if not story:
             st.error("Structure Build가 없습니다.")
         else:
-            with st.spinner("핵심 장면 설계 중... (약 30~40초)"):
+            with st.spinner("핵심 장면 설계 중... (약 30–40초)"):
                 sd = call_scene_design(
                     core, story, diag, project["genre"], project["format"],
                     locked_block=_build_project_locked_block(project),
@@ -6376,7 +6530,7 @@ elif st.session_state.view == "treatment" and st.session_state.cur:
 
     st.markdown("---")
     st.markdown('<div class="section-header">📝 Treatment Build <span class="en">16-BEAT TREATMENT</span></div>', unsafe_allow_html=True)
-    st.caption("16비트 구조 × 줄글 트리트먼트. 1막(6비트) + 2막(6비트) + 3막(4비트) = 약 40~50페이지")
+    st.caption("16비트 구조 × 줄글 트리트먼트. 1막(6비트) + 2막(6비트) + 3막(4비트) = 약 40–50페이지")
 
     scene_data = project.get("scene_design", {})
 
