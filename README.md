@@ -1,6 +1,6 @@
 # 👖 BLUE JEANS · Creator Engine
 
-**Version: v2.7.4** · Build: 2026-08-20 · Status: Production
+**Version: v2.7.4** · Build: 2026-09-05 · Status: Production
 
 > **아이디어 한 줄 → 글로벌 스튜디오 수준 기획개발 패키지**
 >
@@ -10,41 +10,66 @@
 
 ---
 
-## v2.7.4 패치 (2026-08-20) — 클라이맥스 설계 2축 게이트 신설
+## v2.7.4 핫픽스 (2026-09-05) — anthropic SDK 1.x 파괴적 변경 대응
 
-**발견 경위**: Writer Engine 대화창(정약용 사극 스릴러)에서 "3막이 사건화되지 않는다 / 재미없다"는 진단이 올라왔다. 뿌리를 추적하니 Writer가 아니라 **Creator의 3막 설계**였다. 클라이맥스의 결정적 행동(영웅서사 11단계 = 부활)이 주인공(정약용)을 떠나 조연(주모)이 대신 수행하도록 설계돼 있었고, Core·Structure·Treatment 어느 검증 단계도 이를 잡지 못했다. Beat 14 이름이 "주모가 나서다"인 채로 통과됐다.
+**결함 발견 경위** — 2026-09-05 Mr. MOON 운영 중, RESEARCH 단계에서 다음 에러 발생.
 
-**진단 (라인·필드 단위)**:
-- `build_system_core`는 주인공 Goal/Need/Strategy만 잡고, "클라이맥스에서 그 Goal을 누가 어떻게 실행하는가"를 규정하는 필드가 없었다 — 실행 주체가 빈칸으로 하류에 흘렀다.
-- `genre_expectation_check.climax_verdict`는 장르-형식 정합만 봤고, 행동 주체가 주인공인지는 검사하지 않았다.
-- Treatment V26 자가검증에도 클라이맥스 주체·판돈 검증이 없었다.
-- → 결함이 Core→Structure→Treatment→Writer 전 구간을 자유낙하했다.
+```
+리서치 실패: Messages.create() got an unexpected keyword argument 'temperature'
+```
 
-**작법서 근거 (McKee 외 리서치)**:
-- 클라이맥스 = Crisis(위기의 선택) → Climax(그 선택의 실행). **조연의 것이 아니다.**
-- 클라이맥스의 '크기'는 규모가 아니라 **'주인공이 잃을 것의 크기'**다. 주인공이 이기든 지든 세계가 바뀌어야 한다. 상실의 종류는 **장르가 결정**한다.
+### 진단
 
-**변경 (2축 × 3단계 계층 게이트)**:
+Creator Engine 코드 결함이 **아니다.** 의존성 버전 문제다.
 
-| 축 | 검증 내용 |
-|---|---|
-| 축 1 AGENCY | 클라이맥스 실행 주체 = 주인공 + Crisis 필수 + 몰락→부활 |
-| 축 2 STAKES | 주인공이 잃을 것의 크기 = 장르 head가 요구하는 상실 종류 |
+Streamlit Cloud 배포 로그에 `anthropic==1.4.0`이 설치된 것이 확인됐다. 그런데 `requirements.txt`는 `anthropic>=0.80.0` — **상한이 없었다.** 재배포가 발생하는 순간 최신 SDK가 무조건 끌려온다.
 
-| 단계 | 위치 | 역할 |
+anthropic Python SDK **v1.0.0(2026-08-20)** 은 파괴적 변경 릴리스다. HTTP 계층이 httpx → httpx2로 교체되고, Python 최소 버전이 3.10으로 올라가며, 레거시 Text Completions API가 삭제됐다. 그리고 **`temperature` / `top_p` / `top_k`가 Messages 계열 메서드에서 전부 제거**됐다 — `messages.create()`, `messages.stream()`, `messages.parse()`, `beta.messages` 계열, `messages.batches.create()`의 per-request params까지.
+
+문제는 이 변경이 조용하다는 것이다. Messages API 레퍼런스 문서에는 여전히 `temperature`가 기본값 1.0·범위 0.0~1.0으로 기재되어 있다. 문서만 봐서는 알 수 없고, 런타임 TypeError로만 드러난다.
+
+**영향 범위** — `main.py`가 `temperature=`를 실제로 전달하는 지점이 **29곳**이다(패치 후 라인 기준).
+
+| 단계 | 라인 | temperature |
 |---|---|---|
-| Core Build | `build_climax_design_block` 주입 + `climax_design` 필드 강제 | 설계 시점 강제 |
-| Core Gate | `SYSTEM_CORE_GATE` 2축 채점 | 설계 검증 |
-| Structure Gate | `SYSTEM_STRUCTURE_GATE` 2축 채점 | 구조 검증 |
-| Treatment | V27 자가검증 블록 신설 | 출력 직전 재검증 |
+| RESEARCH | 1053 | 0.2 |
+| CONCEPT | 1201 · 1214 | 0.35 |
+| LOGLINE | 1326 | 0.3 |
+| CHARACTER | 1615 · 1625 | 0.3 |
+| STRUCTURE | 1697 | 0.2 |
+| GATE | 1808 | 0.1 |
+| TREATMENT (stream) | 1891 · 1910 · 1928 · 1943 | 0.3 → 0.15 → 0.05 |
+| SERIES BEAT (stream) | 2730 · 2742 · 2766 · 2781 | 0.4 → 0.2 → 0.05 |
+| 기타 | 2072~3389 (15곳) | 0.2~0.3 |
 
-- `CLIMAX_STAKES_MAP` 신설 — head별(코미디/로맨스/스릴러/호러/액션/드라마/SF/판타지) 상실 종류 정의.
-- `_resolve_opening_dna` → `_resolve_genre_head` **범용화(별칭, 하위호환 100%)**. 복합 장르 "뒤 장르 = head" 판정을 오프닝뿐 아니라 클라이맥스 판돈에도 적용.
-  - 작가 규칙: 로맨틱 코미디 → 코미디 head, 코믹 로맨스 → 로맨스 head, 액션·역사 스릴러 → 스릴러 head. **뒤에 오는 장르에 더 충실**.
+즉 리서치만 죽은 것이 아니라 **전 단계가 동일하게 죽어 있었다.** 리서치가 파이프라인 첫 관문이라 거기서 먼저 드러났을 뿐이다.
 
-**역사극 안전장치**: 게이트는 '구조 요건'만 검증한다. 특정 사건을 창작하도록 지시하지 않는다. 사극 등 고증 제약 작품에서 '무엇을 잃을지'는 작가·역사의 몫이며, 엔진은 '그 종류의 상실이 주인공에게 걸려 있는가'만 요구한다.
+### [1] requirements.txt 상한 고정 — 1차 방어선
 
-**하위 호환**: v2.5.0~v2.7.3 프로젝트 JSON **100% 호환**. `climax_design` 미보유 구버전 시드는 Gate에서 '설계 의무 미이행'으로 표기될 뿐 로드·동작에는 영향 없음. 함수 시그니처 무수정(별칭만 추가).
+```
+streamlit>=1.55.0,<2.0
+anthropic>=0.80.0,<1.0
+python-docx>=1.2.0,<2.0
+plotly>=6.0.0,<8.0
+```
+
+`anthropic<1.0`이 즉시 복구 조치다. 나머지 3개도 동일한 사고를 막기 위해 상한을 걸었다 — 상한 없는 의존성은 재배포 시점에 무엇이 설치될지 알 수 없다는 것이 이번에 증명됐다.
+
+### [2] `get_client()` SDK 호환 레이어 — 2차 방어선
+
+상한 고정만으로 끝내면, 언젠가 0.x 계열이 유지보수 종료될 때 같은 사고가 반복된다. `main.py`에 얇은 프록시를 넣어 **1.x가 설치되더라도 앱이 죽지 않게** 했다.
+
+- `_sdk_strips_sampling_args()` — 설치된 SDK 메이저 버전이 1 이상이면 True. 판별 실패 시 False(기존 동작 유지).
+- `_MessagesCompat` — `create()` / `stream()` 호출 시 `temperature` / `top_p` / `top_k`만 걷어내고 원본에 위임. 나머지 속성은 `__getattr__`로 전부 통과.
+- `_AnthropicCompat` — `messages`만 교체하고 나머지는 원본 클라이언트로 위임.
+
+**핵심 설계 판단** — 호출부 29곳을 고치지 않았다. 29곳을 직접 수정하면 스트리밍 컨텍스트 매니저 4곳과 재시도 분기 로직까지 손대야 하고, 회귀 위험이 실익보다 크다. 클라이언트를 감싸는 방식은 수정 지점이 한 곳이므로 회귀 표면이 사실상 0이다.
+
+**동작 보장** — 0.x 환경에서는 `strip=False`가 되어 인자가 그대로 전달된다. 기존 동작 100% 보존이며, Treatment/Series의 temperature 단계적 하강 재시도(0.3 → 0.15 → 0.05)도 무손실로 유지된다.
+
+### 미해결 — 1.x 전면 이행은 보류
+
+SDK 1.x는 sampling 인자 외에도 httpx2 전환, async raw response의 `await response.parse()`, `.text` / `.content`의 메서드화, `output_format` → `output_config` 개명 등 변경이 더 있다. Creator Engine은 `client.messages.stream()`을 8곳에서 쓰므로 스트리밍 경로 전수 검증 없이 1.x로 올리는 것은 위험하다. 본 패치는 **운영 복구**가 목적이며, 1.x 이행은 별도 사이클로 분리한다.
 
 ---
 
@@ -2598,6 +2623,7 @@ ANTHROPIC_API_KEY = "sk-ant-..."
 | **v2.6.4** | **[핫픽스] Treatment 출력 절단 결함 수정 — Mr. MOON이 1막 실패 Raw 공유, Beat 6 `"setup_` 중간 절단 확인. JSON 문법이 아닌 출력량 초과가 진범: 시리즈 포맷은 막당 6비트 × narrative 4000~6000자 스펙으로 요구 출력량이 max_tokens 16000을 구조적으로 초과, 절단된 JSON은 괄호 불균형이라 safe_json_loads 5단계 복구 전체 무력. 회귀 결함 동시 발견: v2.5.4 재시도 체인에서 절단 축소 프롬프트(`retry` 변수)가 이후 JSON 재시도 2회에 전파되지 않고 원래 긴 프롬프트로 회귀 — 절단이 원인이면 재시도 성공 불가능한 구조. `call_treatment_beats` 단독 수정: ① max_tokens 16000→24000 (함수 내 4개 호출 전부, v2.5.1 검증값) ② 축소 프롬프트를 user_prompt에 반영해 재시도 체인에 상속 ③ 축소 후에도 절단 지속 시 명시적 경고. 미결(저자 결정): 시리즈 스펙 상한은 24000으로도 초과 가능 — 에피소드 단위 분할 검토 필요. 100% 하위 호환.** |
 | **v2.6.5** | **[패치] Treatment 아웃라인 정체성 확립 + 기승전결 서사 좌표 — Mr. MOON 지적("Creator는 아웃라인 잡는 도구인데 비트 narrative가 집필 밀도"). v2.6.4 절단은 증상, 근본 원인은 narrative의 집필 팽창. A안 채택: narrative를 영화·시리즈 공통 1500~2500자 아웃라인 밀도로 축소('무슨 일이 어떤 순서로 왜 일어나는가'까지만, 카메라·미시 동작·대사 전문·연출 지시는 Writer Engine 영역으로 배제) + `story_position` 신규 필드로 매 비트의 기-승-전-결 좌표 명시(전체 비트에 기·승·전·결 모두 등장 강제, 단계 후퇴 금지). 소설·웹소설은 별도 엔진 보강 영역이므로 Creator는 영화·시리즈 서사 골격에 집중. TREATMENT_BEAT_RULES에 정체성 선언 + 기승전결 규칙 블록 신설. main.py: 절단 재시도 축소 문자열 갱신, Gate E에 story_position 전달. 비트당 출력량 대폭 감소로 절단 원천 차단. 스키마 키 무수정(필드 추가만), 구버전 비트 빈 문자열 fallback → 100% 하위 호환.** |
 | **v2.6.6** | **[패치] Treatment 확정 전 중간 저장 복원 — Mr. MOON 운영 중 발견(「지윤 (가제)」 1·2막 생성 후 저장 버튼 부재). 진단: v2.6.3 막별 독립 실행 개편 때 Treatment 페이지 JSON 저장 버튼이 확정 이후 블록에만 잔존, treatment_partial 상태(확정 전)에는 저장 수단 없음. 부분 생성분은 세션 메모리에만 있어 확정 전 세션 끊김 시 유실 — v2.6.2~v2.6.3 피해 범위 한정 취지와 모순되는 공백. main.py 단독 수정: ① 확정 전 구간(막 1개 이상 생성 + 미확정)에 저장 expander 추가, save_project_to_json이 project 전체 직렬화라 treatment_partial 포함 저장·복원 즉시 작동 ② _get_project_stage()에 "Treatment진행중" 단계 추가로 저장 파일명 식별. 함수 시그니처·필드 무수정, 100% 하위 호환.** |
+| **v2.7.4** | **[핫픽스] anthropic SDK 1.x 파괴적 변경 대응 — Mr. MOON 운영 중 RESEARCH 단계에서 `Messages.create() got an unexpected keyword argument 'temperature'` 발생. Creator Engine 코드 결함이 아닌 의존성 문제: requirements.txt에 anthropic 상한이 없어 Streamlit Cloud가 1.4.0을 설치, SDK v1.0.0(2026-08-20)이 temperature/top_p/top_k를 Messages 계열에서 제거. main.py의 29개 호출부 전체가 동시에 사망 상태였음(리서치가 파이프라인 첫 관문이라 먼저 드러남). 2층 대응: ① requirements.txt 4개 패키지 전부 상한 고정(anthropic<1.0이 즉시 복구) ② get_client()에 SDK 호환 프록시 신설(`_sdk_strips_sampling_args` / `_MessagesCompat` / `_AnthropicCompat`) — 1.x 설치 시 sampling 인자만 자동 제거, 0.x에서는 그대로 통과. 호출부 29곳 무수정으로 회귀 표면 0. Treatment/Series의 temperature 단계적 하강 재시도(0.3→0.15→0.05) 무손실 유지. 1.x 전면 이행(httpx2 · 스트리밍 경로 8곳)은 미검증이므로 별도 사이클로 분리.** |
 
 ---
 

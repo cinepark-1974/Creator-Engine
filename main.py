@@ -900,7 +900,66 @@ def safe_json_loads(text: str):
         raise e
 
 
-# ─── API Client ───
+# ─── API Client (v2.7.4: anthropic SDK 1.x 호환 레이어) ───
+# [결함 발견 경위] 2026-09-05 Mr. MOON 운영 중 리서치 단계에서
+#   "Messages.create() got an unexpected keyword argument 'temperature'" 발생.
+#   Creator Engine 코드 결함이 아니라 의존성 문제.
+#   requirements.txt의 anthropic 상한이 없어 Streamlit Cloud가 1.4.0을 설치했고,
+#   anthropic SDK 1.0.0(2026-08-20)부터 messages.create() / messages.stream()에서
+#   temperature / top_p / top_k 인자가 제거되어 TypeError를 던진다.
+#
+# [대응] 1차 방어선은 requirements.txt 상한 고정(anthropic<1.0).
+#   본 레이어는 2차 방어선 — 향후 1.x가 설치되더라도 sampling 인자를 자동으로
+#   걷어내 앱이 죽지 않게 한다. main.py의 29개 호출부는 일절 수정하지 않으므로
+#   회귀 위험이 없고, 0.x 환경에서는 인자가 그대로 전달되어 기존 동작 100% 보존.
+
+_SAMPLING_ARGS = ("temperature", "top_p", "top_k")
+
+
+def _sdk_strips_sampling_args() -> bool:
+    """설치된 anthropic SDK가 sampling 인자를 거부하는 버전인지 판별.
+    1.0.0 이상이면 True(=인자를 걷어내야 함). 판별 실패 시 False(기존 동작 유지)."""
+    try:
+        import anthropic
+        major = int(str(anthropic.__version__).split(".")[0])
+    except Exception:
+        return False
+    return major >= 1
+
+
+class _MessagesCompat:
+    """messages.create() / messages.stream() 호출 시 미지원 인자만 제거하는 얇은 프록시."""
+
+    def __init__(self, inner, strip: bool):
+        object.__setattr__(self, "_inner", inner)
+        object.__setattr__(self, "_strip", strip)
+
+    def _clean(self, kwargs: dict) -> dict:
+        if not object.__getattribute__(self, "_strip"):
+            return kwargs
+        return {k: v for k, v in kwargs.items() if k not in _SAMPLING_ARGS}
+
+    def create(self, **kwargs):
+        return object.__getattribute__(self, "_inner").create(**self._clean(kwargs))
+
+    def stream(self, **kwargs):
+        return object.__getattribute__(self, "_inner").stream(**self._clean(kwargs))
+
+    def __getattr__(self, name):
+        return getattr(object.__getattribute__(self, "_inner"), name)
+
+
+class _AnthropicCompat:
+    """Anthropic 클라이언트 프록시. messages 외 속성은 원본으로 그대로 위임."""
+
+    def __init__(self, inner, strip: bool):
+        object.__setattr__(self, "_inner", inner)
+        object.__setattr__(self, "messages", _MessagesCompat(inner.messages, strip))
+
+    def __getattr__(self, name):
+        return getattr(object.__getattribute__(self, "_inner"), name)
+
+
 def get_client():
     try:
         import anthropic
@@ -910,7 +969,8 @@ def get_client():
     if "ANTHROPIC_API_KEY" not in st.secrets:
         raise RuntimeError("ANTHROPIC_API_KEY가 secrets에 설정되지 않았습니다.")
 
-    return anthropic.Anthropic(api_key=st.secrets["ANTHROPIC_API_KEY"])
+    client = anthropic.Anthropic(api_key=st.secrets["ANTHROPIC_API_KEY"])
+    return _AnthropicCompat(client, _sdk_strips_sampling_args())
 
 
 def _build_project_locked_block(project: dict) -> str:

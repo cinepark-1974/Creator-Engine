@@ -1,4 +1,9 @@
-streamlit>=1.55.0
-anthropic>=0.80.0
-python-docx>=1.2.0
-plotly>=6.0.0
+# BLUE JEANS · Creator Engine
+# 주의: anthropic SDK 1.0.0(2026-08-20)부터 messages.create()/stream()에서
+#       temperature / top_p / top_k 인자가 제거되어 TypeError가 발생합니다.
+#       main.py는 29개 호출부에서 temperature를 사용하므로 0.x 계열로 상한을 고정합니다.
+#       (get_client()에 1.x 호환 레이어가 있으나, 1.x는 httpx2 기반 전면 개편이라 미검증)
+streamlit>=1.55.0,<2.0
+anthropic>=0.80.0,<1.0
+python-docx>=1.2.0,<2.0
+plotly>=6.0.0,<8.0
