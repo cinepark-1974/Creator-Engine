@@ -647,7 +647,7 @@ def _get_project_stage(project: dict) -> str:
     return "초기"
 
 
-def save_project_to_json(project: dict, engine_version: str = "v2.7.4") -> str:
+def save_project_to_json(project: dict, engine_version: str = "v2.7.5") -> str:
     """프로젝트 전체를 JSON 문자열로 직렬화.
     
     Args:
@@ -705,7 +705,7 @@ def load_project_from_json(json_str: str) -> dict:
     
     # 엔진 버전 호환성 체크 (경고만, 실패 아님)
     saved_version = meta.get("engine_version", "unknown")
-    current_version = "v2.7.4"
+    current_version = "v2.7.5"
     if saved_version != current_version:
         warnings.append(
             f"엔진 버전 차이 — 저장 시: {saved_version} / 현재: {current_version}. "
@@ -1484,6 +1484,9 @@ def call_core_build_main(idea, genre, market, fmt, selected_concept, research=No
       "role": "protagonist",
       "name": "",
       "description": "인물 소개 1문장",
+      "logline_derivation": "★ v2.7.5 필수 — 로그라인의 어느 성분(동사·제약·대상)에서 이 인물의 직업·지위가 도출됐는가 1~2문장",
+      "irreplaceability": "★ v2.7.5 필수 — 이 인물이 아니면 이 이야기가 성립하지 않는 이유 1문장",
+      "archetype_divergence": "★ v2.7.5 필수 — 이 장르의 흔한 주인공 원형 1개를 지목하고, 이 인물이 그것과 갈라지는 지점 1~2문장",
       "goal": "이 인물의 욕망 1문장",
       "need": "결핍 1문장",
       "strategy": "행동 방식 1문장",
