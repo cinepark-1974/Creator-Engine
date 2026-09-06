@@ -647,7 +647,7 @@ def _get_project_stage(project: dict) -> str:
     return "초기"
 
 
-def save_project_to_json(project: dict, engine_version: str = "v2.7.5") -> str:
+def save_project_to_json(project: dict, engine_version: str = "v2.7.7") -> str:
     """프로젝트 전체를 JSON 문자열로 직렬화.
     
     Args:
@@ -705,7 +705,7 @@ def load_project_from_json(json_str: str) -> dict:
     
     # 엔진 버전 호환성 체크 (경고만, 실패 아님)
     saved_version = meta.get("engine_version", "unknown")
-    current_version = "v2.7.5"
+    current_version = "v2.7.7"
     if saved_version != current_version:
         warnings.append(
             f"엔진 버전 차이 — 저장 시: {saved_version} / 현재: {current_version}. "
@@ -1460,7 +1460,7 @@ def call_core_build_main(idea, genre, market, fmt, selected_concept, research=No
       "item_label_7": "YES 또는 NO + 1문장 근거 — 해당 장르 체크리스트 항목 7 (있으면)"
     }},
     "weak_zones": ["장르 기대가 약할 것으로 예상되는 비트 구간 명시 (예: '클라이맥스가 로맨스 완성 아님', '2막 Fun and Games 부족')"],
-    "climax_verdict": "CLIMAX_PASS 또는 CLIMAX_FAIL — 장르 약속에 맞는 클라이맥스인가. FAIL이면 3막 전체 재설계 강제"
+    "climax_verdict": "★ v2.7.7 — 세 축을 각각 판정한 뒤 종합. 형식: 'CLIMAX_PASS 또는 CLIMAX_FAIL — STAKES x / AGENCY x / GENRE x: 근거'. [STAKES] 장르 head가 요구하는 판돈이 걸려 있는가. [AGENCY] 주인공이 스스로 결정하고 직접 실행하며 그 결과로 상황이 되돌릴 수 없이 바뀌는가 — 주인공이 움직이지 않거나·지켜보거나·침묵이 답이 되거나·제3자/우연/적대자 자멸이 해결하면 즉시 FAIL. [GENRE] 장르 약속이 여기서 최대치로 이행되는가. 하나라도 FAIL이면 CLIMAX_FAIL이며 3막 전체 재설계 강제"
   }},
   "opening_strategy": {{
     "opening_type": "Action Drop / Cold Open / Tease & Reveal / In Media Res / Character Reveal Action / Hook Dialogue 중 택1 — 시스템 프롬프트의 오프닝 DNA 매핑에 따른 권장 기법을 우선하되, 작품 특성에 맞게 택1",
@@ -1648,12 +1648,16 @@ def call_core_build_main(idea, genre, market, fmt, selected_concept, research=No
 
 
 # ─── API Call: Core Gate (2단계) ───
-def call_core_gate(core_data):
-    """Core Build 2단계: Gate B (Drive) + Gate C (Character) 채점"""
+def call_core_gate(core_data, genre: str = ""):
+    """Core Build 2단계: Gate B (Drive) + Gate C (Character) 채점
+
+    v2.7.7: genre 인자 추가 (디폴트 "") — 클라이맥스 게이트 채점 블록 주입용.
+    미전달 시 head가 '드라마'로 해석되어 v2.7.6과 동등 동작 (하위 호환).
+    """
     try:
         client = get_client()
 
-        system_prompt = P.SYSTEM_CORE_GATE
+        system_prompt = P.build_system_core_gate(genre)
 
         user_prompt = f"""[Core Build 결과]
 {json.dumps(core_data, ensure_ascii=False)}
@@ -2198,11 +2202,14 @@ Goal: {gns.get("goal","")} / Need: {gns.get("need","")} / Strategy: {gns.get("st
 
 
 # ─── API Call: Structure Gate D (3단계) ───
-def call_structure_gate(story_data, diag_data):
-    """Structure 3단계: Gate D 채점"""
+def call_structure_gate(story_data, diag_data, genre: str = ""):
+    """Structure 3단계: Gate D 채점
+
+    v2.7.7: genre 인자 추가 (디폴트 "") — 클라이맥스 게이트 채점 블록 주입용.
+    """
     try:
         client = get_client()
-        system_prompt = P.SYSTEM_STRUCTURE_GATE
+        system_prompt = P.build_system_structure_gate(genre)
 
         user_prompt = f"""[시놉시스]
 {json.dumps(story_data.get("synopsis_1p",{}), ensure_ascii=False)}
@@ -2630,8 +2637,14 @@ Water Cooler Moment: {wc.get("scene_or_setup", "")}
 클라이맥스 판정: {climax_verdict}
 
 ★ 위 약점 구간은 Core Build가 스스로 식별한 위험 영역. Treatment 집필 시 이 구간을 특히 강하게 설계하라.
-★ CLIMAX_FAIL 판정이 있으면 3막 마지막 비트를 장르 약속에 맞게 재설계하라.
-  (예: 로맨틱 코미디 CLIMAX_FAIL이면 → 부녀 화해/가족 서사 금지, 반드시 로맨스 완성 씬)
+★ CLIMAX_FAIL 판정이 있으면 3막 마지막 비트를 재설계하라. 어느 축이 FAIL인지에 따라 처방이 다르다.
+  - STAKES FAIL → 장르 head가 요구하는 판돈으로 교체
+    (로맨틱 코미디는 head가 코미디 — 부녀 화해/가족 서사 금지, 거짓말이 동시에 터지는 최대 소동)
+  - AGENCY FAIL → 주인공이 직접 실행하는 행동으로 교체 (★ v2.7.7)
+    '움직이지 않는다' '지켜본다' '침묵이 답이 된다' '대답하지 않는 것이 대답이다'는
+    클라이맥스가 아니다. 대응하지 않기로 선택했다면 그 선택을 실행하는 행동을 쓸 것.
+    제3자 해결·우연·적대자 자멸도 전부 재설계 대상.
+  - GENRE FAIL → 장르 약속이 최대치로 이행되도록 강화
 """
         
         # [4] v2.3.8 재설계 — research_applied (Core Build 선별) 우선 + 원본 research 보조
@@ -5446,7 +5459,7 @@ elif st.session_state.view == "core" and st.session_state.cur:
                 project["core"] = core_result
                 project["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
                 with st.spinner("② Gate B + Gate C 채점 중... (약 10–20초)"):
-                    gate_result = call_core_gate(core_result)
+                    gate_result = call_core_gate(core_result, project.get("genre", ""))
                 if gate_result:
                     project["core_gate"] = gate_result
                     project["final_score"] = gate_result.get("five_axis_scores", {}).get("final_score")
@@ -5899,7 +5912,7 @@ elif st.session_state.view == "core" and st.session_state.cur:
             st.warning("⚠️ Gate B + C 채점이 완료되지 않았습니다.")
             if st.button("🔄 Gate 재시도"):
                 with st.spinner("Gate B + C 채점 중..."):
-                    gate_result = call_core_gate(core)
+                    gate_result = call_core_gate(core, project.get("genre", ""))
                 if gate_result:
                     project["core_gate"] = gate_result
                     project["final_score"] = gate_result.get("five_axis_scores", {}).get("final_score")
@@ -6310,7 +6323,7 @@ elif st.session_state.view == "structure" and st.session_state.cur:
                 if diag:
                     project["structure_diag"] = diag
                     with st.spinner("③ Gate D 채점... (10초)"):
-                        gate_d = call_structure_gate(story, diag)
+                        gate_d = call_structure_gate(story, diag, project.get("genre", ""))
                     if gate_d:
                         project["structure_gate"] = gate_d
                 with st.spinner("④ 기승전결 줄글 시놉시스... (10–15초)"):
