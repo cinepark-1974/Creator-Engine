@@ -2,10 +2,138 @@
 👖 BLUE JEANS Creator Engine — Prompt Library
 
 ╔══════════════════════════════════════════════════════════╗
-║  VERSION: v2.7.7                                         ║
-║  BUILD DATE: 2026-09-06                                  ║
+║  VERSION: v2.8.2                                         ║
+║  BUILD DATE: 2026-10-01                                  ║
 ║  STATUS: Production                                      ║
 ╚══════════════════════════════════════════════════════════╝
+
+─────────────────────────────────────────────────────────
+v2.8.2 패치 (2026-10-01) — v2.8.0~v2.8.1 후속 정비 4종
+─────────────────────────────────────────────────────────
+[경위] v2.8.1 보고의 '다음 사이클 의제' 중 Creator 측 수정 대상 4건을
+  Mr. MOON 지시("수정할 게 있으면 수정해야지")로 즉시 처리.
+
+[1] beat_sheet 번호 체계 통일
+  결함: Structure 진단 beat_sheet는 Save the Cat 15비트 명칭(Opening
+  Image~Final Image), Treatment·게이트·상태 축·시퀀스는 BEAT_STRUCTURE
+  16슬롯. 같은 작품 안에 비트 좌표가 두 벌 존재.
+  변경: 진단 스키마에 beat_no 신설, 예시를 '오프닝'으로, 규칙에
+  format_beat_slots(fmt) 슬롯 표 주입. Gate D 입력 라벨·UI·DOCX 표기를
+  'Beat Sheet'로. 구버전 beat_sheet(명칭만)는 그대로 표시.
+
+[2] 말투 전환을 Treatment에 주입
+  결함: v2.8.1의 speech_to 전환 비트가 바이블·인계 JSON에만 있고
+  Treatment 막별 호출에 도달하지 않음 → 트리트먼트가 전환 계기 사건을
+  설계하지 못함.
+  변경: build_speech_shifts_for_treatment() — 현재 말단계 참조표 +
+  이 막의 전환 지점. call_treatment_beats(speech_matrix=None) 디폴트 인자.
+
+[3] 기획서 DOCX 반영
+  구조 골격, 시퀀스 목표·씬 예산, 인물 상태 축 표, 모순·상처·출신·
+  사투리·기본 말단계, 말투 관계표, 잠긴 씬리스트 표. 씬리스트 화면에
+  최종 DOCX 다운로드 추가. 신규 필드가 없으면 섹션 생략.
+
+[4] use_container_width 48곳 → width="stretch"/"content"
+  Streamlit 1.64에서 폐기 경고. 1.55(requirements 하한)·1.64 양쪽에서
+  button·download_button·dataframe·data_editor·plotly_chart가 width 인자
+  지원함을 확인 후 교체.
+
+[하위 호환] 시그니처는 디폴트 인자 추가만. JSON 키 삭제·변경 없음.
+
+─────────────────────────────────────────────────────────
+v2.8.1 패치 (2026-10-01) — 인물 말투 체계 · 모순·상처 · 씬리스트 · 인계 JSON
+─────────────────────────────────────────────────────────
+[경위]
+  v2.8.0 이후 Mr. MOON 지시: 무비킥은 따라 할 대상이 아니라 부족한 곳을
+  찾는 비교 대상. 대조 결과 비어 있던 5곳을 보충한다. 말투는 별도 설계가
+  아니라 캐릭터 설정(출신지·나이·지위·관계)에서 도출되는 결과라는 원칙.
+
+[C1 — 인물 말투 체계] 캐릭터 바이블 신규 필드
+  - origin_dialect {origin, dialect, strength, trigger}: 출신지 → 사투리
+  - base_register: 기본 말단계·호칭 습관
+  - speech_to[]: 상대별 말단계(존대/반말/하대/혼용), 호칭, 근거,
+    전환 비트·전환 후·계기. 반말(친밀)과 하대(위계·멸시)를 구분.
+  - validate_speech(): 출신지-사투리 공란, 말단계 4종 밖, 하대·혼용 근거
+    공란, 비대칭+근거 공란, 전환 비트 범위, 시대극 현대 호칭, 모순·상처 공란.
+    지위 높낮이는 구조화된 데이터가 없어 파이썬이 판정하지 않는다
+    (LLM 규칙이 담당 — 하대하려면 reason 필수).
+  - Creator는 사투리 대사를 쓰지 않는다. 규칙만 확정해 Writer에 넘긴다.
+
+[C2 — 모순·상처]
+  - contradiction: 관찰 가능한 두 면의 대립 한 줄.
+  - wound_event: flaw를 만든 사건 하나 (언제·어디서·누가·무엇).
+    기존 backstory 5문장에 섞여 있던 것을 좌표로 분리.
+
+[C6 — 씬리스트] Tone Document 다음, Writer 인계 직전 단계 신설.
+  - 기본안 / 압축안(씬 예산 ×0.8) / 변주안 — 안 × 막 9개 독립 호출.
+    (v2.6.4 교훈: 100씬 일괄 생성은 출력 절단 재발)
+  - 필드: no, seq, beat, int_ext, location, time, summary, characters,
+    dialogue_mode.
+  - 시간대 5종: 낮·밤·오후·새벽·저녁 (bluejeans-screenplay-format 기준).
+  - 대사 방식 6종: 서브텍스트(기본)·대결·정보·고백·엇박·행동.
+    엔진 제안값이며 DIALOGUE_MODES 상수에서 수정 가능. 고백 상한 5.
+  - validate_scene_list(): 동일 장소 3연속, 시간대 5종 밖, 시퀀스별 씬
+    예산 초과·미달(±20% 또는 ±2씬), 미등장 주요 인물, 대사 방식 6종 밖,
+    고백 상한, 씬 없는 비트.
+  - 작가가 한 안을 골라 표에서 직접 편집 → 잠금. 잠긴 목록은 재생성에
+    덮어쓰이지 않는다 (씬리스트 단위 잠금).
+
+[인계 JSON]
+  - build_writer_handoff_v28(): 구조 유형, 상태 축, 시퀀스, 말투 관계표,
+    인물 목소리, 모순·상처, 잠긴 씬리스트, 대사 방식·말단계·시간대 정의.
+  - project["writer_handoff_v28"] 최상위 키. 기존 treatment.writer_handoff_v26은
+    건드리지 않는다. Writer Engine이 읽으려면 Writer 측 수용 작업 필요.
+
+[하위 호환]
+  - 신규 필드가 없는 구버전 바이블·프로젝트는 표시·검사를 생략한다.
+  - Tone 화면의 기존 최종 JSON 저장은 그대로 유지 (씬리스트는 선택 단계).
+
+─────────────────────────────────────────────────────────
+v2.8.0 패치 (2026-10-01) — 구조 골격 선택 · 인물 상태 축 · 시퀀스 씬 예산
+─────────────────────────────────────────────────────────
+[경위]
+  Mr. MOON 기능 주문 C3~C6 중 Structure 단계 3종(C3·C4·C5)을 1차 사이클로
+  구현. C6(씬리스트 단계)와 인계 JSON 확장은 2차 사이클(v2.8.1)로 분리.
+
+[C3 — 구조 골격 선택]
+  - STRUCTURE_TYPES: 15비트(기본) / 관계 아크 / 상황 추진 / 시간 변주.
+  - 설계 원칙 '슬롯 불변, 동력 재정의': 대체 골격은 비트 수를 바꾸지 않고
+    1~16 슬롯 각각이 무엇으로 움직이는지를 재정의한다. Beat 6/10/13 장벽,
+    Beat 12 무너짐, Beat 14 주인공 역전, physical_cost 4단계, 클라이맥스
+    게이트가 비트 번호를 좌표로 쓰기 때문이다.
+  - recommend_structure_type(): 루프 키워드 > 장르 head > 로맨스 성분.
+    head 해석은 _resolve_genre_head()에 위임 (복합 장르 규칙 단일 소스).
+  - build_structure_type_block(): Structure 진단·Treatment 시스템 프롬프트와
+    Structure Story 사용자 프롬프트에 주입. 15비트는 빈 문자열 → 기존
+    프롬프트와 바이트 동일 (회귀 0, 검증 완료).
+
+[C4 — 인물 상태 축]
+  - STATE_AXES_MAP: 장르 head 13종 × 3축. 롬코는 head가 코미디여도 관계 축.
+  - Structure 진단 스키마에 state_axes(axes/targets) 신설. 주인공·적대자
+    비트별 목표값 -5~+5.
+  - validate_state_axes(): Beat 12 주인공 평균이 -3 이하이면서 Beat 13을
+    제외한 최저가 아니면 '3막 직전 바닥 미달' 경고. 3비트 정체 구간 경고.
+  - build_state_targets_for_treatment(): 막별 Treatment 호출에 해당 비트
+    목표값 주입.
+
+[C5 — 시퀀스 설계와 씬 예산]
+  - storyline 항목에 act / goal / beats / scene_budget 추가, adjust_reason 신설.
+  - build_sequence_instruction(): 비트 슬롯 목록 + 영화 8시퀀스(6~10 조정),
+    씬 예산 합계 100 내외(90~110).
+  - validate_sequences(): 비트 누락·중복, 막 역행, 비트 역행, 시퀀스 수,
+    씬 예산 합계, 8시퀀스 막 배분(참고) 검사.
+
+[하위 호환]
+  - 함수 시그니처: 디폴트 인자 추가만 (build_system_structure_diagnosis의
+    structure_type·fmt, build_system_treatment의 structure_type).
+  - 구버전 프로젝트: structure_type 없음 → 15비트 fallback.
+    state_axes·goal·beats·scene_budget 없음 → 표시·검사 생략, 기존 동작 유지.
+
+[기존 결함 — 이번 사이클 미수정, 기록만]
+  Structure 진단 beat_sheet는 'Save the Cat 15비트(Opening Image~Final Image)'
+  명칭을, Treatment·게이트는 BEAT_STRUCTURE_FILM '16슬롯(오프닝~에필로그)'을
+  쓴다. 두 체계가 공존한다. 상태 축·시퀀스는 16슬롯 번호로 통일했다.
+  → v2.8.2에서 beat_sheet도 16슬롯으로 통일 완료.
 
 ─────────────────────────────────────────────────────────
 v2.7.7 패치 (2026-09-06) — 클라이맥스 게이트 신규 구축
@@ -1557,8 +1685,8 @@ BLUE JEANS 3축 (Mr.MOON 고유)
 # 수정 시 ENGINE_VERSION과 ENGINE_BUILD_DATE를 함께 갱신하세요.
 # ═══════════════════════════════════════════════════
 
-ENGINE_VERSION = "v2.7.7"
-ENGINE_BUILD_DATE = "2026-09-06"
+ENGINE_VERSION = "v2.8.2"
+ENGINE_BUILD_DATE = "2026-10-01"
 ENGINE_STATUS = "Production"
 
 def get_engine_info() -> str:
@@ -7997,6 +8125,803 @@ PASS로 봐주지 마라. 근거를 본문에서 인용해 판정하라.
 """.strip()
 
 
+# ═══════════════════════════════════════════════════════════════
+# v2.8.0 신규 — 구조 골격 선택(C3) · 인물 상태 축(C4) · 시퀀스 씬 예산(C5)
+# ═══════════════════════════════════════════════════════════════
+# [설계 원칙 — 슬롯 불변, 동력 재정의]
+#   엔진의 비트 번호(1~16 슬롯)는 게이트 전체가 참조하는 좌표다.
+#   (Beat 6/10/13 장벽 에스컬레이션, Beat 12 무너짐, Beat 14 주인공 역전,
+#    physical_cost 4단계 구간, climax gate 등)
+#   대체 골격이 슬롯 수를 바꾸면 이 게이트들이 전부 어긋난다.
+#   그래서 대체 골격은 '슬롯 수'가 아니라 '각 슬롯이 무엇으로 움직이는가'를
+#   재정의한다. 비트 번호·막 배치·기존 게이트는 그대로 유효하다.
+#
+#   "15비트"는 기본값이며, 선택 시 어떤 블록도 주입하지 않는다
+#   (v2.7.7 이전 프롬프트와 바이트 단위로 동일 — 회귀 0).
+# ═══════════════════════════════════════════════════════════════
+
+STRUCTURE_TYPE_DEFAULT = "15비트"
+STRUCTURE_TYPES = ["15비트", "관계 아크", "상황 추진", "시간 변주"]
+
+STRUCTURE_TYPE_DEFS = {
+    "15비트": {
+        "drive": "주인공의 목표와 내적 변화",
+        "fits": "장르 공통 기본값",
+        "slots": {},
+        "rules": [],
+    },
+    "관계 아크": {
+        "drive": "두 인물 사이 관계의 변화",
+        "fits": "로맨틱코미디 · 멜로 · 로맨스",
+        "slots": {
+            1: "주인공의 방어된 일상 — 관계 결핍이 행동으로 보이는 장면",
+            2: "주인공의 방어 방식이 누군가에게 비용을 남기는 사건",
+            3: "상대 인물 등장 — 주인공과 반대 방향의 방어 방식",
+            4: "두 사람의 첫 충돌 — 서로의 방어가 부딪혀 결과가 남는다",
+            5: "두 사람을 묶어두는 외부 조건 발생 — 떨어질 수 없는 이유",
+            6: "관계를 이어가기로 하는 되돌릴 수 없는 선택 (계약·동거·공조 등)",
+            7: "관계 안에서 주인공이 얻으려는 겉목표 가동",
+            8: "방어와 방어가 부딪히는 사건 누적 — 매번 둘 사이 거리가 바뀐다",
+            9: "가까워진 만큼 드러나는 거짓·비밀의 첫 균열",
+            10: "관계의 규칙이 바뀐다 — 첫 진짜 접속 또는 관계 성립 (가짜 승리)",
+            11: "관계를 흔드는 힘(경쟁자·과거·제도·거짓)이 공세로 전환",
+            12: "관계 붕괴 — 거짓 발각 또는 결별. 주인공은 방어로 돌아간다",
+            13: "관계를 가르는 힘이 최고조 — 주인공은 혼자, 되돌릴 기회가 닫혀간다",
+            14: "주인공이 방어를 내려놓는 대가를 치르는 행동 — 관계를 위해 무언가를 잃는다. 실행 주체는 주인공",
+            15: "관계의 새 형태 확정 — 말이 아니라 행동으로 증명",
+            16: "변화된 두 사람의 새 일상 — 오프닝 장면과 대비",
+        },
+        "rules": [
+            "상대 인물은 A-Story의 공동 주체다. 조연처럼 반응만 하면 실패.",
+            "매 비트에서 두 사람의 거리(가까워짐/멀어짐)가 바뀌어야 한다. 거리가 그대로인 비트는 삭제 대상.",
+            "적대 세력(Beat 13)은 악당이 아니어도 된다. 둘을 가르는 힘이면 된다 — 단 능동적으로 작동해야 한다.",
+        ],
+    },
+    "상황 추진": {
+        "drive": "외부 사건의 압력",
+        "fits": "재난 · 스릴러 · 범죄",
+        "slots": {
+            1: "압력이 오기 전의 세계 + 이미 시작된 균열의 징후",
+            2: "주인공의 능력과 결함이 동시에 드러나는 일",
+            3: "압력에 함께 노출될 인물·집단 배치",
+            4: "외부 사건의 첫 신호 — 대부분이 무시한다",
+            5: "외부 사건 발생 — 시계가 돌기 시작 (시한·규모를 구체 수치로)",
+            6: "주인공이 사건 대응에 스스로 뛰어든다 — 빠질 수 없는 이유 확정",
+            7: "사건을 막거나 살아남는 구체 목표와 시한 가동",
+            8: "사건 1단계 격상 — 수단 또는 동료를 잃는다",
+            9: "첫 계획 실패 — 실패의 원인이 주인공의 결함과 연결",
+            10: "사건의 정체·규모 재정의 — 진짜 위협이 드러나고 시한이 줄어든다",
+            11: "사건 2단계 격상 + 내부 균열 (동료 이탈·배신·명령 충돌)",
+            12: "압력이 주인공의 마지막 거점을 무너뜨린다",
+            13: "사건(또는 적대 세력) 최고조 — 시한 임박, 주인공은 아직 바닥",
+            14: "주인공이 사건 한가운데에서 직접 결정적 행동 — 원격 지시·제3자 해결 금지",
+            15: "압력 해소 후 남은 대가 확정",
+            16: "사건 이후의 세계 — 오프닝의 균열이 어떻게 바뀌었는가",
+        },
+        "rules": [
+            "압력은 비트마다 격상된다. 같은 크기의 위기를 반복하면 실패.",
+            "시한(시계)은 도발적 사건에서 수치로 명시하고, 중간점에서 반드시 줄어든다.",
+            "주인공의 내적 변화는 압력에 대응하는 행동의 변화로만 보여준다.",
+        ],
+    },
+    "시간 변주": {
+        "drive": "반복되는 시간 속 변화의 누적",
+        "fits": "루프물 · 타임리프 · 회귀",
+        "slots": {
+            1: "반복될 구간의 첫 회차 — 이후 모든 회차의 기준점이 되는 정상 상태",
+            2: "그 구간 안에서 주인공이 놓치는 것 (결핍의 구체 장면)",
+            3: "반복 구간에 고정된 인물·사건 배치 — 시계 장치처럼 매 회차 같은 시각에 일어나는 일",
+            4: "반복을 알리는 첫 이상 징후",
+            5: "반복 확정 — 규칙 1 발견",
+            6: "반복을 이용하기로 하는 선택 — 목표 설정",
+            7: "반복을 이용한 시도 전략 가동",
+            8: "시도와 실패의 누적 — 회차마다 바꾼 변수 1개와 그 결과를 명시",
+            9: "반복의 대가 드러남 (기억·신체·관계 손상 누적)",
+            10: "반복의 진짜 규칙 또는 원인 발견 — 목표 재정의",
+            11: "규칙 악용의 역효과 또는 외부 개입",
+            12: "반복이 해답이 아님을 깨닫거나 마지막 기회를 잃는다",
+            13: "반복 종료 조건 임박 — 되돌릴 수 없는 마지막 회차",
+            14: "반복을 끝내는 선택 — 회차에서 배운 것을 무기로 대가를 감수. 실행 주체는 주인공",
+            15: "반복 밖의 첫 시간",
+            16: "1회차와 같은 장소·같은 시각의 대비 장면",
+        },
+        "rules": [
+            "같은 회차를 똑같이 재연하는 비트는 실패다. 회차마다 바뀐 변수와 결과를 적는다.",
+            "반복의 규칙은 5·10 슬롯에서 두 번 드러난다. 규칙이 한 번도 갱신되지 않으면 실패.",
+            "반복 횟수 자체가 아니라 누적된 차이가 서사의 동력이다.",
+        ],
+    },
+}
+
+_LOOP_KEYWORDS = ("루프", "타임루프", "타임 루프", "타임리프", "타임 리프", "회귀",
+                  "반복되는 하루", "같은 하루", "되감", "time loop", "timeloop")
+_SITUATION_KEYWORDS = ("재난", "재해", "지진", "쓰나미", "해일", "화재", "붕괴", "생존")
+
+
+def normalize_structure_type(raw) -> str:
+    """구버전 프로젝트·알 수 없는 값은 기본값(15비트)으로 되돌린다."""
+    s = str(raw or "").strip()
+    return s if s in STRUCTURE_TYPE_DEFS else STRUCTURE_TYPE_DEFAULT
+
+
+def recommend_structure_type(genre: str, idea_text: str = "", locked_text: str = "") -> tuple:
+    """장르·아이디어로 구조 유형을 추천한다. 반환: (유형, 근거 1문장).
+
+    우선순위: 시간 변주(루프 키워드) > 장르 head(복합 장르 후행어 규칙) > 로맨스 성분.
+    head 해석은 _resolve_genre_head()에 위임한다 (복합 장르 규칙 단일 소스).
+    최종 선택은 작가가 한다 — 이 함수는 기본 선택값만 정한다.
+    """
+    g = str(genre or "")
+    scan = f"{g} {idea_text or ''} {locked_text or ''}".lower()
+    if any(k in scan for k in _LOOP_KEYWORDS):
+        return "시간 변주", "아이디어·LOCKED에 반복되는 시간(루프·회귀) 설정이 있습니다."
+    head = _resolve_genre_head(g)
+    if head == "로맨스" or (head == "코미디" and _is_romance(g)):
+        return "관계 아크", f"장르 head가 {'로맨틱코미디' if head == '코미디' else '로맨스/멜로'}입니다 — 두 인물 관계의 변화가 동력입니다."
+    if head in ("스릴러", "범죄", "재난") or any(k in g for k in _SITUATION_KEYWORDS):
+        return "상황 추진", f"장르 head가 {head}입니다 — 외부 사건의 압력이 동력입니다."
+    if _is_romance(g):
+        return "관계 아크", "장르에 멜로·로맨스 성분이 있습니다 — 관계 변화가 동력입니다."
+    return STRUCTURE_TYPE_DEFAULT, f"장르 head가 {head}입니다 — 주인공의 목표와 내적 변화가 동력인 기본 골격입니다."
+
+
+def build_structure_type_block(structure_type: str = "", fmt: str = "") -> str:
+    """선택한 구조 유형의 슬롯 재정의 블록. 15비트(기본)는 빈 문자열 — 기존 프롬프트 불변."""
+    stype = normalize_structure_type(structure_type)
+    d = STRUCTURE_TYPE_DEFS[stype]
+    if not d["slots"]:
+        return ""
+    beat_struct = get_beat_structure(fmt)
+    base_names = {}
+    for _grp, beats in beat_struct.items():
+        for num, name, _desc in beats:
+            base_names[num] = name
+    lines = [
+        "",
+        f"[★ v2.8.0 구조 유형 — {stype} (동력: {d['drive']}) ★]",
+        "이 작품은 작가가 위 구조 유형을 선택했다. 비트 번호·막(에피소드) 배치는 바꾸지 않는다.",
+        "각 비트 슬롯이 '무엇으로 움직이는가'만 아래 정의로 읽는다.",
+        "기존 규칙(Beat 12 무너짐 / Beat 14 주인공 역전 / 적대 세력 승률 / 장벽 에스컬레이션)은 그대로 유효하다.",
+        "",
+    ]
+    for num in sorted(d["slots"]):
+        lines.append(f"  Beat {num} [{base_names.get(num, '')}] → {d['slots'][num]}")
+    if d["rules"]:
+        lines.append("")
+        lines.append("[이 구조 유형의 추가 규칙]")
+        for r in d["rules"]:
+            lines.append(f"  - {r}")
+    return "\n".join(lines) + "\n"
+
+
+# ─── C4. 인물 상태 축 ───
+# 각 축 = (양극, 음극). 값 척도: +5(양극 끝) ~ -5(음극 끝). 0은 중립.
+# '바닥' = 음극 쪽. 3막 직전(Beat 12)에 주인공 값이 바닥을 쳐야 한다.
+STATE_AXES_MAP = {
+    "스릴러": [("신뢰", "의심"), ("희망", "절망"), ("정의", "불의")],
+    "범죄":   [("통제", "붕괴"), ("결속", "배신"), ("계산", "충동")],
+    "로맨틱코미디": [("개방", "방어"), ("자존", "굴복"), ("진실", "거짓")],
+    "로맨스": [("개방", "방어"), ("헌신", "이기"), ("희망", "체념")],
+    "코미디": [("통제", "난장"), ("자기인식", "착각"), ("체면", "망신")],
+    "호러":   [("이성", "공포"), ("연대", "고립"), ("직면", "부정")],
+    "액션":   [("통제", "무력"), ("신뢰", "고립"), ("의지", "포기")],
+    "드라마": [("희망", "절망"), ("연결", "고립"), ("수용", "부정")],
+    "SF":     [("인간성", "상실"), ("신뢰", "의심"), ("희망", "절망")],
+    "판타지": [("믿음", "의심"), ("소속", "추방"), ("희망", "절망")],
+    "시대극": [("신념", "타협"), ("소속", "추방"), ("희망", "절망")],
+    "재난":   [("연대", "고립"), ("희망", "절망"), ("통제", "무력")],
+    "전쟁":   [("연대", "고립"), ("신념", "환멸"), ("생존", "소멸")],
+}
+STATE_AXIS_MIN, STATE_AXIS_MAX = -5, 5
+STATE_BOTTOM_THRESHOLD = -3      # Beat 12 주인공 평균이 이 값 이하여야 '바닥'
+STATE_BOTTOM_BEAT = 12           # 3막 직전 (All Is Lost) — 영화·시리즈 공통 슬롯
+
+
+def get_state_axes(genre: str) -> list:
+    """장르별 상태 축 3개. 롬코는 head가 코미디여도 관계 축을 쓴다."""
+    g = str(genre or "")
+    if _is_romcom(g):
+        return STATE_AXES_MAP["로맨틱코미디"]
+    head = _resolve_genre_head(g)
+    return STATE_AXES_MAP.get(head, STATE_AXES_MAP["드라마"])
+
+
+def build_state_axes_instruction(genre: str, fmt: str = "") -> str:
+    """Structure 진단에 주입하는 상태 축 설계 지시문."""
+    axes = get_state_axes(genre)
+    beat_struct = get_beat_structure(fmt)
+    n = sum(len(v) for v in beat_struct.values())
+    axes_str = " / ".join(f"{p}(+5)↔{m}(-5)" for p, m in axes)
+    return f"""
+[★ v2.8.0 인물 상태 축 — state_axes 필수 ★]
+이 작품의 상태 축은 엔진이 장르로 확정했다. 축을 바꾸거나 추가하지 마라.
+  축: {axes_str}
+- 주인공과 적대자의 값을 Beat 1~{n} 전부에 대해 목표값으로 설계하라.
+- 값은 -5~+5 정수. 축 순서대로 배열에 넣는다.
+- ★ Beat {STATE_BOTTOM_BEAT}(3막 직전)에서 주인공의 값이 작품 전체의 바닥이어야 한다.
+  세 축 평균이 {STATE_BOTTOM_THRESHOLD} 이하이고, Beat 13을 제외한 어느 비트보다 낮거나 같아야 한다.
+- 인접 비트 사이에서 값이 하나도 움직이지 않는 구간이 3비트 이상 이어지면 실패다.
+- 적대자 값은 주인공과 반대 방향으로 움직이는 구간이 있어야 한다 (Beat 13에서 적대자 최고).
+"""
+
+
+def validate_state_axes(state_axes: dict, fmt: str = "") -> list:
+    """상태 축 파이썬 검사. 경고 문자열 리스트 반환 (빈 리스트 = 통과)."""
+    warns = []
+    if not isinstance(state_axes, dict):
+        return ["state_axes 블록이 없습니다."]
+    beat_struct = get_beat_structure(fmt)
+    n = sum(len(v) for v in beat_struct.values())
+    axes = state_axes.get("axes") or []
+    targets = state_axes.get("targets") or []
+    if not (3 <= len(axes) <= 4):
+        warns.append(f"상태 축 개수 {len(axes)}개 — 3~4개여야 합니다.")
+    n_axes = len(axes) if axes else 3
+
+    prot = {}
+    for t in targets:
+        if not isinstance(t, dict):
+            continue
+        try:
+            b = int(t.get("beat"))
+        except (TypeError, ValueError):
+            continue
+        vals = t.get("protagonist") or []
+        clean = []
+        for v in vals:
+            try:
+                iv = int(v)
+            except (TypeError, ValueError):
+                continue
+            if iv < STATE_AXIS_MIN or iv > STATE_AXIS_MAX:
+                warns.append(f"Beat {b} 주인공 값 {iv} — 범위(-5~+5) 밖입니다.")
+                iv = max(STATE_AXIS_MIN, min(STATE_AXIS_MAX, iv))
+            clean.append(iv)
+        if len(clean) != n_axes:
+            warns.append(f"Beat {b} 주인공 값 {len(clean)}개 — 축 수({n_axes})와 다릅니다.")
+        if clean:
+            prot[b] = sum(clean) / len(clean)
+
+    missing = [b for b in range(1, n + 1) if b not in prot]
+    if missing:
+        warns.append(f"주인공 목표값이 비어 있는 비트: {missing}")
+    if STATE_BOTTOM_BEAT in prot:
+        v = prot[STATE_BOTTOM_BEAT]
+        others = [val for b, val in prot.items() if b not in (STATE_BOTTOM_BEAT, 13)]
+        low = min(others) if others else v
+        if v > STATE_BOTTOM_THRESHOLD or v > low:
+            low_beat = min((b for b in prot if b not in (STATE_BOTTOM_BEAT, 13)),
+                           key=lambda b: prot[b], default=None)
+            warns.append(
+                f"⚠️ 3막 직전 바닥 미달 — Beat {STATE_BOTTOM_BEAT} 주인공 평균 {v:.1f} "
+                f"(기준: {STATE_BOTTOM_THRESHOLD} 이하, 동시에 최저). "
+                f"현재 최저는 Beat {low_beat} ({low:.1f})."
+            )
+    # 정체 구간: 인접 비트 평균이 동일한 구간 3비트 이상
+    run = 1
+    for b in range(2, n + 1):
+        if b in prot and (b - 1) in prot and prot[b] == prot[b - 1]:
+            run += 1
+            if run == 3:
+                warns.append(f"Beat {b-2}~{b} 주인공 상태가 움직이지 않습니다 (정체 구간).")
+        else:
+            run = 1
+    return warns
+
+
+# ─── C5. 시퀀스 설계와 씬 예산 ───
+SEQ_COUNT_MIN, SEQ_COUNT_MAX, SEQ_COUNT_DEFAULT = 6, 10, 8
+SCENE_BUDGET_TARGET = 100
+SCENE_BUDGET_TOLERANCE = 10      # 100 내외 = 90~110
+SEQ_ACT_DEFAULT = {1: 2, 2: 4, 3: 2}
+
+
+def build_sequence_instruction(fmt: str = "", structure_type: str = "") -> str:
+    """Structure Story에 주입하는 시퀀스 설계 지시문 (비트 슬롯 목록 포함)."""
+    beat_struct = get_beat_structure(fmt)
+    slot_lines = []
+    for grp, beats in beat_struct.items():
+        label = f"{grp}막" if isinstance(grp, int) else str(grp)
+        for num, name, _desc in beats:
+            slot_lines.append(f"  Beat {num} ({label}) {name}")
+    slots = "\n".join(slot_lines)
+    type_block = build_structure_type_block(structure_type, fmt)
+    if is_series_format(fmt):
+        budget_rule = (
+            "- 시리즈: storyline 항목은 에피소드 단위. act 필드에는 해당 에피소드가 속한 막(1/2/3)을 적는다.\n"
+            "- scene_budget은 에피소드별 권장 씬 수 (정수). 합계 제한은 두지 않는다."
+        )
+    else:
+        budget_rule = (
+            f"- 영화: 기본 {SEQ_COUNT_DEFAULT}시퀀스 (1막 2 · 2막 4 · 3막 2). 작품에 따라 "
+            f"{SEQ_COUNT_MIN}~{SEQ_COUNT_MAX}개로 조정 가능. 조정 시 adjust_reason에 이유 1문장.\n"
+            f"- scene_budget은 시퀀스별 권장 씬 수 (정수). 전체 합계 {SCENE_BUDGET_TARGET} 내외"
+            f"({SCENE_BUDGET_TARGET - SCENE_BUDGET_TOLERANCE}~{SCENE_BUDGET_TARGET + SCENE_BUDGET_TOLERANCE})."
+        )
+    return f"""
+[★ v2.8.0 시퀀스 설계 — goal / beats / scene_budget 필수 ★]
+엔진의 비트 슬롯:
+{slots}
+- 모든 비트 슬롯은 정확히 한 시퀀스에만 배정한다 (누락·중복 금지).
+- 시퀀스 순서대로 비트 번호가 전진한다. act 값은 뒤로 가지 않는다.
+- goal: 이 시퀀스에서 주인공(또는 추진 주체)이 이루려는 것 1문장. 구체 행동으로.
+{budget_rule}
+{type_block}"""
+
+
+def validate_sequences(storyline: list, fmt: str = "") -> list:
+    """시퀀스 파이썬 검사. 경고 문자열 리스트 반환."""
+    warns = []
+    if not isinstance(storyline, list) or not storyline:
+        return ["storyline이 비어 있습니다."]
+    beat_struct = get_beat_structure(fmt)
+    n = sum(len(v) for v in beat_struct.values())
+    series = is_series_format(fmt)
+    count = len(storyline)
+    if not series and not (SEQ_COUNT_MIN <= count <= SEQ_COUNT_MAX):
+        warns.append(f"시퀀스 {count}개 — 영화는 {SEQ_COUNT_MIN}~{SEQ_COUNT_MAX}개여야 합니다.")
+
+    # 영화: 비트 → 막 (1~6 = 1막, 7~12 = 2막, 13~16 = 3막). 시리즈는 EP 키라 생략.
+    beat_act = {}
+    if not series:
+        for grp, blist in beat_struct.items():
+            for num, _n, _d in blist:
+                beat_act[num] = grp
+
+    seen = {}
+    prev_act, prev_max_beat = 0, 0
+    budget_sum, budget_ok = 0, True
+    act_count = {}
+    for i, s in enumerate(storyline, 1):
+        if not isinstance(s, dict):
+            continue
+        tag = f"SEQ {s.get('seq', i)}"
+        if not str(s.get("goal", "")).strip():
+            warns.append(f"{tag} — goal(목표 한 줄)이 비어 있습니다.")
+        try:
+            act = int(s.get("act"))
+            act_count[act] = act_count.get(act, 0) + 1
+            if act < prev_act:
+                warns.append(f"{tag} — 막 번호가 뒤로 갑니다 ({prev_act}→{act}).")
+            prev_act = max(prev_act, act)
+        except (TypeError, ValueError):
+            warns.append(f"{tag} — act(막) 값이 없습니다.")
+        beats = []
+        for b in (s.get("beats") or []):
+            try:
+                beats.append(int(b))
+            except (TypeError, ValueError):
+                continue
+        if not beats:
+            warns.append(f"{tag} — 담당 비트가 비어 있습니다.")
+        for b in beats:
+            if b in seen:
+                warns.append(f"Beat {b} 중복 배정 — {seen[b]} / {tag}")
+            seen[b] = tag
+        if beat_act and str(s.get("act", "")).isdigit():
+            off = [b for b in beats if b in beat_act and beat_act[b] != int(s.get("act"))]
+            if off:
+                warns.append(f"{tag} — {s.get('act')}막 시퀀스가 다른 막의 비트를 담당합니다: "
+                             + ", ".join(f"Beat {b}({beat_act[b]}막)" for b in off))
+        if beats and min(beats) < prev_max_beat:
+            warns.append(f"{tag} — 비트 순서가 뒤로 갑니다 (Beat {min(beats)} < {prev_max_beat}).")
+        if beats:
+            prev_max_beat = max(prev_max_beat, max(beats))
+        try:
+            budget_sum += int(s.get("scene_budget"))
+        except (TypeError, ValueError):
+            budget_ok = False
+            warns.append(f"{tag} — scene_budget(권장 씬 수)이 정수가 아닙니다.")
+
+    missing = [b for b in range(1, n + 1) if b not in seen]
+    if missing:
+        warns.append(f"어느 시퀀스에도 배정되지 않은 비트: {missing}")
+    extra = sorted(b for b in seen if b < 1 or b > n)
+    if extra:
+        warns.append(f"존재하지 않는 비트 번호: {extra}")
+    if not series and budget_ok:
+        lo = SCENE_BUDGET_TARGET - SCENE_BUDGET_TOLERANCE
+        hi = SCENE_BUDGET_TARGET + SCENE_BUDGET_TOLERANCE
+        if not (lo <= budget_sum <= hi):
+            warns.append(f"씬 예산 합계 {budget_sum} — 권장 범위 {lo}~{hi}를 벗어났습니다.")
+    if not series and count == SEQ_COUNT_DEFAULT and act_count and act_count != SEQ_ACT_DEFAULT:
+        dist = " · ".join(f"{a}막 {c}" for a, c in sorted(act_count.items()))
+        warns.append(f"(참고) 8시퀀스 막 배분이 기본(1막 2 · 2막 4 · 3막 2)과 다릅니다: {dist}")
+    return warns
+
+
+def build_state_targets_for_treatment(state_axes: dict, beat_numbers: list) -> str:
+    """Treatment 막별 호출에 주입할 주인공·적대자 목표값 블록. 없으면 빈 문자열."""
+    if not isinstance(state_axes, dict):
+        return ""
+    axes = state_axes.get("axes") or []
+    if not axes:
+        return ""
+    names = []
+    for a in axes:
+        if isinstance(a, dict):
+            names.append(f"{a.get('positive','')}↔{a.get('negative','')}")
+        else:
+            names.append(str(a))
+    want = set(int(b) for b in beat_numbers)
+    rows = []
+    for t in state_axes.get("targets") or []:
+        try:
+            b = int(t.get("beat"))
+        except (TypeError, ValueError, AttributeError):
+            continue
+        if b in want:
+            rows.append(f"  Beat {b}: 주인공 {t.get('protagonist', [])} / 적대자 {t.get('antagonist', [])}")
+    if not rows:
+        return ""
+    return (
+        "\n[★ v2.8.0 인물 상태 목표값 — Structure에서 설계됨 ★]\n"
+        f"축 순서: {' / '.join(names)}  (값 +5 양극 ~ -5 음극)\n"
+        + "\n".join(rows)
+        + "\n- 각 비트의 사건은 주인공 값이 이 목표값에 도달하도록 설계하라. "
+          "값이 바뀌는 원인은 인물의 행동과 그 결과여야 한다 (서술로 선언 금지).\n"
+    )
+
+
+# ═══════════════════════════════════════════════════════════════
+# v2.8.1 신규 — 인물 말투 체계(C1) · 모순·상처(C2) · 씬리스트(C6) · 인계 JSON
+# ═══════════════════════════════════════════════════════════════
+# [설계 원칙]
+#   말투는 따로 설계하는 항목이 아니라 캐릭터 설정의 결과다.
+#   출신지 → 사투리, 나이·지위·관계 → 존대·반말·하대.
+#   Creator는 아웃라인 엔진이므로 사투리 대사를 직접 쓰지 않는다.
+#   규칙만 확정해 Writer Engine에 넘긴다.
+# ═══════════════════════════════════════════════════════════════
+
+SPEECH_REGISTERS = ["존대", "반말", "하대", "혼용"]
+SPEECH_REGISTER_DEFS = {
+    "존대": "상대를 높인다. 해요체·합쇼체.",
+    "반말": "친밀·대등. 같은 '야'라도 애정이나 편안함이 깔린다.",
+    "하대": "멸시·위계. 상대를 낮추는 반말. 반말과 구분한다.",
+    "혼용": "상황에 따라 오간다. 어느 조건에서 바뀌는지 reason에 명시.",
+}
+# 시대극에서 쓰면 시대 착오가 되는 현대 호칭
+_MODERN_ADDRESS = ("오빠", "선배", "팀장", "대표님", "사장님", "자기야", "형님요", "쌤", "언니")
+_STANDARD_ORIGINS = ("서울", "경기", "수도권", "표준어", "인천")
+
+
+def validate_speech(characters: list, historical: bool = False, n_beats: int = 16) -> list:
+    """인물 말투 체계 파이썬 검사. 경고 문자열 리스트 반환.
+
+    검사 범위 (객관적으로 판정 가능한 것만):
+      · 출신지는 있는데 사투리 칸이 빈 경우
+      · 말단계 값이 4종 밖인 경우
+      · 하대·혼용인데 근거가 빈 경우 (지위 판단은 LLM 규칙이 담당)
+      · 짝 불일치: A→B와 B→A의 말단계가 다른데 양쪽 근거가 모두 빈 경우
+      · 전환 비트가 1~n_beats 밖이거나, 전환 비트만 있고 전환 결과가 빈 경우
+      · 시대극에서 현대 호칭 사용
+      · 모순·상처 칸이 빈 경우
+    """
+    warns = []
+    if not isinstance(characters, list):
+        return warns
+    names = [c.get("name", "") for c in characters if isinstance(c, dict)]
+    table = {}
+    for c in characters:
+        if not isinstance(c, dict):
+            continue
+        nm = c.get("name", "?")
+        if not str(c.get("contradiction", "")).strip():
+            warns.append(f"{nm} — 모순(contradiction) 칸이 비어 있습니다.")
+        if not str(c.get("wound_event", "")).strip():
+            warns.append(f"{nm} — 상처 사건(wound_event) 칸이 비어 있습니다.")
+        od = c.get("origin_dialect")
+        if isinstance(od, dict):
+            origin = str(od.get("origin", "")).strip()
+            dialect = str(od.get("dialect", "")).strip()
+            if origin and not dialect:
+                warns.append(f"{nm} — 출신지({origin})는 있는데 사투리 칸이 비어 있습니다. 표준어면 '표준어'로 적어야 합니다.")
+            if dialect and dialect != "표준어" and any(s in origin for s in _STANDARD_ORIGINS) and not str(od.get("trigger", "")).strip():
+                warns.append(f"{nm} — 수도권 출신({origin})인데 사투리({dialect})를 씁니다. 이유(trigger)를 적어야 합니다.")
+        elif od is not None:
+            warns.append(f"{nm} — origin_dialect 형식이 객체가 아닙니다.")
+        for s in (c.get("speech_to") or []):
+            if not isinstance(s, dict):
+                continue
+            to = s.get("to", "")
+            reg = str(s.get("register", "")).strip()
+            reason = str(s.get("reason", "")).strip()
+            if to and names and to not in names:
+                warns.append(f"{nm}→{to} — 캐릭터 목록에 없는 인물입니다.")
+            if reg not in SPEECH_REGISTERS:
+                warns.append(f"{nm}→{to} — 말단계 값 '{reg}' — 4종({'/'.join(SPEECH_REGISTERS)}) 밖입니다.")
+            if reg in ("하대", "혼용") and not reason:
+                warns.append(f"{nm}→{to} — {reg}인데 설정 근거(reason)가 비어 있습니다.")
+            sb = s.get("shift_beat", 0)
+            try:
+                sb = int(sb or 0)
+            except (TypeError, ValueError):
+                sb = 0
+            if sb and not (1 <= sb <= n_beats):
+                warns.append(f"{nm}→{to} — 전환 비트 값 {sb} — 1~{n_beats} 범위 밖입니다.")
+            if sb and not str(s.get("shift_to", "")).strip():
+                warns.append(f"{nm}→{to} — Beat {sb}에서 무엇으로 바뀌는지(shift_to)가 비어 있습니다.")
+            if historical:
+                addr = str(s.get("address", ""))
+                hit = [w for w in _MODERN_ADDRESS if w in addr]
+                if hit:
+                    warns.append(f"{nm}→{to} — 시대극에 현대 호칭 사용: {', '.join(hit)}")
+            table[(nm, to)] = (reg, reason)
+    for (a, b), (reg, reason) in table.items():
+        rev = table.get((b, a))
+        if rev and rev[0] != reg and not reason and not rev[1] and a < b:
+            warns.append(f"{a}→{b} '{reg}' / {b}→{a} '{rev[0]}' — 말단계가 비대칭인데 양쪽 근거가 모두 비어 있습니다.")
+    return warns
+
+
+def build_speech_matrix(characters: list) -> list:
+    """캐릭터 바이블에서 쌍 단위 말투 관계표를 평탄화한다 (인계 JSON·UI 표시용)."""
+    rows = []
+    for c in characters or []:
+        if not isinstance(c, dict):
+            continue
+        for s in (c.get("speech_to") or []):
+            if isinstance(s, dict):
+                rows.append({
+                    "from": c.get("name", ""), "to": s.get("to", ""),
+                    "register": s.get("register", ""), "address": s.get("address", ""),
+                    "reason": s.get("reason", ""), "shift_beat": s.get("shift_beat", 0),
+                    "shift_to": s.get("shift_to", ""), "shift_cause": s.get("shift_cause", ""),
+                })
+    return rows
+
+
+# ─── C6. 씬리스트 ───
+SCENE_TIME_SLOTS = ["낮", "밤", "오후", "새벽", "저녁"]   # bluejeans-screenplay-format 기준
+DIALOGUE_MODE_DEFAULT = "서브텍스트"
+DIALOGUE_MODES = {
+    "서브텍스트": "원하는 것을 직접 말하지 않고 다른 말로 우회한다. 기본값.",
+    "대결": "서로의 요구가 정면으로 부딪히는 공방. 씬이 끝나면 한쪽이 무언가를 잃는다.",
+    "정보": "관객이 알아야 할 정보를 전달한다. 반드시 갈등이나 거래 속에서 오간다.",
+    "고백": "감춰온 것을 직접 말한다. 작품 전체에서 소수만 허용한다.",
+    "엇박": "말과 상황, 말과 행동이 어긋나 웃음이나 아이러니를 만든다.",
+    "행동": "대사를 최소화하고 행동으로 진행한다. 물리·정보·관계 중 하나가 반드시 바뀐다.",
+}
+CONFESSION_MAX = 5               # 작품 전체 '고백' 씬 상한
+SAME_LOCATION_RUN_MAX = 2        # 같은 장소 연속 허용 수 (3연속부터 경고)
+SCENE_BUDGET_DEVIATION = 0.2     # 시퀀스별 씬 예산 허용 편차 (±20% 또는 ±2씬 중 큰 값)
+
+SCENE_LIST_VARIANTS = {
+    "기본안": {
+        "desc": "Structure·Treatment 분석이 추천하는 방향 그대로 씬을 배열한다.",
+        "budget_ratio": 1.0,
+    },
+    "압축안": {
+        "desc": ("호흡을 줄인다. 이동·설명·중복 씬을 합치고, 한 씬이 두 가지 기능을 하게 만든다. "
+                 "비트의 기능과 사건은 하나도 빠뜨리지 않는다."),
+        "budget_ratio": 0.8,
+    },
+    "변주안": {
+        "desc": ("관객의 기대를 뒤집는다. 정보 공개 순서, 사건이 벌어지는 장소, 누구의 시점에서 보는지를 바꿔 "
+                 "예상과 다르게 배열한다. 단 LOCKED 항목, 비트의 기능, 결말은 바꾸지 않는다."),
+        "budget_ratio": 1.0,
+    },
+}
+
+
+def build_system_scene_list(genre: str, fmt: str, variant: str, structure_type: str = "",
+                            locked_text: str = "", idea_text: str = "") -> str:
+    """씬리스트 1막 분량 생성 시스템 프롬프트."""
+    v = SCENE_LIST_VARIANTS.get(variant, SCENE_LIST_VARIANTS["기본안"])
+    modes = "\n".join(f"  · {k}: {d}" for k, d in DIALOGUE_MODES.items())
+    return f"""당신은 한국 장편 영화·시리즈의 씬리스트를 짜는 Story Editor다.
+Treatment의 비트를 씬 단위로 나눠 번호순 목록을 만든다. 대사·지문은 쓰지 않는다.
+{get_format_authority_block(fmt)}
+{LOCKED_SYSTEM_RULES}
+
+[이번 안 — {variant}]
+{v['desc']}
+
+[씬 작성 규칙]
+- 씬 하나 = 장소 하나 + 연속된 시간 하나. 장소나 시간이 바뀌면 새 씬이다.
+- summary는 한 줄. 그 씬에서 누가 무엇을 해서 무엇이 바뀌는지 적는다.
+  상태가 바뀌지 않는 씬(도착·대기·회상 나열·분위기 묘사)은 만들지 않는다.
+- 같은 장소는 작품 전체에서 같은 이름으로 적는다 (표기 흔들림 금지).
+- 같은 장소를 {SAME_LOCATION_RUN_MAX + 1}씬 이상 연속으로 쓰지 않는다.
+- time은 다음 5종만 쓴다: {' / '.join(SCENE_TIME_SLOTS)}.
+- int_ext는 INT / EXT / INT/EXT 중 하나.
+- characters에는 등장인물 목록의 이름만 쓴다. 엑스트라는 역할명(예: '경비원')으로.
+- 모든 씬에 seq(시퀀스 번호)와 beat(비트 번호)를 적는다.
+- 시퀀스별 씬 수는 제시된 권장 씬 수를 따른다.
+- dialogue_mode는 아래 6종 중 하나. 기본은 {DIALOGUE_MODE_DEFAULT}다.
+{modes}
+  '고백'은 작품 전체에서 {CONFESSION_MAX}씬 이하.
+{build_structure_type_block(structure_type, fmt)}
+{JSON_OUTPUT_RULES_STRICT}"""
+
+
+SCENE_LIST_SCHEMA = """{
+  "scenes": [
+    {
+      "no": 1,
+      "seq": 1,
+      "beat": 1,
+      "int_ext": "INT",
+      "location": "장소",
+      "time": "낮",
+      "summary": "누가 무엇을 해서 무엇이 바뀌는가 — 한 줄",
+      "characters": ["인물명"],
+      "dialogue_mode": "서브텍스트"
+    }
+  ]
+}"""
+
+
+def renumber_scenes(act_parts: list) -> list:
+    """막별 결과를 이어 붙이고 씬 번호를 1부터 다시 매긴다."""
+    out = []
+    for part in act_parts:
+        for s in (part or []):
+            if isinstance(s, dict):
+                out.append(dict(s))
+    for i, s in enumerate(out, 1):
+        s["no"] = i
+    return out
+
+
+def validate_scene_list(scenes: list, storyline: list = None, main_characters: list = None,
+                        variant: str = "기본안", fmt: str = "") -> list:
+    """씬리스트 파이썬 검사. 경고 문자열 리스트 반환."""
+    warns = []
+    if not isinstance(scenes, list) or not scenes:
+        return ["씬리스트가 비어 있습니다."]
+
+    # ① 동일 장소 연속
+    run, prev = 1, None
+    for s in scenes:
+        loc = str(s.get("location", "")).strip()
+        if loc and loc == prev:
+            run += 1
+            if run == SAME_LOCATION_RUN_MAX + 1:
+                warns.append(f"S#{s.get('no')} — '{loc}' {run}씬 연속 (허용 {SAME_LOCATION_RUN_MAX}).")
+        else:
+            run = 1
+        prev = loc
+
+    # ② 시간대 5종 밖
+    bad_time = [f"S#{s.get('no')}({s.get('time')})" for s in scenes
+                if str(s.get("time", "")).strip() not in SCENE_TIME_SLOTS]
+    if bad_time:
+        warns.append(f"시간대 5종({'/'.join(SCENE_TIME_SLOTS)}) 밖 표기: {', '.join(bad_time[:10])}"
+                     + (f" 외 {len(bad_time) - 10}건" if len(bad_time) > 10 else ""))
+
+    # ③ 시퀀스별 씬 예산
+    ratio = SCENE_LIST_VARIANTS.get(variant, {}).get("budget_ratio", 1.0)
+    if storyline:
+        count = {}
+        for s in scenes:
+            try:
+                count[int(s.get("seq"))] = count.get(int(s.get("seq")), 0) + 1
+            except (TypeError, ValueError):
+                pass
+        for seq in storyline:
+            if not isinstance(seq, dict):
+                continue
+            try:
+                sn, budget = int(seq.get("seq")), int(seq.get("scene_budget"))
+            except (TypeError, ValueError):
+                continue
+            target = round(budget * ratio)
+            tol = max(2, round(target * SCENE_BUDGET_DEVIATION))
+            got = count.get(sn, 0)
+            if got > target + tol:
+                warns.append(f"SEQ {sn} 씬 예산 초과 — {got}씬 / 권장 {target}씬 (허용 ±{tol}).")
+            elif got < target - tol:
+                warns.append(f"SEQ {sn} 씬 예산 미달 — {got}씬 / 권장 {target}씬 (허용 ±{tol}).")
+
+    # ④ 한 번도 등장하지 않는 주요 인물
+    if main_characters:
+        appeared = " ".join(
+            " ".join(s.get("characters", [])) if isinstance(s.get("characters"), list) else str(s.get("characters", ""))
+            for s in scenes
+        )
+        absent = [n for n in main_characters if n and n not in appeared]
+        if absent:
+            warns.append(f"씬리스트에 한 번도 등장하지 않는 주요 인물: {', '.join(absent)}")
+
+    # 보조: 대사 방식
+    bad_mode = [f"S#{s.get('no')}" for s in scenes if s.get("dialogue_mode") not in DIALOGUE_MODES]
+    if bad_mode:
+        warns.append(f"대사 방식 6종 밖: {', '.join(bad_mode[:10])}")
+    conf = sum(1 for s in scenes if s.get("dialogue_mode") == "고백")
+    if conf > CONFESSION_MAX:
+        warns.append(f"'고백' 씬 {conf}개 — 상한 {CONFESSION_MAX}개를 넘었습니다.")
+
+    # 보조: 비트 누락
+    beat_struct = get_beat_structure(fmt)
+    n = sum(len(v) for v in beat_struct.values())
+    got_beats = set()
+    for s in scenes:
+        try:
+            got_beats.add(int(s.get("beat")))
+        except (TypeError, ValueError):
+            pass
+    miss = [b for b in range(1, n + 1) if b not in got_beats]
+    if miss and len(got_beats) > 0:
+        warns.append(f"씬이 하나도 없는 비트: {miss}")
+    return warns
+
+
+def format_beat_slots(fmt: str = "") -> str:
+    """v2.8.2: 엔진 비트 슬롯 목록 문자열 (Structure 진단 beat_sheet 기준표)."""
+    lines = []
+    for grp, beats in get_beat_structure(fmt).items():
+        label = f"{grp}막" if isinstance(grp, int) else str(grp)
+        for num, name, desc in beats:
+            lines.append(f"  Beat {num} ({label}) {name} — {desc}")
+    return "\n".join(lines)
+
+
+def build_speech_shifts_for_treatment(speech_matrix: list, beat_numbers: list) -> str:
+    """v2.8.2: Treatment 막별 호출에 주입할 말투 블록.
+    이 막에서 말투가 바뀌는 쌍은 전환 지시로, 나머지는 현재 말단계 참조표로 넣는다."""
+    if not speech_matrix:
+        return ""
+    want = set(int(b) for b in beat_numbers)
+    shifts, base = [], []
+    for r in speech_matrix:
+        try:
+            sb = int(r.get("shift_beat") or 0)
+        except (TypeError, ValueError):
+            sb = 0
+        base.append(f"  {r.get('from','')}→{r.get('to','')}: {r.get('register','')} ('{r.get('address','')}')")
+        if sb in want and str(r.get("shift_to", "")).strip():
+            shifts.append(f"  Beat {sb}: {r.get('from','')}→{r.get('to','')} {r.get('register','')} → "
+                          f"{r.get('shift_to','')} / 계기: {r.get('shift_cause','')}")
+    out = "\n[★ v2.8.2 말투 관계 — 캐릭터 바이블에서 설계됨 ★]\n현재 말단계(호칭):\n" + "\n".join(base[:40]) + "\n"
+    if shifts:
+        out += ("이 막에서 말투가 바뀌는 지점 — 해당 비트에서 계기 사건을 거쳐 실제로 바뀌게 설계하라:\n"
+                + "\n".join(shifts) + "\n")
+    out += "- 전환 비트 전에는 기존 말단계를 유지한다. 계기 없이 말투가 바뀌면 실패다.\n"
+    return out
+
+
+def build_writer_handoff_v28(project: dict) -> dict:
+    """v2.8.0~v2.8.1 신규 필드를 Writer Engine 인계용으로 묶는다.
+
+    기존 writer_handoff_v26(treatment 내부)은 건드리지 않는다. 별도 최상위 키로 저장.
+    값이 없는 항목은 빈 값으로 둔다 — Writer 측이 키 존재 여부로 분기할 수 있게.
+    """
+    project = project or {}
+    chars = (project.get("char_bible") or {}).get("characters", []) or []
+    story = project.get("structure_story") or {}
+    diag = project.get("structure_diag") or {}
+    sl = project.get("scene_list") or {}
+    return {
+        "handoff_version": ENGINE_VERSION,
+        "structure_type": normalize_structure_type(project.get("structure_type")),
+        "state_axes": diag.get("state_axes") or {},
+        "sequences": [
+            {k: s.get(k) for k in ("seq", "act", "label", "goal", "beats", "scene_budget", "pages")}
+            for s in (story.get("storyline") or []) if isinstance(s, dict)
+        ],
+        "speech_matrix": build_speech_matrix(chars),
+        "character_voice": [
+            {"name": c.get("name", ""), "origin_dialect": c.get("origin_dialect", {}),
+             "base_register": c.get("base_register", "")}
+            for c in chars if isinstance(c, dict)
+        ],
+        "character_core": [
+            {"name": c.get("name", ""), "flaw": c.get("flaw", ""),
+             "contradiction": c.get("contradiction", ""), "wound_event": c.get("wound_event", "")}
+            for c in chars if isinstance(c, dict)
+        ],
+        "scene_list_locked": {
+            "variant": sl.get("locked_variant", ""),
+            "locked_at": sl.get("locked_at", ""),
+            "scenes": sl.get("locked") or [],
+        },
+        "dialogue_modes": DIALOGUE_MODES,
+        "speech_registers": SPEECH_REGISTER_DEFS,
+        "time_slots": SCENE_TIME_SLOTS,
+    }
+
+
 def build_system_core(genre: str, fact_based: bool = False, historical: bool = False, film_type: str = "",
                       locked_text: str = "", idea_text: str = "", fmt: str = "") -> str:
     """Core Build 시스템 프롬프트 — v2.4 (장르 + LOCKED + FACT + OPENING MASTERY + BJND 4축 + 창작자 감성 + 기술 지원 + 시대극 자동 감지)
@@ -8340,6 +9265,26 @@ CHAR_BIBLE_SCHEMA = """{
     "secret": "비밀 1개 — 이것이 밝혀지면 플롯이 바뀐다",
     "belief": "핵심 신념 — 절대 양보 못하는 가치",
     "fear": "가장 두려워하는 것",
+    "contradiction": "★ v2.8.1 모순 한 줄 — 이 인물을 잊히지 않게 만드는 대립. 관찰 가능한 두 면을 한 줄로 (예: '돈 세는 손은 느린데 거짓말은 빠른 사채업자'). 성격 형용사 나열 금지.",
+    "wound_event": "★ v2.8.1 상처 사건 1개 — flaw를 만든 사건. 언제·어디서·누가·무엇을 했는가를 사건으로 (예: '열두 살 겨울, 아버지가 가게 금고 앞에서 자신을 도둑으로 몰았다'). '상처가 있다' 같은 설명 금지.",
+    "origin_dialect": {
+        "origin": "★ v2.8.1 출신지 (시·도 또는 지역)",
+        "dialect": "쓰는 사투리 종류. 쓰지 않으면 '표준어'",
+        "strength": "강 / 중 / 약 / 없음",
+        "trigger": "사투리가 나오거나 숨는 조건 (예: '평소 표준어, 흥분하면 억양이 돌아온다'). 없으면 빈 문자열"
+    },
+    "base_register": "★ v2.8.1 기본 말단계와 호칭 습관 1문장 (예: '처음 보는 사람에게도 반말. 직함 대신 성으로 부른다')",
+    "speech_to": [
+        {
+            "to": "★ v2.8.1 상대 캐릭터명 — 다른 캐릭터 이름 목록의 인물 전원",
+            "register": "존대 / 반말 / 하대 / 혼용 중 하나",
+            "address": "상대를 부르는 호칭 (예: '김 반장', '야', '형님', '선생님')",
+            "reason": "이 말단계의 설정 근거 — 나이·지위·관계·과거 사건. 하대·혼용이면 필수",
+            "shift_beat": 0,
+            "shift_to": "shift_beat에서 바뀌는 말단계 또는 호칭. 바뀌지 않으면 빈 문자열",
+            "shift_cause": "바뀌는 계기 사건 1문장. 바뀌지 않으면 빈 문자열"
+        }
+    ],
     "tactics": [
         "장애물을 넘는 전술 1 — 이 인물만의 방식",
         "장애물을 넘는 전술 2 — 상황이 악화될 때",
@@ -8399,6 +9344,15 @@ CHAR_BIBLE_RULES = """규칙:
 - ★ v2.6.0 — role이 protagonist면 physical_cost_plan 필드를 반드시 작성.
   4단계 누적 계획을 모두 채워야 함. 이전 대가는 사라지지 않음 (리셋 금지).
   대가는 주인공 자신의 몸에 남아야 함 (타인 신체는 카운트 안 됨). 그 외 역할은 빈 문자열. ★
+
+- ★ v2.8.1 — 말투는 캐릭터 설정에서 도출하라. 출신지 → 사투리, 나이·지위·관계 → 말단계. ★
+  · 반말(친밀·대등)과 하대(멸시·위계)를 구분하라. 같은 '야'라도 뜻이 다르다.
+  · 지위·나이가 낮은 쪽이 높은 쪽에 하대하려면 reason에 그 이유(권력 역전, 적대 등)를 적어라.
+  · speech_to에는 다른 캐릭터 이름 목록의 인물 전원을 한 번씩 적는다.
+  · shift_beat는 말단계·호칭이 바뀌는 비트 번호(1~16). 바뀌지 않으면 0.
+  · 시대극이면 호칭을 시대에 맞춰라 ('오빠'·'선배'·'팀장' 같은 현대 호칭 금지).
+  · 사투리 대사를 직접 쓰지 마라. 규칙만 적는다. 대사는 Writer Engine이 쓴다.
+- ★ v2.8.1 — contradiction은 한 줄, wound_event는 사건 하나. 둘 다 추상어 금지. ★
 
 [★★★ v2.5.1 — JSON 출력 안정성 강제 룰 (절대 위반 금지) ★★★]
 이 룰은 모든 작성 규칙보다 상위다. JSON 파싱 실패는 캐릭터 바이블 단계의 가장 큰 결함이다.
@@ -8556,7 +9510,8 @@ Core Build 결과를 기반으로 시놉시스와 스토리라인을 설계한�
 
 
 def build_system_structure_diagnosis(fact_based: bool = False, historical: bool = False, film_type: str = "",
-                                      locked_text: str = "", idea_text: str = "") -> str:
+                                      locked_text: str = "", idea_text: str = "",
+                                      structure_type: str = "", fmt: str = "") -> str:
     """Structure Diagnosis v1.5 — 관객 심리 설계 + 서브플롯 충돌 + LOCKED 검증 + FACT/HISTORICAL
     
     v2.4.0: locked_text/idea_text 추가 (시대극 자동 감지용)
@@ -8615,7 +9570,7 @@ def build_system_structure_diagnosis(fact_based: bool = False, historical: bool 
 - 3개 Plant 중 2개 이상이 같은 비트(±1)에 몰려있으면 note에 'PLANT 분산 실패'
 - audience_inference_beat이 plant_beat과 같으면 note에 'PLANT 노골화'
 - audience_inference_beat이 payoff_beat과 같으면 note에 'PLANT 추론 시점 부재'
-""" + SORKIN_CURTIS["probable_impossibility"] + "\n\n" + SORKIN_CURTIS["unified_plot_test"] + fact_block + historical_block + "\n\n" + JSON_OUTPUT_RULES_STRICT
+""" + SORKIN_CURTIS["probable_impossibility"] + "\n\n" + SORKIN_CURTIS["unified_plot_test"] + fact_block + historical_block + build_structure_type_block(structure_type, fmt) + "\n\n" + JSON_OUTPUT_RULES_STRICT
 
 
 SYSTEM_STRUCTURE_GATE = """당신은 Development Producer다.
@@ -8781,7 +9736,8 @@ Structure Build 결과를 기반으로 핵심 장면(Key Scene)을 설계한다.
 
 def build_system_treatment(genre: str, act_label: str, fmt: str = "", b_story_context: str = "",
                            fact_based: bool = False, historical: bool = False, film_type: str = "",
-                           locked_text: str = "", idea_text: str = "") -> str:
+                           locked_text: str = "", idea_text: str = "",
+                           structure_type: str = "") -> str:
     """Treatment v2.4.0 — Core Build의 장르/BJND/POV/적대자 규칙 모두 Treatment 단계까지 전파 + 시대극 자동 감지.
     
     [v2.4.0 추가] locked_text/idea_text 파라미터 추가.
@@ -9395,7 +10351,7 @@ AI가 강박·집착·중요성을 표현하려고 같은 행동/숫자/물체�
 
 {v26_physical_cost}
 
-{JSON_OUTPUT_RULES}"""
+{build_structure_type_block(structure_type, fmt)}{JSON_OUTPUT_RULES}"""
 
 
 # ═══════════════════════════════════════════════════

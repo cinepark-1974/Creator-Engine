@@ -502,6 +502,7 @@ STEPS = [
     ("scene_design", "Scene"),
     ("treatment", "Treatment"),
     ("tone_doc", "Tone"),
+    ("scene_list", "Scenes"),   # v2.8.1 신규 (C6)
     ("export", "Export"),
 ]
 
@@ -515,7 +516,8 @@ def render_stepper(current_view, project_data=None):
         "scene_design": 5,
         "treatment": 6,
         "tone_doc": 7,
-        "export": 8,
+        "scene_list": 8,
+        "export": 9,
     }
     current_idx = view_to_step.get(current_view, 0)
 
@@ -539,6 +541,8 @@ def render_stepper(current_view, project_data=None):
             done_idx = 6
         if project_data.get("tone_doc"):
             done_idx = 7
+        if (project_data.get("scene_list") or {}).get("locked"):
+            done_idx = 8
 
     # 인라인 CSS — 버튼을 stepper 형태로 보이게
     st.markdown("""
@@ -604,15 +608,15 @@ def render_stepper(current_view, project_data=None):
 
             if state == "done":
                 # 완료된 단계: 클릭 시 해당 view로 점프
-                if st.button(btn_label, key=f"stepper_nav_{view_key}_{i}", use_container_width=True):
+                if st.button(btn_label, key=f"stepper_nav_{view_key}_{i}", width="stretch"):
                     st.session_state.view = view_key
                     st.rerun()
             elif state == "active":
                 # 현재 위치: 버튼 형태로 표시되지만 클릭해도 의미 없음 (disabled)
-                st.button(btn_label, key=f"stepper_nav_{view_key}_{i}", use_container_width=True, disabled=True)
+                st.button(btn_label, key=f"stepper_nav_{view_key}_{i}", width="stretch", disabled=True)
             else:
                 # 미완료: 비활성
-                st.button(btn_label, key=f"stepper_nav_{view_key}_{i}", use_container_width=True, disabled=True)
+                st.button(btn_label, key=f"stepper_nav_{view_key}_{i}", width="stretch", disabled=True)
 
             st.markdown('</div>', unsafe_allow_html=True)
 
@@ -628,6 +632,8 @@ def render_stepper(current_view, project_data=None):
 
 def _get_project_stage(project: dict) -> str:
     """프로젝트의 현재 완료 단계 파악 — 파일명 생성용"""
+    if (project.get("scene_list") or {}).get("locked"):
+        return "씬리스트잠금"
     if project.get("tone_doc"):
         return "Tone완료"
     if project.get("treatment"):
@@ -647,7 +653,7 @@ def _get_project_stage(project: dict) -> str:
     return "초기"
 
 
-def save_project_to_json(project: dict, engine_version: str = "v2.7.7") -> str:
+def save_project_to_json(project: dict, engine_version: str = "v2.8.2") -> str:
     """프로젝트 전체를 JSON 문자열로 직렬화.
     
     Args:
@@ -705,13 +711,18 @@ def load_project_from_json(json_str: str) -> dict:
     
     # 엔진 버전 호환성 체크 (경고만, 실패 아님)
     saved_version = meta.get("engine_version", "unknown")
-    current_version = "v2.7.7"
+    current_version = "v2.8.2"
     if saved_version != current_version:
         warnings.append(
             f"엔진 버전 차이 — 저장 시: {saved_version} / 현재: {current_version}. "
             f"대부분 호환되지만, 이후 단계 실행 시 예상치 못한 동작이 있을 수 있습니다."
         )
     
+    # v2.8.0 (C3) 구버전 fallback: structure_type이 없거나 알 수 없는 값이면 15비트.
+    #   이미 Structure가 끝난 구버전 프로젝트는 15비트로 설계된 것이므로 그대로가 정확하다.
+    if project.get("structure_story") or "structure_type" in project:
+        project["structure_type"] = P.normalize_structure_type(project.get("structure_type"))
+
     return {
         "project": project,
         "meta": meta,
@@ -2015,8 +2026,13 @@ def call_character_bible(core_data, genre, fmt, locked_block="",
 
 # ─── API Call: Structure Build Story (1단계) ───
 def call_structure_story(core_data, genre, market, fmt, locked_block="",
-                          fact_based=False, historical=False, film_type=""):
-    """Structure 1단계: Synopsis 1P + Storyline"""
+                          fact_based=False, historical=False, film_type="",
+                          structure_type=""):
+    """Structure 1단계: Synopsis 1P + Storyline
+
+    v2.8.0: structure_type 디폴트 인자 추가 (C3). storyline에 act/goal/beats/
+    scene_budget 필드 추가 (C5). 비트 슬롯 목록과 구조 유형 블록을 주입.
+    """
     try:
         client = get_client()
         gns = core_data.get("goal_need_strategy", {})
@@ -2063,9 +2079,14 @@ Strategy: {gns.get("strategy","")}
       "summary": "이 구간 전개 요약",
       "conflict": "이 구간의 갈등",
       "emotion": "감정선 키워드",
-      "hook": "다음 구간으로 당기는 힘"
+      "hook": "다음 구간으로 당기는 힘",
+      "act": 1,
+      "goal": "이 시퀀스의 목표 한 줄 — 주인공이 이루려는 구체 행동",
+      "beats": [1, 2, 3],
+      "scene_budget": 12
     }}
-  ]
+  ],
+  "adjust_reason": "시퀀스 수를 기본값에서 조정했다면 이유 1문장 (조정 안 했으면 빈 문자열)"
 }}
 
 규칙:
@@ -2073,7 +2094,7 @@ Strategy: {gns.get("strategy","")}
 - storyline은 8개 시퀀스 (영화 기준)
 - 시리즈면 시퀀스 대신 에피소드 단위 6~8개
 - 각 시퀀스의 summary, conflict, hook 1문장씩
-"""
+{P.build_sequence_instruction(fmt, structure_type)}"""
 
         response = client.messages.create(
             model=ANTHROPIC_MODEL, max_tokens=16000, temperature=0.3,
@@ -2100,8 +2121,9 @@ Strategy: {gns.get("strategy","")}
 
 # ─── API Call: Structure Build Diagnosis + Character Arcs (2단계) ───
 def call_structure_diagnosis(core_data, story_data, genre, fmt, locked_block="",
-                              fact_based=False, historical=False, film_type=""):
-    """Structure 2단계: 3막 구조 진단 + 15비트 + 캐릭터 관계 변화표"""
+                              fact_based=False, historical=False, film_type="",
+                              structure_type=""):
+    """Structure 2단계: 3막 구조 진단 + 비트 시트(엔진 16슬롯) + 캐릭터 관계 변화표 + 상태 축"""
     try:
         client = get_client()
         gns = core_data.get("goal_need_strategy", {})
@@ -2117,7 +2139,10 @@ def call_structure_diagnosis(core_data, story_data, genre, fmt, locked_block="",
         system_prompt = P.build_system_structure_diagnosis(
             fact_based=fact_based, historical=historical, film_type=film_type,
             locked_text=_locked_text, idea_text=_idea_text,
+            structure_type=structure_type, fmt=fmt,
         )
+        _axes = P.get_state_axes(genre)
+        _axes_json = json.dumps([{"positive": a, "negative": b} for a, b in _axes], ensure_ascii=False)
 
         user_prompt = f"""[입력]
 장르: {genre} / 포맷: {fmt}
@@ -2145,7 +2170,8 @@ Goal: {gns.get("goal","")} / Need: {gns.get("need","")} / Strategy: {gns.get("st
   }},
   "beat_sheet": [
     {{
-      "beat": "Opening Image",
+      "beat_no": 1,
+      "beat": "오프닝",
       "status": "있음|약함|없음",
       "note": "근거 1문장"
     }}
@@ -2167,11 +2193,18 @@ Goal: {gns.get("goal","")} / Need: {gns.get("need","")} / Strategy: {gns.get("st
       "midpoint": "미드포인트 관계 전환",
       "act3": "3막 관계 도착점"
     }}
-  ]
+  ],
+  "state_axes": {{
+    "axes": {_axes_json},
+    "targets": [
+      {{"beat": 1, "protagonist": [0, 0, 0], "antagonist": [0, 0, 0], "cause": "이 값이 되는 사건 1문장"}}
+    ]
+  }}
 }}
-
+{P.build_state_axes_instruction(genre, fmt)}
 규칙:
-- beat_sheet는 15비트 전체 (Opening Image ~ Final Image)
+- beat_sheet는 아래 엔진 비트 슬롯 전체. beat_no와 beat(이름)를 슬롯 표 그대로 적는다 (v2.8.2 — Treatment·게이트와 같은 번호 체계)
+{P.format_beat_slots(fmt)}
 - beat status는 반드시 있음/약함/없음 중 하나
 - character_arcs는 Core Build의 캐릭터 전원
 - relationship_changes는 핵심 관계 3~4쌍
@@ -2217,7 +2250,7 @@ def call_structure_gate(story_data, diag_data, genre: str = ""):
 [3막 구조]
 {json.dumps(diag_data.get("three_act",{}), ensure_ascii=False)}
 
-[15비트]
+[비트 시트]
 {json.dumps(diag_data.get("beat_sheet",[]), ensure_ascii=False)}
 
 [JSON 스키마]
@@ -2446,7 +2479,8 @@ def _build_b_story_context(core_data):
 
 # ─── API Call: Treatment Build (16비트 줄글) ───
 def call_treatment_beats(core_data, story_data, scene_data, genre, fmt, act_number, locked_block="",
-                          fact_based=False, historical=False, film_type="", research=None):
+                          fact_based=False, historical=False, film_type="", research=None,
+                          structure_type="", state_axes=None, speech_matrix=None):
     """Treatment Build: 막별 비트 줄글 생성 — 영화/시리즈 자동 분기.
     
     [v2.3.8 추가 전파 필드]
@@ -2564,7 +2598,12 @@ Water Cooler Moment: {wc.get("scene_or_setup", "")}
         })
         system_prompt = P.build_system_treatment(genre, act_label, fmt=fmt, b_story_context=b_story_context,
                                                    fact_based=fact_based, historical=historical, film_type=film_type,
-                                                   locked_text=_locked_text, idea_text=_idea_text)
+                                                   locked_text=_locked_text, idea_text=_idea_text,
+                                                   structure_type=structure_type)
+        # v2.8.0 (C4): Structure에서 설계한 상태 목표값 중 이 막의 비트만 주입
+        state_target_block = P.build_state_targets_for_treatment(state_axes, [b[0] for b in beats])
+        # v2.8.2: 캐릭터 바이블의 말투 관계 — 이 막의 전환 지점 + 현재 말단계 참조표
+        state_target_block += P.build_speech_shifts_for_treatment(speech_matrix, [b[0] for b in beats])
 
         # ── 시리즈용 추가 정보 ──
         series_info = ""
@@ -2733,7 +2772,7 @@ Goal: {gns.get("goal","")} / Need: {gns.get("need","")} / Strategy: {gns.get("st
 
 [{act_label} — 작성할 비트]
 {beat_list}
-
+{state_target_block}
 [JSON 스키마]
 {P.TREATMENT_BEAT_SCHEMA_TEMPLATE.format(act_number=act_number)}
 
@@ -3420,6 +3459,118 @@ def call_tone_document(core_data, structure_data, scene_data, treatment_data, ch
 
 
 # ─── DOCX 생성 ───
+# ─── API Call: Scene List (v2.8.1 신규, C6) ───
+def call_scene_list_act(project: dict, variant: str, act_number: int):
+    """씬리스트 1막 분량 생성. 안(기본/압축/변주) × 막 단위 독립 호출.
+
+    v2.6.4 교훈: 100씬을 한 번에 생성하면 출력 절단이 재발한다.
+    Treatment와 같은 막별 독립 실행 구조로 피해 범위를 막 1개로 한정한다.
+    반환: 씬 dict 리스트 또는 None.
+    """
+    try:
+        client = get_client()
+        core = project.get("core") or {}
+        story = project.get("structure_story") or {}
+        treatment = project.get("treatment") or {}
+        fmt = project.get("format", "")
+        genre = project.get("genre", "")
+        ratio = P.SCENE_LIST_VARIANTS.get(variant, {}).get("budget_ratio", 1.0)
+
+        storyline = [s for s in (story.get("storyline") or []) if isinstance(s, dict)]
+        act_seqs = [s for s in storyline if str(s.get("act", "")) == str(act_number)]
+        if not act_seqs:
+            act_seqs = storyline   # 구버전 storyline(act 필드 없음) fallback
+        seq_lines = []
+        for s in act_seqs:
+            budget = s.get("scene_budget")
+            try:
+                target = f"권장 {round(int(budget) * ratio)}씬"
+            except (TypeError, ValueError):
+                target = "권장 씬 수 미지정"
+            seq_lines.append(
+                f"SEQ {s.get('seq')} [{s.get('label','')}] Beat {s.get('beats', [])} · {target}\n"
+                f"  목표: {s.get('goal','')}\n  요약: {s.get('summary','')}"
+            )
+
+        beats = ((treatment.get(f"act{act_number}") or {}).get("beats")) or []
+        beat_lines = []
+        for b in beats:
+            if not isinstance(b, dict):
+                continue
+            beat_lines.append(
+                f"Beat {b.get('beat_no')} {b.get('beat_name','')} ({b.get('story_position','')})\n"
+                f"  사건: {b.get('event_summary','')} / 선택: {b.get('decision_summary','')} / 결과: {b.get('consequence_summary','')}\n"
+                f"  아웃라인: {b.get('narrative','')}"
+            )
+
+        chars = (core.get("characters") or []) + (core.get("extended_characters") or [])
+        char_lines = ", ".join(f"{c.get('name','')}({c.get('role','')})" for c in chars if isinstance(c, dict))
+
+        # 앞서 생성한 같은 안의 다른 막 장소명 — 표기 통일용
+        done = ((project.get("scene_list") or {}).get("variants") or {}).get(variant, {})
+        used_locs = sorted({str(s.get("location", "")) for k, part in done.items()
+                            if k != f"act{act_number}" for s in (part or []) if isinstance(s, dict)} - {""})
+
+        td = project.get("tone_doc") or {}
+        dlg_rules = td.get("dialogue_rules") if isinstance(td, dict) else None
+
+        _locked_text, _idea_text = _get_period_scan_context(project)
+        system_prompt = P.build_system_scene_list(
+            genre, fmt, variant, structure_type=project.get("structure_type", ""),
+            locked_text=_locked_text, idea_text=_idea_text,
+        )
+        user_prompt = f"""[작품] 장르: {genre} / 포맷: {fmt} / 구조 골격: {P.normalize_structure_type(project.get('structure_type'))}
+{_build_project_locked_block(project)}
+[등장인물]
+{char_lines}
+
+[{act_number}막 시퀀스 — 권장 씬 수는 '{variant}' 기준으로 이미 환산됨]
+{chr(10).join(seq_lines)}
+
+[{act_number}막 Treatment 비트]
+{chr(10).join(beat_lines) if beat_lines else '(Treatment 비트 없음 — 시퀀스 요약만으로 구성)'}
+
+[이미 쓴 장소명 — 같은 장소는 이 표기를 그대로 쓸 것]
+{', '.join(used_locs) if used_locs else '(없음)'}
+
+[Tone 문서 대사 규칙 — 참고]
+{json.dumps(dlg_rules, ensure_ascii=False)[:1500] if dlg_rules else '(없음)'}
+
+[JSON 스키마]
+{P.SCENE_LIST_SCHEMA}
+
+규칙:
+- {act_number}막 시퀀스의 씬만 출력한다. no는 1부터 매긴다 (엔진이 전체 번호를 다시 매긴다).
+- 비트의 사건·선택·결과가 빠짐없이 어느 씬에든 들어가야 한다.
+"""
+        txt = ""
+        for temp in (0.4, 0.2):
+            response = client.messages.create(
+                model=ANTHROPIC_MODEL, max_tokens=16000, temperature=temp,
+                system=system_prompt,
+                messages=[{"role": "user", "content": user_prompt}],
+            )
+            txt = "".join(b.text for b in response.content if hasattr(b, "text")).strip()
+            st.session_state["last_scene_list_raw"] = txt
+            if response.stop_reason == "max_tokens":
+                continue
+            try:
+                data = safe_json_loads(txt)
+            except Exception:
+                data = None
+            scenes = (data or {}).get("scenes") if isinstance(data, dict) else None
+            if isinstance(scenes, list) and scenes:
+                return scenes
+        raise ValueError("씬리스트 JSON을 읽지 못했습니다 (2회 시도).")
+    except Exception as e:
+        st.error(f"씬리스트 {variant} {act_number}막 생성 실패: {e}")
+        raw = st.session_state.get("last_scene_list_raw", "")
+        if raw:
+            with st.expander("🔧 Scene List Raw (디버그)"):
+                st.text_area("Raw", raw, height=300)
+        return None
+
+
 def generate_docx(project):
     """기획개발보고서 DOCX 생성 — BLUE JEANS 기획서 스타일"""
     from docx import Document
@@ -3536,6 +3687,29 @@ def generate_docx(project):
         p = doc.add_paragraph()
         p.paragraph_format.space_before = Pt(height)
         p.paragraph_format.space_after = Pt(0)
+
+    def add_simple_table(headers, rows, size=8):
+        """v2.8.2: 머리행 NAVY 굵게 + 본문 행. rows는 문자열 리스트의 리스트."""
+        if not rows:
+            return
+        t = doc.add_table(rows=1, cols=len(headers))
+        t.style = "Table Grid"
+        t.alignment = WD_TABLE_ALIGNMENT.CENTER
+        for i, h in enumerate(headers):
+            cell = t.rows[0].cells[i]
+            cell.text = str(h)
+            for p_ in cell.paragraphs:
+                for r_ in p_.runs:
+                    r_.font.bold = True
+                    r_.font.size = Pt(size)
+                    r_.font.color.rgb = NAVY
+        for row in rows:
+            cells = t.add_row().cells
+            for i, v in enumerate(row):
+                cells[i].text = "" if v is None else str(v)
+                for p_ in cells[i].paragraphs:
+                    for r_ in p_.runs:
+                        r_.font.size = Pt(size)
 
     # ═══════════════════════════════════
     #  COVER PAGE
@@ -3712,6 +3886,19 @@ def generate_docx(project):
             add_labeled("비밀", ch.get("secret",""))
             add_labeled("신념", ch.get("belief",""))
             add_labeled("두려움", ch.get("fear",""))
+            # v2.8.2: 모순 · 상처 · 출신·사투리 · 기본 말단계 (구버전은 칸이 없으면 생략)
+            if ch.get("contradiction"):
+                add_labeled("모순", ch.get("contradiction"))
+            if ch.get("wound_event"):
+                add_labeled("상처 사건", ch.get("wound_event"))
+            _od = ch.get("origin_dialect")
+            if isinstance(_od, dict) and (_od.get("origin") or _od.get("dialect")):
+                _odt = f"{_od.get('origin','')} · {_od.get('dialect','')} ({_od.get('strength','')})"
+                if _od.get("trigger"):
+                    _odt += f" — {_od.get('trigger')}"
+                add_labeled("출신·사투리", _odt)
+            if ch.get("base_register"):
+                add_labeled("기본 말단계", ch.get("base_register"))
 
             habits = ch.get("habits", [])
             if habits:
@@ -3745,6 +3932,18 @@ def generate_docx(project):
 
             add_spacer(10)
 
+        # v2.8.2: 말투 관계표
+        _sm = P.build_speech_matrix(char_bible.get("characters", []))
+        if _sm:
+            add_sub_header("말투 관계표")
+            add_simple_table(
+                ["화자", "상대", "말단계", "호칭", "근거", "전환", "계기"],
+                [[r["from"], r["to"], r["register"], r["address"], r["reason"],
+                  (f"Beat {r['shift_beat']} → {r['shift_to']}" if r.get("shift_beat") else ""),
+                  r["shift_cause"]] for r in _sm],
+            )
+            add_spacer(10)
+
     doc.add_page_break()
 
     # ═══════════════════════════════════
@@ -3770,11 +3969,17 @@ def generate_docx(project):
 
         # ── 스토리라인 STORYLINE ──
         add_yellow_header("스토리라인", "STORYLINE")
+        if project.get("structure_type"):   # v2.8.2
+            _stype = P.normalize_structure_type(project.get("structure_type"))
+            add_labeled("구조 골격", f"{_stype} — {P.STRUCTURE_TYPE_DEFS[_stype]['drive']}")
         for seq in story.get("storyline", []):
             seq_no = seq.get("seq", "")
             label = seq.get("label", "")
             add_sub_header(f"SEQ {seq_no}  ·  {label}")
             add_body(seq.get("summary", ""))
+            if seq.get("goal") or seq.get("scene_budget"):   # v2.8.2 — 구버전은 생략
+                _bts = ", ".join(str(b) for b in (seq.get("beats") or []))
+                add_labeled("목표", f"{seq.get('goal','')}  (Beat {_bts} · 권장 {seq.get('scene_budget','')}씬)")
 
     if diag:
         doc.add_page_break()
@@ -3786,13 +3991,29 @@ def generate_docx(project):
             add_labeled(label, ta.get(key, ""))
 
         add_spacer(6)
-        add_sub_header("15-Beat Sheet")
+        add_sub_header("Beat Sheet")
         for bt in diag.get("beat_sheet", []):
             beat = bt.get("beat", "")
+            if bt.get("beat_no"):   # v2.8.2 — 구버전(명칭만)은 그대로 표시
+                beat = f"Beat {bt.get('beat_no')} {beat}"
             status = bt.get("status", "")
             note = bt.get("note", "")
             status_mark = "✓" if status in ["있음","O","✓"] else "△" if status in ["약함","△"] else "✗"
             add_labeled(beat, f"{status_mark} {note}")
+
+        # v2.8.2: 인물 상태 축
+        _sa = diag.get("state_axes") or {}
+        if _sa.get("targets"):
+            add_spacer(6)
+            add_sub_header("인물 상태 축")
+            _ax = [f"{a.get('positive','')}↔{a.get('negative','')}" if isinstance(a, dict) else str(a)
+                   for a in (_sa.get("axes") or [])]
+            add_body("축: " + " / ".join(_ax) + "  (값 +5 양극 ~ -5 음극)", size=9)
+            add_simple_table(
+                ["Beat", "주인공", "적대자", "원인"],
+                [[t.get("beat"), t.get("protagonist"), t.get("antagonist"), t.get("cause", "")]
+                 for t in _sa["targets"] if isinstance(t, dict)],
+            )
 
     doc.add_page_break()
 
@@ -4076,6 +4297,24 @@ def generate_docx(project):
             add_body(wi)
 
     # ═══════════════════════════════════
+    #  SECTION 7: 씬리스트 SCENE LIST (v2.8.2 — 잠긴 목록만 수록)
+    # ═══════════════════════════════════
+    _sl = project.get("scene_list") or {}
+    if _sl.get("locked"):
+        doc.add_page_break()
+        add_yellow_header("씬리스트", "SCENE LIST")
+        add_body(f"{_sl.get('locked_variant','')} · {len(_sl['locked'])}씬 · 잠금 {_sl.get('locked_at','')}", size=9)
+        add_simple_table(
+            ["S#", "SEQ", "Beat", "장소 — 시간", "내용", "인물", "대사"],
+            [[s.get("no"), s.get("seq"), s.get("beat"),
+              f"{s.get('int_ext','')}. {s.get('location','')} — {s.get('time','')}".lstrip(". "),
+              s.get("summary", ""),
+              ", ".join(s.get("characters", [])) if isinstance(s.get("characters"), list) else s.get("characters", ""),
+              s.get("dialogue_mode", "")] for s in _sl["locked"]],
+            size=7,
+        )
+
+    # ═══════════════════════════════════
     #  FOOTER
     # ═══════════════════════════════════
     doc.add_paragraph("")
@@ -4116,8 +4355,18 @@ st.markdown(
 )
 
 # ─── 뒤로가기 ───
-if st.session_state.view in ("project", "core", "char_bible", "structure", "scene_design", "treatment", "tone_doc") and st.session_state.cur:
-    if st.session_state.view == "tone_doc":
+if st.session_state.view in ("project", "core", "char_bible", "structure", "scene_design", "treatment", "tone_doc", "scene_list") and st.session_state.cur:
+    if st.session_state.view == "scene_list":
+        col_nav1, col_nav2 = st.columns(2)
+        with col_nav1:
+            if st.button("← 프로젝트 목록"):
+                st.session_state.view = "home"
+                st.rerun()
+        with col_nav2:
+            if st.button("← Tone Document"):
+                st.session_state.view = "tone_doc"
+                st.rerun()
+    elif st.session_state.view == "tone_doc":
         col_nav1, col_nav2 = st.columns(2)
         with col_nav1:
             if st.button("← 프로젝트 목록"):
@@ -4301,7 +4550,7 @@ if st.session_state.view == "home":
 
                     # 시드 제거 버튼
                     if st.button("🗑️ 시드 제거 (직접 입력으로 전환)",
-                                 key="clear_idea_seed", use_container_width=False):
+                                 key="clear_idea_seed", width="content"):
                         for k in ("locked_seed", "idea_seed_loaded"):
                             if k in st.session_state:
                                 del st.session_state[k]
@@ -4580,7 +4829,7 @@ if st.session_state.view == "home":
                     help="정통: 〈남한산성〉〈1987〉〈서울의 봄〉 / 팩션: 〈왕의 남자〉〈광해〉〈암살〉 / 퓨전: 〈조선명탐정〉〈전우치〉"
                 )
 
-        if st.button("🚀 프로젝트 생성", use_container_width=True, disabled=not idea_input.strip()):
+        if st.button("🚀 프로젝트 생성", width="stretch", disabled=not idea_input.strip()):
             market_final = market_custom if market_type == "직접 입력" else market_type
             project_id = f"p_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
 
@@ -4681,7 +4930,7 @@ if st.session_state.view == "home":
                         f"복원 시 새 ID를 부여하여 별도 프로젝트로 추가됩니다."
                     )
 
-                if st.button("✅ 이 프로젝트 복원하기", type="primary", use_container_width=True):
+                if st.button("✅ 이 프로젝트 복원하기", type="primary", width="stretch"):
                     # 중복 방지: ID 충돌 시 새 ID 생성
                     if id_conflict:
                         new_id = f"proj_{int(datetime.now().timestamp() * 1000)}"
@@ -5297,11 +5546,11 @@ elif st.session_state.view == "project" and st.session_state.cur:
                         data=project_json_str.encode("utf-8"),
                         file_name=f"{title_safe_json}_Brainstorm완료_{ts_json}.json",
                         mime="application/json",
-                        use_container_width=True,
+                        width="stretch",
                         key="dl_brainstorm",
                     )
 
-                if st.button("🎯 Core Build 진행 →", type="primary", use_container_width=True):
+                if st.button("🎯 Core Build 진행 →", type="primary", width="stretch"):
                     project["stage"] = "core"
                     st.session_state.view = "core"
                     st.rerun()
@@ -5322,7 +5571,7 @@ elif st.session_state.view == "project" and st.session_state.cur:
                         data=project_json_str.encode("utf-8"),
                         file_name=f"{title_safe_json}_Brainstorm_{ts_json}.json",
                         mime="application/json",
-                        use_container_width=True,
+                        width="stretch",
                         key="dl_brainstorm_fail",
                     )
 
@@ -5360,7 +5609,7 @@ elif st.session_state.view == "project" and st.session_state.cur:
 
             col_fb1, col_fb2 = st.columns(2)
             with col_fb1:
-                if st.button("🔄 분석 재시도", use_container_width=True):
+                if st.button("🔄 분석 재시도", width="stretch"):
                     # 2단계만 재실행
                     cards_map = {c["id"]: c for c in bc.get("idea_cards", [])}
                     top3_data = [
@@ -5384,7 +5633,7 @@ elif st.session_state.view == "project" and st.session_state.cur:
                             project["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
                             st.rerun()
             with col_fb2:
-                if st.button("🎯 분석 건너뛰고 Core Build →", use_container_width=True):
+                if st.button("🎯 분석 건너뛰고 Core Build →", width="stretch"):
                     project["stage"] = "core"
                     st.session_state.view = "core"
                     st.rerun()
@@ -5734,7 +5983,7 @@ elif st.session_state.view == "core" and st.session_state.cur:
             rg = project.get("reality_gate")
 
             if not rg:
-                if st.button("🔍 Reality Gate 실행", key="run_reality_gate", use_container_width=True):
+                if st.button("🔍 Reality Gate 실행", key="run_reality_gate", width="stretch"):
                     with st.spinner("제도·절차 사실성 점검 중..."):
                         rg_result = call_reality_gate(project, core)
                     if rg_result:
@@ -5798,7 +6047,7 @@ elif st.session_state.view == "core" and st.session_state.cur:
                             if status == "pending":
                                 cA, cB = st.columns(2)
                                 with cA:
-                                    if st.button("✅ 이 교체안 LOCKED에 반영", key=f"rg_apply_{idx}", use_container_width=True):
+                                    if st.button("✅ 이 교체안 LOCKED에 반영", key=f"rg_apply_{idx}", width="stretch"):
                                         loc = (iss.get("location") or "").strip()
                                         cur_locked = project.get("locked_items", []) or []
                                         hit = -1
@@ -5823,7 +6072,7 @@ elif st.session_state.view == "core" and st.session_state.cur:
                                                 "아이디어 화면의 'LOCKED 편집'에서 위 교체안을 직접 반영해 주십시오."
                                             )
                                 with cB:
-                                    if st.button("⏭️ 의도된 설정 — 무시", key=f"rg_ignore_{idx}", use_container_width=True):
+                                    if st.button("⏭️ 의도된 설정 — 무시", key=f"rg_ignore_{idx}", width="stretch"):
                                         iss["status"] = "ignored"
                                         project["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
                                         st.rerun()
@@ -5840,11 +6089,11 @@ elif st.session_state.view == "core" and st.session_state.cur:
 
                 cR1, cR2 = st.columns(2)
                 with cR1:
-                    if st.button("🔄 Reality Gate 재실행", key="rerun_reality_gate", use_container_width=True):
+                    if st.button("🔄 Reality Gate 재실행", key="rerun_reality_gate", width="stretch"):
                         project["reality_gate"] = None
                         st.rerun()
                 with cR2:
-                    if applied and st.button("🎯 Core Build 재실행 (교체 LOCKED 반영)", key="rg_core_rebuild", use_container_width=True):
+                    if applied and st.button("🎯 Core Build 재실행 (교체 LOCKED 반영)", key="rg_core_rebuild", width="stretch"):
                         project["core"] = None
                         project["core_gate"] = None
                         project["reality_gate"] = None
@@ -5870,11 +6119,11 @@ elif st.session_state.view == "core" and st.session_state.cur:
                         data=project_json_str.encode("utf-8"),
                         file_name=f"{title_safe_json}_Core완료_{ts_json}.json",
                         mime="application/json",
-                        use_container_width=True,
+                        width="stretch",
                         key="dl_core",
                     )
 
-                if st.button("📖 Character Bible 진행 →", type="primary", use_container_width=True):
+                if st.button("📖 Character Bible 진행 →", type="primary", width="stretch"):
                     st.session_state.view = "char_bible"
                     st.rerun()
             elif verdict == "개발 보류":
@@ -5891,7 +6140,7 @@ elif st.session_state.view == "core" and st.session_state.cur:
                         data=project_json_str.encode("utf-8"),
                         file_name=f"{title_safe_json}_Core_{ts_json}.json",
                         mime="application/json",
-                        use_container_width=True,
+                        width="stretch",
                         key="dl_core_hold",
                     )
 
@@ -6000,6 +6249,21 @@ elif st.session_state.view == "char_bible" and st.session_state.cur:
             c5.markdown(f'<div class="ri"><div class="rl">⚖️ 신념</div>{ch.get("belief","")}</div>', unsafe_allow_html=True)
             c6.markdown(f'<div class="ri"><div class="rl">😰 두려움</div>{ch.get("fear","")}</div>', unsafe_allow_html=True)
 
+            # v2.8.1 (C2): 모순 · 상처 사건 — 구버전 바이블은 칸이 없으면 표시 생략
+            if ch.get("contradiction") or ch.get("wound_event"):
+                c7, c8 = st.columns(2)
+                c7.markdown(f'<div class="ri"><div class="rl">⚡ 모순</div>{ch.get("contradiction","")}</div>', unsafe_allow_html=True)
+                c8.markdown(f'<div class="ri"><div class="rl">🩹 상처 사건</div>{ch.get("wound_event","")}</div>', unsafe_allow_html=True)
+            # v2.8.1 (C1): 출신·사투리 · 기본 말단계
+            _od = ch.get("origin_dialect")
+            if isinstance(_od, dict) and (_od.get("origin") or _od.get("dialect")):
+                _od_txt = f'{_od.get("origin","")} · {_od.get("dialect","")} ({_od.get("strength","")})'
+                if _od.get("trigger"):
+                    _od_txt += f' — {_od.get("trigger")}'
+                st.markdown(f'<div class="ri"><div class="rl">🗺️ 출신 · 사투리</div>{_od_txt}</div>', unsafe_allow_html=True)
+            if ch.get("base_register"):
+                st.markdown(f'<div class="ri"><div class="rl">🎚️ 기본 말단계</div>{ch.get("base_register","")}</div>', unsafe_allow_html=True)
+
             # 습관
             habits = ch.get("habits", [])
             if habits:
@@ -6043,6 +6307,26 @@ elif st.session_state.view == "char_bible" and st.session_state.cur:
                 )
 
             st.markdown("")  # spacer
+
+        # ── v2.8.1 (C1) 말투 관계표 ──
+        _sm = P.build_speech_matrix(chars)
+        if _sm:
+            st.markdown("---")
+            st.markdown('<div class="section-header">🗣️ 말투 관계표 <span class="en">SPEECH MATRIX</span></div>', unsafe_allow_html=True)
+            st.caption("누가 누구에게 어떤 말단계·호칭을 쓰는가. 존대 / 반말(친밀) / 하대(위계·멸시) / 혼용. 전환 비트는 말투가 바뀌는 지점입니다.")
+            st.dataframe(
+                [{"화자": r["from"], "상대": r["to"], "말단계": r["register"], "호칭": r["address"],
+                  "근거": r["reason"], "전환 비트": r["shift_beat"] or "",
+                  "전환 후": r["shift_to"], "계기": r["shift_cause"]} for r in _sm],
+                width="stretch", hide_index=True,
+            )
+            _hist = bool(project.get("historical")) or any(k in str(project.get("genre", "")) for k in ("사극", "시대극"))
+            _n_beats = sum(len(v) for v in P.get_beat_structure(project.get("format", "")).values())
+            _spw = P.validate_speech(chars, historical=_hist, n_beats=_n_beats)
+            if _spw:
+                st.warning("말투·인물 검사\n\n" + "\n".join(f"- {w}" for w in _spw))
+            else:
+                st.success("말투·인물 검사 통과")
 
         # ── 캐릭터 관계도 ──
         st.markdown("---")
@@ -6235,11 +6519,11 @@ elif st.session_state.view == "char_bible" and st.session_state.cur:
                 data=project_json_str.encode("utf-8"),
                 file_name=f"{title_safe_json}_Bible완료_{ts_json}.json",
                 mime="application/json",
-                use_container_width=True,
+                width="stretch",
                 key="dl_bible",
             )
 
-        if st.button("🏗️ Structure Build 진행 →", type="primary", use_container_width=True):
+        if st.button("🏗️ Structure Build 진행 →", type="primary", width="stretch"):
             st.session_state.view = "structure"
             st.rerun()
 
@@ -6280,7 +6564,7 @@ elif st.session_state.view == "structure" and st.session_state.cur:
 
     st.markdown("---")
     st.markdown('<div class="section-header">🏗️ Structure Build <span class="en">STORY STRUCTURE</span></div>', unsafe_allow_html=True)
-    st.caption("시놉시스 · 스토리라인 · 3막 구조 · 15비트 · 캐릭터 변화표를 설계합니다.")
+    st.caption("시놉시스 · 스토리라인 · 3막 구조 · 비트 시트 · 인물 상태 축 · 캐릭터 변화표를 설계합니다.")
 
     # ─── 포맷 미지정 차단 (v2.7.1 신규) ───
     # 진단: get_beat_structure()는 "시리즈"·"미니"가 없으면 전부 영화 구조로 폴백한다.
@@ -6293,10 +6577,37 @@ elif st.session_state.view == "structure" and st.session_state.cur:
             "미지정 상태로 진행하면 영화 구조가 자동 적용되며, "
             "나중에 시리즈로 바꾸면 이 단계부터 전부 재실행해야 합니다."
         )
-        if st.button("📐 포맷 확정하러 가기 →", type="primary", use_container_width=True):
+        if st.button("📐 포맷 확정하러 가기 →", type="primary", width="stretch"):
             st.session_state.view = "project"
             st.rerun()
         st.stop()
+
+    # ─── v2.8.0 (C3) 구조 골격 선택 ───
+    # 장르로 추천값을 정하되 최종 선택은 작가. 결과는 project["structure_type"]로 저장되어
+    # Structure · Treatment · 인계 JSON까지 전달된다. 구버전 프로젝트는 15비트로 폴백.
+    _st_locked, _st_idea = _get_period_scan_context(project)
+    _rec_type, _rec_reason = P.recommend_structure_type(project.get("genre", ""), _st_idea, _st_locked)
+    _cur_type = project.get("structure_type")
+    _default_type = P.normalize_structure_type(_cur_type) if _cur_type else _rec_type
+    st.markdown("#### 🧭 구조 골격")
+    _type_labels = [
+        f"{t} — {P.STRUCTURE_TYPE_DEFS[t]['drive']}" + (" (추천)" if t == _rec_type else "")
+        for t in P.STRUCTURE_TYPES
+    ]
+    _picked_label = st.radio(
+        "이 작품을 움직이는 동력",
+        _type_labels,
+        index=P.STRUCTURE_TYPES.index(_default_type),
+        key=f"structure_type_radio_{st.session_state.cur}",
+    )
+    _picked = P.STRUCTURE_TYPES[_type_labels.index(_picked_label)]
+    st.caption(f"추천 근거: {_rec_reason} · 적합 장르: {P.STRUCTURE_TYPE_DEFS[_picked]['fits']}")
+    if project.get("structure_story") and _cur_type and _picked != P.normalize_structure_type(_cur_type):
+        st.warning(
+            f"구조 골격을 {P.normalize_structure_type(_cur_type)} → {_picked}로 바꾸면 "
+            "Structure Build부터 다시 실행해야 반영됩니다. 이후 단계(Scene·Treatment)도 재실행이 필요합니다."
+        )
+    project["structure_type"] = _picked
 
     if st.button("🏗️ Structure Build 실행", type="primary"):
         if not core:
@@ -6309,6 +6620,7 @@ elif st.session_state.view == "structure" and st.session_state.cur:
                     fact_based=project.get("fact_based", False),
                     historical=project.get("historical", False),
                     film_type=project.get("film_type", ""),
+                    structure_type=project.get("structure_type", ""),
                 )
             if story:
                 project["structure_story"] = story
@@ -6319,6 +6631,7 @@ elif st.session_state.view == "structure" and st.session_state.cur:
                         fact_based=project.get("fact_based", False),
                         historical=project.get("historical", False),
                         film_type=project.get("film_type", ""),
+                        structure_type=project.get("structure_type", ""),
                     )
                 if diag:
                     project["structure_diag"] = diag
@@ -6343,8 +6656,29 @@ elif st.session_state.view == "structure" and st.session_state.cur:
                 st.markdown(f'<div class="callout"><div class="cl">{label}</div>{val}</div>', unsafe_allow_html=True)
 
         st.markdown("#### 📊 스토리라인 (시퀀스 방향)")
+        st.caption(f"구조 골격: {P.normalize_structure_type(project.get('structure_type'))}")
+        _budget_total = 0
         for seq in story.get("storyline", []):
-            st.markdown(f'<div class="card"><div class="cl">SEQ {seq.get("seq","")} · {seq.get("label","")} ({seq.get("pages","")})</div>{seq.get("summary","")}<br><span style="font-size:.8rem;color:#666">⚔️ {seq.get("conflict","")} · 💭 {seq.get("emotion","")} · → {seq.get("hook","")}</span></div>', unsafe_allow_html=True)
+            # v2.8.0 (C5): 목표 한 줄 · 담당 비트 · 권장 씬 수 (구버전 프로젝트는 빈 값으로 표시 생략)
+            _extra = ""
+            if seq.get("goal") or seq.get("beats") or seq.get("scene_budget"):
+                _bt = ", ".join(str(b) for b in (seq.get("beats") or []))
+                _extra = (f'<br><span style="font-size:.8rem;color:#191970">🎯 {seq.get("goal","")}'
+                          f' · Beat {_bt} · 권장 {seq.get("scene_budget","?")}씬</span>')
+                try:
+                    _budget_total += int(seq.get("scene_budget") or 0)
+                except (TypeError, ValueError):
+                    pass
+            st.markdown(f'<div class="card"><div class="cl">SEQ {seq.get("seq","")} · {seq.get("label","")} ({seq.get("pages","")})</div>{seq.get("summary","")}<br><span style="font-size:.8rem;color:#666">⚔️ {seq.get("conflict","")} · 💭 {seq.get("emotion","")} · → {seq.get("hook","")}</span>{_extra}</div>', unsafe_allow_html=True)
+        if any(s.get("scene_budget") for s in story.get("storyline", []) if isinstance(s, dict)):
+            st.caption(f"권장 씬 수 합계: {_budget_total}")
+            if story.get("adjust_reason"):
+                st.caption(f"시퀀스 수 조정 이유: {story['adjust_reason']}")
+            _seq_warns = P.validate_sequences(story.get("storyline", []), project.get("format", ""))
+            if _seq_warns:
+                st.warning("시퀀스 검사\n\n" + "\n".join(f"- {w}" for w in _seq_warns))
+            else:
+                st.success("시퀀스 검사 통과 — 비트 배정·막 순서·씬 예산 정상.")
 
     if project.get("structure_diag"):
         diag = project["structure_diag"]
@@ -6357,14 +6691,15 @@ elif st.session_state.view == "structure" and st.session_state.cur:
         if ta.get("diagnosis"):
             st.caption(f"진단: {ta['diagnosis']}")
 
-        st.markdown("#### 🥁 15-Beat Sheet")
+        st.markdown("#### 🥁 Beat Sheet")
         for bt in diag.get("beat_sheet", []):
             status = bt.get("status", "")
+            _bno = f"Beat {bt.get('beat_no')} " if bt.get("beat_no") else ""
             color = {"있음":"var(--g)","약함":"var(--y)","없음":"var(--r)"}.get(status, "var(--dim)")
             st.markdown(
                 f'<div style="margin:.3rem 0;font-size:.85rem">'
                 f'<span style="color:{color};font-weight:700">[{status}]</span> '
-                f'<b>{bt.get("beat","")}</b> — '
+                f'<b>{_bno}{bt.get("beat","")}</b> — '
                 f'<span style="color:#666">{bt.get("note","")}</span>'
                 f'</div>',
                 unsafe_allow_html=True
@@ -6404,6 +6739,34 @@ elif st.session_state.view == "structure" and st.session_state.cur:
                     f'</span></div>',
                     unsafe_allow_html=True
                 )
+
+        # v2.8.0 (C4): 인물 상태 축 — 주인공·적대자 비트별 목표값
+        _sa = diag.get("state_axes")
+        if isinstance(_sa, dict) and _sa.get("targets"):
+            st.markdown("#### 📈 인물 상태 축")
+            _ax = _sa.get("axes") or []
+            _ax_names = [f"{a.get('positive','')}↔{a.get('negative','')}" if isinstance(a, dict) else str(a) for a in _ax]
+            st.caption("축: " + " / ".join(_ax_names) + " · 값 +5(양극) ~ -5(음극)")
+            _rows, _chart = [], {"주인공 평균": [], "적대자 평균": []}
+            for t in sorted((t for t in _sa["targets"] if isinstance(t, dict)),
+                            key=lambda t: int(t.get("beat", 0)) if str(t.get("beat", "")).lstrip("-").isdigit() else 0):
+                pv = [v for v in (t.get("protagonist") or []) if isinstance(v, (int, float))]
+                av = [v for v in (t.get("antagonist") or []) if isinstance(v, (int, float))]
+                _chart["주인공 평균"].append(round(sum(pv) / len(pv), 2) if pv else None)
+                _chart["적대자 평균"].append(round(sum(av) / len(av), 2) if av else None)
+                _rows.append({"Beat": t.get("beat"), "주인공": str(t.get("protagonist")),
+                              "적대자": str(t.get("antagonist")), "원인": t.get("cause", "")})
+            try:
+                st.line_chart(_chart)
+            except Exception:
+                pass
+            with st.expander("비트별 목표값 표", expanded=False):
+                st.dataframe(_rows, width="stretch", hide_index=True)
+            _sa_warns = P.validate_state_axes(_sa, project.get("format", ""))
+            if _sa_warns:
+                st.warning("상태 축 검사\n\n" + "\n".join(f"- {w}" for w in _sa_warns))
+            else:
+                st.success(f"상태 축 검사 통과 — Beat {P.STATE_BOTTOM_BEAT}에서 주인공이 바닥을 칩니다.")
 
     # 기승전결 줄글 시놉시스
     if project.get("structure_prose"):
@@ -6446,11 +6809,11 @@ elif st.session_state.view == "structure" and st.session_state.cur:
                     data=project_json_str.encode("utf-8"),
                     file_name=f"{title_safe_json}_Structure완료_{ts_json}.json",
                     mime="application/json",
-                    use_container_width=True,
+                    width="stretch",
                     key="dl_structure",
                 )
 
-            if st.button("🎬 Scene Design 진행 →", type="primary", use_container_width=True):
+            if st.button("🎬 Scene Design 진행 →", type="primary", width="stretch"):
                 st.session_state.view = "scene_design"
                 st.rerun()
         else:
@@ -6467,7 +6830,7 @@ elif st.session_state.view == "structure" and st.session_state.cur:
                     data=project_json_str.encode("utf-8"),
                     file_name=f"{title_safe_json}_Structure_{ts_json}.json",
                     mime="application/json",
-                    use_container_width=True,
+                    width="stretch",
                     key="dl_structure_hold",
                 )
 
@@ -6502,7 +6865,7 @@ elif st.session_state.view == "structure" and st.session_state.cur:
             data=docx_buffer,
             file_name=f"기획개발보고서_{title_safe}_1차_Blue_{timestamp}.docx",
             mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            use_container_width=True
+            width="stretch"
         )
 
     elif not project.get("structure_story"):
@@ -6613,14 +6976,14 @@ elif st.session_state.view == "scene_design" and st.session_state.cur:
             data=project_json_str.encode("utf-8"),
             file_name=f"{title_safe_json}_Scene완료_{ts_json}.json",
             mime="application/json",
-            use_container_width=True,
+            width="stretch",
         )
 
         st.markdown("---")
 
         # Treatment 진행
         st.success("✅ Scene Design 완료. Treatment Build 진행 가능.")
-        if st.button("📝 Treatment Build 진행 →", type="primary", use_container_width=True):
+        if st.button("📝 Treatment Build 진행 →", type="primary", width="stretch"):
             st.session_state.view = "treatment"
             st.rerun()
 
@@ -6683,6 +7046,9 @@ elif st.session_state.view == "treatment" and st.session_state.cur:
                 historical=project.get("historical", False),
                 film_type=project.get("film_type", ""),
                 research=project.get("research"),
+                structure_type=project.get("structure_type", ""),
+                state_axes=(project.get("structure_diag") or {}).get("state_axes"),
+                speech_matrix=P.build_speech_matrix((project.get("char_bible") or {}).get("characters", [])),
             )
         if result:
             project.setdefault("treatment_partial", {})[f"act{act_n}"] = result
@@ -6734,7 +7100,7 @@ elif st.session_state.view == "treatment" and st.session_state.cur:
                 data=_partial_json_str.encode("utf-8"),
                 file_name=f"{_title_safe}_Treatment진행중_{_ts}.json",
                 mime="application/json",
-                use_container_width=True,
+                width="stretch",
                 key="treat_partial_save_btn",
             )
 
@@ -6880,7 +7246,7 @@ elif st.session_state.view == "treatment" and st.session_state.cur:
                 yaxis=dict(gridcolor='#E0E0E8'),
                 xaxis=dict(gridcolor='#E0E0E8')
             )
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
 
         # 감독용 포인트
         notes = meta.get("director_notes", [])
@@ -6935,7 +7301,7 @@ elif st.session_state.view == "treatment" and st.session_state.cur:
             data=docx_buffer,
             file_name=f"기획개발보고서_{title_safe}_최종_Blue_{timestamp}.docx",
             mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            use_container_width=True
+            width="stretch"
         )
 
         # JSON 프로젝트 저장 (세션 복구용)
@@ -6946,13 +7312,13 @@ elif st.session_state.view == "treatment" and st.session_state.cur:
             data=project_json_str.encode("utf-8"),
             file_name=f"{title_safe}_Treatment완료_{timestamp}.json",
             mime="application/json",
-            use_container_width=True,
+            width="stretch",
         )
 
         # Tone Document 진행
         st.markdown("---")
         st.success("✅ Treatment 완료. Tone Document 진행 가능.")
-        if st.button("🎨 Tone Document 진행 →", type="primary", use_container_width=True):
+        if st.button("🎨 Tone Document 진행 →", type="primary", width="stretch"):
             st.session_state.view = "tone_doc"
             st.rerun()
 
@@ -7093,8 +7459,12 @@ elif st.session_state.view == "tone_doc" and st.session_state.cur:
 
         # 완료
         st.markdown("---")
-        st.success("🎉 기획개발 완료! 전체 9단계 파이프라인이 완성되었습니다.")
-        st.info("→ Writer Engine에서 이 기획서를 불러와 시나리오를 생성할 수 있습니다.")
+        st.success("🎉 Tone Document 완료. 다음 단계는 씬리스트입니다.")
+        st.info("→ 씬리스트를 잠그면 Writer Engine 인계용 JSON(writer_handoff_v28)이 완성됩니다. "
+                "아래 저장본은 씬리스트 없는 기존 인계 방식과 호환됩니다.")
+        if st.button("🎞️ 씬리스트 진행 →", type="primary", width="stretch"):
+            st.session_state.view = "scene_list"
+            st.rerun()
 
         # 최종 DOCX 다운로드
         title_safe = project.get("title", "프로젝트").replace(" ", "_")
@@ -7105,7 +7475,7 @@ elif st.session_state.view == "tone_doc" and st.session_state.cur:
             data=docx_buffer,
             file_name=f"기획개발보고서_{title_safe}_최종_Blue_{timestamp}.docx",
             mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            use_container_width=True
+            width="stretch"
         )
 
         # 최종 프로젝트 JSON 저장 (완성 상태 백업)
@@ -7117,7 +7487,7 @@ elif st.session_state.view == "tone_doc" and st.session_state.cur:
             data=project_json_str.encode("utf-8"),
             file_name=f"{title_safe}_최종완성_{timestamp}.json",
             mime="application/json",
-            use_container_width=True,
+            width="stretch",
         )
 
     else:
@@ -7128,6 +7498,215 @@ elif st.session_state.view == "tone_doc" and st.session_state.cur:
             '</div>',
             unsafe_allow_html=True
         )
+
+    st.markdown("---")
+    st.caption(ENGINE_FOOTER)
+
+
+# ═══════════════════════════════════════════════════
+#  SCENE LIST (씬리스트) — v2.8.1 신규 (C6)
+#  위치: Tone Document 다음, Writer Engine 인계 직전.
+#  흐름: 3안 × 3막 독립 생성 → 작가가 한 안 선택 → 직접 편집 → 잠금.
+#  잠긴 씬리스트는 어떤 재생성에도 덮어쓰이지 않는다.
+# ═══════════════════════════════════════════════════
+elif st.session_state.view == "scene_list" and st.session_state.cur:
+
+    project = st.session_state.projects[st.session_state.cur]
+    core = project.get("core", {}) or {}
+    story = project.get("structure_story") or {}
+    sl = project.setdefault("scene_list", {})
+    sl.setdefault("variants", {})
+    fmt = project.get("format", "")
+
+    st.markdown(f"## {project['title']}")
+    st.caption(f"{project['genre']} · {project['target_market']} · {project['format']}")
+    render_stepper("scene_list", project)
+
+    st.markdown("---")
+    st.markdown('<div class="section-header">🎞️ Scene List <span class="en">SCENE LIST · LOCK</span></div>', unsafe_allow_html=True)
+    st.caption("씬 번호 · 장소 · 시간대 · 한 줄 내용 · 등장인물 · 대사 방식. 세 안 중 하나를 골라 직접 고친 뒤 잠급니다.")
+
+    if not project.get("treatment"):
+        st.error("Treatment가 확정되지 않았습니다. 씬리스트는 확정된 Treatment 비트를 씬으로 나눕니다.")
+        if st.button("← Treatment로"):
+            st.session_state.view = "treatment"
+            st.rerun()
+        st.stop()
+
+    _main_chars = [c.get("name", "") for c in (core.get("characters") or []) if isinstance(c, dict)]
+    _storyline = story.get("storyline") or []
+
+    def _scenes_to_rows(scenes):
+        rows = []
+        for s in scenes or []:
+            ch = s.get("characters", [])
+            rows.append({
+                "no": s.get("no"), "seq": s.get("seq"), "beat": s.get("beat"),
+                "int_ext": s.get("int_ext", ""), "location": s.get("location", ""),
+                "time": s.get("time", ""), "summary": s.get("summary", ""),
+                "characters": ", ".join(ch) if isinstance(ch, list) else str(ch or ""),
+                "dialogue_mode": s.get("dialogue_mode", P.DIALOGUE_MODE_DEFAULT),
+            })
+        return rows
+
+    def _rows_to_scenes(rows):
+        out = []
+        for r in rows:
+            # data_editor 새 행의 빈 칸은 NaN/None으로 온다 — 빈 문자열로 정리
+            r = {k: ("" if v is None or (isinstance(v, float) and v != v) else v) for k, v in r.items()}
+            if not any(str(v or "").strip() for k, v in r.items() if k != "no"):
+                continue   # 빈 줄 제거
+            s = dict(r)
+            for k in ("seq", "beat"):
+                try:
+                    s[k] = int(s.get(k))
+                except (TypeError, ValueError):
+                    s[k] = s.get(k)
+            s["characters"] = [x.strip() for x in str(s.get("characters") or "").split(",") if x.strip()]
+            out.append(s)
+        for i, s in enumerate(out, 1):
+            s["no"] = i
+        return out
+
+    # ── 잠긴 상태 ──
+    if sl.get("locked"):
+        st.success(f"🔒 잠금 완료 — {sl.get('locked_variant','')} · {len(sl['locked'])}씬 · {sl.get('locked_at','')}")
+        st.dataframe(_scenes_to_rows(sl["locked"]), width="stretch", hide_index=True)
+        _w = P.validate_scene_list(sl["locked"], _storyline, _main_chars, sl.get("locked_variant") or "기본안", fmt)
+        if _w:
+            st.warning("잠긴 씬리스트 검사 (참고)\n\n" + "\n".join(f"- {w}" for w in _w))
+        c1, c2 = st.columns(2)
+        with c1:
+            if st.button("🔓 잠금 해제하고 다시 편집", width="stretch"):
+                sl["draft"] = sl["locked"]
+                sl["draft_variant"] = sl.get("locked_variant", "")
+                sl["draft_rev"] = int(sl.get("draft_rev", 0)) + 1
+                sl["locked"] = None
+                st.rerun()
+        with c2:
+            if st.button("🔄 인계 JSON 다시 묶기", width="stretch"):
+                project["writer_handoff_v28"] = P.build_writer_handoff_v28(project)
+                st.rerun()
+
+        st.markdown("---")
+        st.markdown("#### 💾 Writer Engine 인계용 프로젝트 JSON")
+        st.caption("writer_handoff_v28에 구조 유형 · 상태 축 · 시퀀스 · 말투 관계표 · 모순·상처 · 잠긴 씬리스트가 묶여 있습니다.")
+        _ts = datetime.now().strftime("%Y%m%d_%H%M")
+        _title_safe = project.get("title", "프로젝트").replace(" ", "_")
+        st.download_button(
+            label="💾 프로젝트 저장 (씬리스트 잠금 · 인계용)",
+            data=save_project_to_json(project).encode("utf-8"),
+            file_name=f"{_title_safe}_씬리스트잠금_{_ts}.json",
+            mime="application/json", width="stretch", key="dl_scene_list_locked",
+        )
+        # v2.8.2: 씬리스트까지 포함한 최종 기획서
+        st.download_button(
+            label="📥 기획개발보고서 [최종 + 씬리스트] 다운로드 (.docx)",
+            data=generate_docx(project),
+            file_name=f"기획개발보고서_{_title_safe}_씬리스트_Blue_{_ts}.docx",
+            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            width="stretch", key="dl_scene_list_docx",
+        )
+        st.markdown("---")
+        st.caption(ENGINE_FOOTER)
+        st.stop()
+
+    # ── 3안 × 3막 생성 ──
+    st.markdown("#### ① 세 안 생성")
+    _tabs = st.tabs(list(P.SCENE_LIST_VARIANTS.keys()))
+    for _tab, _vname in zip(_tabs, P.SCENE_LIST_VARIANTS.keys()):
+        with _tab:
+            st.caption(P.SCENE_LIST_VARIANTS[_vname]["desc"])
+            _vdata = sl["variants"].setdefault(_vname, {})
+            _cols = st.columns(3)
+            for _col, _n in zip(_cols, (1, 2, 3)):
+                with _col:
+                    _done = bool(_vdata.get(f"act{_n}"))
+                    _lbl = f"{'🔄 ' if _done else ''}{_n}막 {'재생성' if _done else '생성'}"
+                    if st.button(_lbl, key=f"sl_{_vname}_{_n}", width="stretch"):
+                        with st.spinner(f"{_vname} {_n}막 씬 나누는 중... (약 1–2분)"):
+                            _res = call_scene_list_act(project, _vname, _n)
+                        if _res:
+                            _vdata[f"act{_n}"] = _res
+                            project["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
+                            st.rerun()
+                    st.caption(f"✓ {len(_vdata[f'act{_n}'])}씬" if _done else "미생성")
+            _merged = P.renumber_scenes([_vdata.get(f"act{i}") for i in (1, 2, 3)])
+            if _merged:
+                st.dataframe(_scenes_to_rows(_merged), width="stretch", hide_index=True, height=320)
+                _warns = P.validate_scene_list(_merged, _storyline, _main_chars, _vname, fmt) \
+                    if all(_vdata.get(f"act{i}") for i in (1, 2, 3)) else []
+                if all(_vdata.get(f"act{i}") for i in (1, 2, 3)):
+                    st.caption(f"총 {len(_merged)}씬")
+                    if _warns:
+                        st.warning("검사\n\n" + "\n".join(f"- {w}" for w in _warns))
+                    else:
+                        st.success("검사 통과")
+
+    # 막별 중간 저장
+    with st.expander("💾 프로젝트 JSON 저장 (씬리스트 진행 중)", expanded=False):
+        st.download_button(
+            label="💾 프로젝트 저장 (씬리스트 진행중)",
+            data=save_project_to_json(project).encode("utf-8"),
+            file_name=f"{project.get('title','프로젝트').replace(' ','_')}_씬리스트진행중_{datetime.now().strftime('%Y%m%d_%H%M')}.json",
+            mime="application/json", width="stretch", key="dl_scene_list_partial",
+        )
+
+    # ── 안 선택 → 편집 ──
+    _complete = [v for v in P.SCENE_LIST_VARIANTS
+                 if all((sl["variants"].get(v) or {}).get(f"act{i}") for i in (1, 2, 3))]
+    st.markdown("---")
+    st.markdown("#### ② 안 선택 · 직접 편집 · 잠금")
+    if not _complete:
+        st.info("세 막이 모두 생성된 안이 있어야 선택할 수 있습니다.")
+    else:
+        _pick = st.radio("편집할 안", _complete, horizontal=True, key=f"sl_pick_{st.session_state.cur}")
+        if st.button(f"✏️ {_pick}으로 편집 시작 (현재 편집본을 덮어씁니다)"):
+            sl["draft"] = P.renumber_scenes([sl["variants"][_pick].get(f"act{i}") for i in (1, 2, 3)])
+            sl["draft_variant"] = _pick
+            sl["draft_rev"] = int(sl.get("draft_rev", 0)) + 1
+            st.rerun()
+
+    if sl.get("draft"):
+        st.caption(f"편집본 원안: {sl.get('draft_variant','')} · 행 추가·삭제 가능 · 등장인물은 쉼표로 구분 · 번호는 잠글 때 순서대로 다시 매깁니다.")
+        import pandas as pd
+        # 편집본이 바뀔 때마다 편집기 키를 바꿔, 이전 편집 상태가 새 표에 잘못 덧씌워지지 않게 한다
+        _edited = st.data_editor(
+            pd.DataFrame(_scenes_to_rows(sl["draft"])),
+            width="stretch", hide_index=True, num_rows="dynamic",
+            key=f"sl_editor_{st.session_state.cur}_{sl.get('draft_rev', 0)}",
+            column_config={
+                "time": st.column_config.SelectboxColumn("time", options=P.SCENE_TIME_SLOTS),
+                "dialogue_mode": st.column_config.SelectboxColumn("dialogue_mode", options=list(P.DIALOGUE_MODES.keys())),
+                "int_ext": st.column_config.SelectboxColumn("int_ext", options=["INT", "EXT", "INT/EXT"]),
+                "summary": st.column_config.TextColumn("summary", width="large"),
+            },
+        )
+        _rows = _edited.to_dict("records") if hasattr(_edited, "to_dict") else list(_edited)
+        _draft_now = _rows_to_scenes(_rows)
+        _dw = P.validate_scene_list(_draft_now, _storyline, _main_chars, sl.get("draft_variant", "기본안"), fmt)
+        if _dw:
+            st.warning("편집본 검사\n\n" + "\n".join(f"- {w}" for w in _dw))
+        else:
+            st.success(f"편집본 검사 통과 — {len(_draft_now)}씬")
+        with st.expander("대사 방식 6종 정의", expanded=False):
+            for k, d in P.DIALOGUE_MODES.items():
+                st.markdown(f"- **{k}** — {d}")
+        c1, c2 = st.columns(2)
+        with c1:
+            if st.button("💾 편집 내용 보존", width="stretch"):
+                sl["draft"] = _draft_now
+                sl["draft_rev"] = int(sl.get("draft_rev", 0)) + 1
+                st.rerun()
+        with c2:
+            if st.button("🔒 잠금", type="primary", width="stretch"):
+                sl["locked"] = _draft_now
+                sl["locked_variant"] = sl.get("draft_variant", "")
+                sl["locked_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
+                sl["draft"] = _draft_now
+                project["writer_handoff_v28"] = P.build_writer_handoff_v28(project)
+                project["updated_at"] = sl["locked_at"]
+                st.rerun()
 
     st.markdown("---")
     st.caption(ENGINE_FOOTER)
