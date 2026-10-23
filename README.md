@@ -1,12 +1,99 @@
 # 👖 BLUE JEANS · Creator Engine
 
-**Version: v2.8.2** · Build: 2026-10-01 · Status: Production
+**Version: v2.9.0** · Build: 2026-10-23 · Status: Production
 
 > **아이디어 한 줄 → 글로벌 스튜디오 수준 기획개발 패키지**
 >
 > BLUE JEANS PICTURES 고유 서사동력 프레임워크(BJND) + 창작자 감성 엔진
 
 > ⚠️ **버전 확인 방법**: `prompt.py` 최상단 VERSION 블록 / Streamlit UI 사이드바 Engine Info / 이 README 최상단 — 세 곳의 버전이 일치해야 정상입니다. 불일치 시 최신 파일로 덮어쓰세요.
+
+---
+
+## v2.9.0 (2026-10-23) — 시리즈 구조 템플릿 라우팅 · 서사 원장 · 사실성 환류
+
+**경위** — Mr. MOON 「왕게임」 4-1안 실행 보강 메모(2026-10-19). 메모는 출력 JSON만으로 원인을 추정했고, 이번 사이클에서 코드로 대조해 확정했다.
+
+### 코드로 확인된 원인
+
+| # | 메모의 증상 | 코드 확인 |
+|---|---|---|
+| 1 | 4·6부 반전이 1부 씬에서 공개 | 공개 시점을 담는 필드가 엔진 전체에 없음. LOCKED는 문장 목록이라 '언제'가 없다 |
+| 2 | 6부 섬에 '육지에서 기다리는' 인물까지 집결 | 인물 규칙이 씬 생성의 제약으로 쓰이지 않음. 출석 제약 필드 없음 |
+| 3 | 탄피 장면 회차 이동, 소유자 뒤바뀜 | `setup_payoff_id`가 `'SETUP:탄피'` 문자열 — 소유자·회차 없음 |
+| 4 | 백마가 캄보디아발 상자에서 발견 | 세계관의 '그렇지 않다' 사실을 담는 필드 없음 |
+| 5 | Reality Gate가 잡은 '합동신문센터'가 Gate E 통과 | Reality Gate 결과는 `project["reality_gate"]`에만 있고 하류 프롬프트·Gate E로 가지 않음 |
+| 6 | 반환점 6부, 막 3/3/2, "마약왕 고명수" | `BEAT_STRUCTURE_SERIES_8`이 Midpoint를 EP5, 막을 3/3/2로 하드코딩. `get_beat_structure()`는 문자열에 '8'이 있으면 8화 — "미니시리즈(4~8화)"는 6부작이어도 8화. 메타 텍스트 대조 없음 |
+| 7 | 횟집 별실(1·7·8부 전용)이 상설 아지트로 | 시드 `locked_visual_motifs`의 등장 지점 필드를 읽지 않음 |
+| — | (추가 발견) | Treatment 확정 시 `char_bible=project.get("characters")` — 존재하지 않는 키. v2.6.0부터 Writer 인계 v26의 적대자·주인공 이름 매칭이 항상 fallback |
+
+### [1] 시리즈 구조 템플릿 라우팅
+
+16 슬롯(게이트 좌표)은 그대로 두고 회차 배치만 계산한다. 시즌 반환점(Beat 10)은 ⌈N/2⌉회 엔딩에 고정된다.
+
+| 회차 | 1막 | 2막 | 3막 | 반환점 | All Is Lost |
+|---|---|---|---|---|---|
+| 6부작 | EP1·2 | EP3·4 | EP5·6 | EP3 | EP4 |
+| 8부작 | EP1·2 | EP3~6 | EP7·8 | **EP4** (구: EP5) | EP6 |
+| 10부작 | EP1~3 | EP4~7 | EP8~10 | EP5 | EP7 |
+
+- 회차 수 = 작가 입력(STEP 1 포맷 패널 신설) > Idea Engine 시드 `episode_count` > 포맷 표기 > 기본 6
+- 포맷 권위 블록에 시즌 골격 자동 주입 → Structure·Scene·Treatment·Tone·씬리스트 전부 같은 골격을 받는다
+- storyline 시리즈 항목 = 회차 플랜: `cold_open` · `receives_hook` · `a_plot` · `b_plot` · `c_plot` · `reveals` · `cliffhanger_type`(7종) · `cliffhanger`. `seq`·`ep`·`beats`·`act`·`turning_point`는 엔진 계산값으로 고정
+- 회차 플랜 검사: 콜드오픈 연결 누락, 클리프행어 유형 연속·상한, 조기 공개
+- 클리프행어 7종은 Series Engine v2.2.1의 `CLIFFHANGER_TYPES`(Revelation·Threat·Choice·Betrayal·Reversal·Arrival·Question)와 1:1 대응. 인계 JSON에 영문 코드 병기
+- 결과적으로 Creator의 시즌 골격이 Series Engine의 `SEASON_BEATS_6/8`(6부작 반환점 EP3·최저점 EP4 / 8부작 EP4·EP6)과 처음으로 일치한다. v2.8.2까지는 8부작 반환점이 Creator EP5, Series EP4로 어긋나 있었다
+- `beat_sheet[].episode`와 `treatment.actN.beats[].episode`를 계산값으로 고정 — **Series Engine v2.2.1 추출기가 실제로 읽는 필드**
+- 씬리스트는 시리즈면 회차 단위 생성, 회차별 S#1부터
+- 구버전 시리즈 프로젝트용 **[회차 좌표를 시즌 골격으로 다시 고정]** 버튼 (본문 불변)
+
+### [2] 서사 원장 (Story Ledger) — Structure 직전
+
+| 표 | 내용 | 파이썬 대조 |
+|---|---|---|
+| 공개 일정 | 진상·공개 회차·공개 전 허용 범위·미리 아는 인물 | 씬·회차 플랜·비트의 R-id가 공개 회차보다 앞서면 경고, 공개 회차에 태그 없으면 경고 |
+| 출석·행동 제약 | 부재 / 장소 금지 / 직접 행동 금지 | 씬 등장인물·장소 대조, 비트는 문장 단위 동시 등장(확인 필요 표시) |
+| 금지 사실 | 세계관·출처·제도 + 쓰지 말 표현 | 금지어 출현 |
+| 복선 소유·회차 | 항목·소유자·심기·회수 | 태그·`SETUP:`/`PAYOFF:` 지점 대조, 심는 씬의 소유자 부재 |
+| 모티프 등장 회차 | 등장 지점·전용 여부 | 전용 지점 밖 등장, 지정 지점 누락 |
+
+원장은 LOCKED·시드·Core·바이블·Reality Gate에 **이미 있는 사실만** 정리한다(근거 원문 필수). 지점이 시드에 없으면 엔진 제안값(`proposed`)으로 표시된다. **작가가 잠근 원장만** 하류에 주입된다. Treatment·씬리스트는 범위 지정 블록을 받는다 — "이번 범위에서 공개 금지 / 공개 / 이미 공개".
+
+### [3] 사실성 정정 환류
+
+무시 처리하지 않은 Reality Gate 적출 전부를 하류 전 단계 locked 블록에 싣는다. '반영'도 포함한다 — LOCKED만 바뀌고 Core 본문에는 옛 전제가 남아 있을 수 있기 때문이다. Reality Gate 스키마에 `error_terms`·`correct_terms` 신설. Gate E는 정정·원장·파이썬 사전 검사 결과를 받아 critical_issues에 반영한다.
+
+### [4] 메타 대조
+
+메타 생성에 바이블 역할·시즌 골격·회차 콜드오픈·원장을 넣고, 생성 후 `check_meta_consistency()`가 바이블에 없는 역할 표현('마약왕 고명수')과 반환점 회차 오기를 잡는다.
+
+### 검증
+
+| 항목 | 결과 |
+|---|---|
+| 문법 (ast) · prompt↔main 참조 91종 | 통과 |
+| 순수 함수 테스트 — 「왕게임」형 결함 7건 합성 재현 | 50/50 |
+| Streamlit AppTest — 가짜 API로 8부작 전 흐름(원장→Structure→Treatment→씬리스트 잠금→인계) + 영화 8개 뷰 | 41/41 |
+| v2.8.2 시리즈 프로젝트 6개 뷰 + 회차 재고정 | 7/7 |
+| **「왕게임」 실물 JSON(2026-10-19, v2.8.2 저장본)** — 8개 화면 · 회차 표기 정리 · 원장 잠금 · 인계 재묶기 후 본문·LOCKED·바이블·storyline·메타 지문 불변 | 18/18 |
+| 영화 회귀 — 비트 구조·포맷 권위 블록·시퀀스 지시·씬리스트 검사 결과 v2.8.2와 동일 | 동일 |
+| Series Engine v2.2.1 `extract_from_creator_json_series()` 실행 | beat_sheet·treatment 회차 EP4 정상 출력 |
+
+### [5] 실물 대조 보완 — 작가 회차 배치 보존
+
+「왕게임」 실물 JSON은 작가가 손본 결과 회당 2비트 배치(EP4 = Beat 7·8, EP5 = Beat 9·10)였고 줄글·씬도 그 배치로 쓰여 있었다. 엔진 템플릿(EP4 = Beat 9·10)으로 표기를 덮어쓰면 EP5 내용이 EP4로 표기된다. 그래서 다음을 추가했다.
+
+- `episode_layout_from_storyline()` — storyline의 회차·비트가 1~16을 빠짐없이 순서대로 나누면 그것을 작가 배치로 인정
+- `project_beat_episode_map()` — 작가 배치 > 시즌 골격 계산값. 회차 표기·트리트먼트 스탬프·씬 ep 채우기·검사에 사용
+- Structure 화면 버튼을 **[회차 표기 정리]**로 바꿈 — 작가 배치가 있으면 storyline은 건드리지 않고 표기만 채운다
+- 사실성 정정 블록을 둘로 나눔 — 작가가 '반영'한 적출은 강제, '미처리'는 "기존 설정 유지 · 새로 넓히지 말 것"(의도된 픽션일 수 있으므로. 예: 「왕게임」의 중수청)
+- 회차 플랜 필드가 없는 구버전 storyline은 경고 대신 안내 1줄
+
+### 호환성
+
+시그니처는 디폴트 인자 추가만 (`get_beat_structure(episode_count=0)`, `call_treatment_beats(ledger=None)`, `call_treatment_meta(project=None)`, `call_treatment_gate(project=None)`, `call_scene_list_act(ep=0)`, `validate_scene_list(ledger=None, corrections=None)`, `renumber_scenes(per_episode=False)`, `_build_project_locked_block(with_ledger=True)`). JSON 키 삭제·변경 없음. 신규 키: `episode_count`, `story_ledger`, storyline 회차 필드, 씬 태그, `ledger_refs`, `episode_label`, `ledger_check`, `meta_check`, 인계 v28의 `story_ledger`·`series_frame`·`episode_plan`·`reality_corrections`. `BEAT_STRUCTURE_SERIES_6/8`은 참조용으로 보존.
+
+**주의 — 동작이 바뀌는 지점**: 시리즈 프로젝트의 회차 배치가 바뀐다(8부작 EP5·6이 각 1비트). 이미 막 단위로 만든 시리즈 씬리스트 안(variants의 act1~3)은 회차 단위 화면에서 선택 대상이 아니다. 잠긴 목록은 그대로 표시된다.
 
 ---
 
@@ -2718,6 +2805,7 @@ ANTHROPIC_API_KEY = "sk-ant-..."
 | **v2.8.0** | **[구조 골격 선택 · 인물 상태 축 · 시퀀스 씬 예산] Mr. MOON 기능 주문 C3~C5. 대체 골격 3종(관계 아크·상황 추진·시간 변주)을 '슬롯 불변, 동력 재정의' 방식으로 추가 — 비트 번호 기반 게이트 전부 유지. 장르 연동 추천 + 작가 최종 선택, `structure_type` 저장. 장르 head별 상태 축 3종·비트별 목표값·Beat 12 바닥 검사. storyline에 act/goal/beats/scene_budget 추가, 씬 예산 90~110 검사. 15비트 선택 시 프롬프트 v2.7.7과 바이트 동일. 구버전 JSON 100% 호환. C6(씬리스트)·인계 JSON 확장은 v2.8.1.** |
 | **v2.8.1** | **[인물 말투 체계 · 모순·상처 · 씬리스트 · 인계 JSON] 무비킥 대조로 드러난 빈 곳 보충. 캐릭터 바이블에 origin_dialect·base_register·speech_to(존대/반말/하대/혼용·전환 비트)·contradiction·wound_event 신설 — 말투는 설정에서 도출. Tone 다음 씬리스트 단계 신설: 기본·압축·변주 3안 × 3막 독립 생성, 작가 편집·잠금, 파이썬 검사 7종. 잠금 시 writer_handoff_v28 생성. 구버전 100% 호환.** |
 | **v2.8.2** | **[후속 정비 4종] beat_sheet를 엔진 16슬롯 번호 체계로 통일(beat_no 신설) · 말투 전환 비트를 Treatment 막별 호출에 주입 · 기획서 DOCX에 구조 골격·상태 축·말투 관계표·모순·상처·씬리스트 반영 · use_container_width 48곳 → width 교체(Streamlit 1.55·1.64 검증). 구버전 100% 호환.** |
+| **v2.9.0** | **[시리즈 구조 템플릿 라우팅 · 서사 원장 · 사실성 환류] 「왕게임」 보강 메모 7건 코드 대조. 회차 수 해석(작가>시드>포맷) + 16슬롯 불변 동적 회차 배치(반환점=⌈N/2⌉회 엔딩, 8부작 EP4) + 시즌 골격 자동 주입 + 회차 플랜 필드·검사 + beat_sheet/treatment episode 계산값 고정. 서사 원장 5표(공개 일정·출석 제약·금지 사실·복선 소유·모티프 회차) 작가 잠금 후 하류 주입·파이썬 대조. Reality Gate 적출 하류 환류 + Gate E 연결. 메타 대조. 씬리스트 회차 단위. char_bible 키 버그 수정. 디폴트 인자 추가만, 구버전 100% 호환.** |
 
 ---
 

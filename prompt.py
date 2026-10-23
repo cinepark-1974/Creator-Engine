@@ -2,10 +2,65 @@
 👖 BLUE JEANS Creator Engine — Prompt Library
 
 ╔══════════════════════════════════════════════════════════╗
-║  VERSION: v2.8.2                                         ║
-║  BUILD DATE: 2026-10-01                                  ║
+║  VERSION: v2.9.0                                         ║
+║  BUILD DATE: 2026-10-23                                  ║
 ║  STATUS: Production                                      ║
 ╚══════════════════════════════════════════════════════════╝
+
+─────────────────────────────────────────────────────────
+v2.9.0 패치 (2026-10-23) — 시리즈 구조 템플릿 라우팅 · 서사 원장 · 사실성 환류
+─────────────────────────────────────────────────────────
+[경위] Mr. MOON 〈왕게임〉 4-1안 실행 보강 메모(2026-10-19). 출력 JSON으로
+  추정한 결함 7건 + "포맷이 여전히 영화 중심" 지적을 코드로 대조해 확정했다.
+
+[1] 시리즈 구조 템플릿 라우팅 (메모 §2·§3, 결함 6)
+  결함: BEAT_STRUCTURE_SERIES_8이 Midpoint(Beat 10)를 EP5에, 막 구분을
+  EP 3/3/2로 하드코딩. get_beat_structure()는 문자열에 '8'이 있으면 8화라
+  "미니시리즈(4~8화)"는 6부작이어도 8화 구조. 시드 episode_count 미사용.
+  변경: parse_episode_count / resolve_episode_count / series_episode_beats /
+  series_frame / build_series_beat_structure / build_series_frame_block 신설.
+  16 슬롯(게이트 좌표)은 불변, 회차 배치만 계산. 시즌 반환점 = ⌈N/2⌉회 엔딩.
+  8부작: 1막 EP1·2 / 2막 EP3~6 / 3막 EP7·8, 반환점 EP4. get_format_authority_block
+  에 시즌 골격 자동 주입. storyline 시리즈 항목에 회차 플랜 필드(cold_open ·
+  receives_hook · a/b/c_plot · reveals · cliffhanger_type · cliffhanger) 신설,
+  normalize_series_storyline()이 seq·ep·beats·act를 계산값으로 고정.
+  validate_episode_plan(): 콜드오픈 연결·클리프행어 유형 연속·상한·조기 공개.
+  stamp_episode_labels(): beat_sheet·treatment beats의 episode를 계산값으로 고정
+  (Series Engine v2.2.1 추출기가 실제로 읽는 필드).
+
+[2] 서사 원장 (결함 1·2·3·4·7)
+  결함: 공개 시점·출석 제약·금지 사실·복선 소유/회차·모티프 등장 회차를
+  담는 필드가 엔진에 없음. LOCKED는 문장 목록이라 '언제·누가'가 없다.
+  변경: LEDGER_SCHEMA 5표 + build_system_story_ledger + normalize_ledger +
+  build_ledger_block(범위 지정 시 '이번 범위 공개 금지/공개/이미 공개') +
+  validate_scenes_against_ledger / validate_treatment_against_ledger.
+  잠긴 원장만 주입(작가 주권). 씬리스트 스키마 태그(reveals·plants·payoffs·
+  motifs), Treatment 스키마 ledger_refs 신설. seed_motif_hints()로 시드의
+  appearance_* 필드 관용 수용.
+
+[3] 사실성 정정 환류 (결함 5)
+  결함: Reality Gate 결과가 project["reality_gate"]에만 있고 하류 프롬프트·
+  Gate E에 전달되지 않음. '반영'도 LOCKED만 바꾸고 Core 본문은 그대로.
+  변경: reality_corrections / build_reality_corrections_block — 무시하지 않은
+  적출 전부를 하류 전 단계 locked 블록에 주입. Reality Gate 스키마에
+  error_terms / correct_terms 신설(파이썬 금지어 대조용).
+
+[4] 메타 대조 (결함 6)
+  check_meta_consistency(): 투자자 요약·감독 포인트의 역할 표현이 바이블에
+  없는지('마약왕 고명수'), 반환점 회차가 시즌 골격과 다른지 대조.
+
+[5] 씬리스트 회차 단위
+  renumber_scenes(per_episode) — 시리즈는 회차별 S#1. validate_scene_list에
+  ledger·corrections 디폴트 인자, 씬 없는 회차 검사.
+
+[6] 실물 대조 보완 (「왕게임」 2026-10-19 JSON)
+  작가가 손본 JSON은 회당 2비트 배치. episode_layout_from_storyline() /
+  project_beat_episode_map() — 온전한 작가 배치가 있으면 템플릿보다 우선.
+  사실성 정정은 반영(강제)과 미처리(확대 금지)로 분리.
+
+[하위 호환] 시그니처는 디폴트 인자 추가만. 원장·회차 필드가 없는 구버전
+  프로젝트는 표시·검사 생략. 영화 포맷 프롬프트는 원장·정정이 없으면 v2.8.2와
+  동일. BEAT_STRUCTURE_SERIES_6/8 상수는 참조용으로 보존(라우팅 미사용).
 
 ─────────────────────────────────────────────────────────
 v2.8.2 패치 (2026-10-01) — v2.8.0~v2.8.1 후속 정비 4종
@@ -1685,8 +1740,8 @@ BLUE JEANS 3축 (Mr.MOON 고유)
 # 수정 시 ENGINE_VERSION과 ENGINE_BUILD_DATE를 함께 갱신하세요.
 # ═══════════════════════════════════════════════════
 
-ENGINE_VERSION = "v2.8.2"
-ENGINE_BUILD_DATE = "2026-10-01"
+ENGINE_VERSION = "v2.9.0"
+ENGINE_BUILD_DATE = "2026-10-23"
 ENGINE_STATUS = "Production"
 
 def get_engine_info() -> str:
@@ -2146,19 +2201,265 @@ BEAT_STRUCTURE_SERIES_8 = {
     ],
 }
 
-def get_beat_structure(fmt: str) -> dict:
-    """포맷에 따라 적절한 비트 구조 반환. 미니시리즈면 에피소드 단위."""
-    fmt_lower = fmt.lower() if fmt else ""
-    if "시리즈" in fmt_lower or "series" in fmt_lower or "미니" in fmt_lower:
-        if "8" in fmt_lower:
-            return BEAT_STRUCTURE_SERIES_8
-        return BEAT_STRUCTURE_SERIES_6
+def get_beat_structure(fmt: str, episode_count: int = 0) -> dict:
+    """포맷에 따라 적절한 비트 구조 반환. 시리즈면 에피소드 단위.
+
+    v2.9.0: 시리즈는 회차 수로 동적 배치(build_series_beat_structure).
+      회차 수 = episode_count 인자 > 포맷 문자열의 'N부작'·'N화' > 기본 6.
+      BEAT_STRUCTURE_SERIES_6/8 상수는 구버전 참조용으로 보존한다(라우팅에는 쓰지 않음).
+      슬롯 번호(1~16)와 막별 슬롯(1~6 / 7~12 / 13~16)은 영화와 동일하다.
+    """
+    if is_series_format(fmt):
+        n = int(episode_count or 0) or parse_episode_count(fmt) or SERIES_EP_DEFAULT
+        return build_series_beat_structure(n)
     return BEAT_STRUCTURE_FILM
 
 def is_series_format(fmt: str) -> bool:
     """미니시리즈 포맷인지 확인"""
     fmt_lower = fmt.lower() if fmt else ""
     return "시리즈" in fmt_lower or "series" in fmt_lower or "미니" in fmt_lower
+
+
+# ═══════════════════════════════════════════════════
+# v2.9.0 — SERIES TEMPLATE ROUTING (시리즈 구조 템플릿 라우팅)
+# ───────────────────────────────────────────────────
+# 발견 경위: 〈왕게임〉 4-1안 실행 보강 메모 (Mr. MOON, 2026-10-19).
+#   format = "미니시리즈(4~8화)"로 돌렸는데 결과가 영화 구조와 같았다.
+#   반환점이 6부, 막 구분 3/3/2로 표기되었다.
+# 코드 확인:
+#   ① BEAT_STRUCTURE_SERIES_8은 Midpoint(Beat 10)를 EP5에, All Is Lost를 EP6에
+#      하드코딩하고 있었다. 8부작의 시즌 반환점은 EP4 엔딩이다.
+#   ② get_beat_structure()는 문자열에 '8'이 있으면 8화, 없으면 6화였다.
+#      "미니시리즈(4~8화)"는 6부작이어도 항상 8화 구조를 받았다.
+#      Idea Engine이 넘긴 episode_count는 구조 계산에 쓰이지 않았다.
+# 해법:
+#   - 회차 수를 포맷 문자열 · 시드 · 작가 입력에서 해석한다.
+#   - 16 슬롯(게이트 좌표)은 그대로 두고, 회차 배치만 계산한다.
+#     시즌 반환점(Beat 10)은 시즌 중간 회차의 엔딩에 고정된다.
+#   - 1막 = Beat 1~6, 2막 = Beat 7~12, 3막 = Beat 13~16 (영화와 같은 슬롯).
+#     회차는 이 슬롯 위에 얹히는 별도 축이다.
+# ═══════════════════════════════════════════════════
+
+SERIES_EP_DEFAULT = 6      # 회차 표기가 없는 시리즈 포맷의 폴백 (v2.8.2 이전 동작과 동일)
+SERIES_EP_MIN = 2
+SERIES_EP_MAX = 16
+
+FILM_SLOT_ACT = {num: act for act, lst in BEAT_STRUCTURE_FILM.items() for num, _n, _d in lst}
+
+
+def parse_episode_count(fmt) -> int:
+    """포맷 문자열에서 회차 수를 읽는다. 표기가 없으면 0.
+
+    '8부작' → 8 / '미니시리즈 6부작' → 6 / '미니시리즈(4~8화)' → 8 (범위는 상한) /
+    '시리즈' → 0 / '시리즈 · 8부작' → 8
+    """
+    s = str(fmt or "")
+    m = re.search(r"(\d+)\s*부작", s)
+    if m:
+        n = int(m.group(1))
+    else:
+        nums = []
+        for mm in re.finditer(r"(\d+)(?:\s*[~\-–]\s*(\d+))?\s*(?:화|회|부|편|ep|EP|episodes?)", s):
+            nums += [int(x) for x in mm.groups() if x]
+        n = max(nums) if nums else 0
+    if n and not (SERIES_EP_MIN <= n <= SERIES_EP_MAX):
+        n = max(SERIES_EP_MIN, min(SERIES_EP_MAX, n))
+    return n
+
+
+def format_with_episodes(fmt: str, n: int = 0) -> str:
+    """구조 계산용 유효 포맷 문자열. 시리즈이고 n이 있으면 'N부작'을 명시한다.
+
+    project['format']는 바꾸지 않는다. 프롬프트·검사기에 넘길 때만 쓴다.
+    """
+    f = str(fmt or "")
+    if not n or not is_series_format(f):
+        return f
+    f = re.sub(r"\s*·\s*\d+\s*부작", "", f)
+    if re.search(r"\d+\s*부작", f):
+        return re.sub(r"\d+\s*부작", f"{int(n)}부작", f)
+    return f"{f} · {int(n)}부작"
+
+
+def resolve_episode_count(project: dict) -> int:
+    """회차 수 해석. 우선순위: 작가 입력 > Idea Engine 시드 > 포맷 문자열 > 기본값.
+    시리즈가 아니면 0."""
+    project = project or {}
+    fmt = project.get("format", "")
+    if not is_series_format(fmt):
+        return 0
+    try:
+        n = int(project.get("episode_count") or 0)
+    except (TypeError, ValueError):
+        n = 0
+    if n:
+        return max(SERIES_EP_MIN, min(SERIES_EP_MAX, n))
+    lf = (project.get("seed_locked") or {}).get("locked_format") or {}
+    if isinstance(lf, dict):
+        raw = lf.get("episode_count") or lf.get("episodes")
+        if raw:
+            try:
+                n = int(raw)
+            except (TypeError, ValueError):
+                n = parse_episode_count(f"{raw}부작" if str(raw).strip().isdigit() else str(raw))
+            if n:
+                return max(SERIES_EP_MIN, min(SERIES_EP_MAX, n))
+    return parse_episode_count(fmt) or SERIES_EP_DEFAULT
+
+
+def _split_even(items: list, k: int) -> list:
+    """items를 k묶음으로 나눈다. 앞 묶음이 1개씩 더 크다. k > len이면 빈 묶음이 생긴다."""
+    if k <= 0:
+        return []
+    if k >= len(items):
+        return [[x] for x in items] + [[] for _ in range(k - len(items))]
+    q, r = divmod(len(items), k)
+    out, i = [], 0
+    for j in range(k):
+        size = q + (1 if j < r else 0)
+        out.append(items[i:i + size])
+        i += size
+    return out
+
+
+def series_episode_beats(n: int) -> dict:
+    """회차 → 슬롯 비트 목록. {1: [1,2,3], 2: [4,5,6], ...}
+
+    고정점: Beat 10(Midpoint)은 시즌 중간 회차(⌈n/2⌉) 엔딩.
+            Beat 6(1막 끝)은 전반부 회차의 중간, Beat 12(All Is Lost)는 후반부 회차의 중간.
+    """
+    n = max(1, int(n or 1))
+    m = (n + 1) // 2
+    h = n - m
+    s1 = max(1, (m + 1) // 2) if m >= 2 else m
+    s2 = m - s1
+    if h <= 0:
+        s3, s4 = 0, 0
+    else:
+        s4 = max(1, (h + 1) // 2)
+        s3 = min(2, h - s4)
+        s4 = h - s3
+    groups = []
+    if s2 == 0:
+        groups += _split_even(list(range(1, 11)), s1)
+    else:
+        groups += _split_even(list(range(1, 7)), s1)
+        groups += _split_even(list(range(7, 11)), s2)
+    if h <= 0:
+        groups[-1] = groups[-1] + list(range(11, 17))
+    elif s3 == 0:
+        groups += _split_even(list(range(11, 17)), s4)
+    else:
+        groups += _split_even([11, 12], s3)
+        groups += _split_even(list(range(13, 17)), s4)
+    return {i + 1: g for i, g in enumerate(groups)}
+
+
+def series_frame(fmt_or_n) -> dict:
+    """시즌 골격 계산값. 반환점·All Is Lost·클라이맥스 회차와 막별 회차."""
+    n = fmt_or_n if isinstance(fmt_or_n, int) else (parse_episode_count(fmt_or_n) or SERIES_EP_DEFAULT)
+    ep_beats = series_episode_beats(n)
+    beat_ep = {b: ep for ep, bs in ep_beats.items() for b in bs}
+    act_eps = {1: [], 2: [], 3: []}
+    for ep, bs in ep_beats.items():
+        for a in sorted({FILM_SLOT_ACT[b] for b in bs}):
+            act_eps[a].append(ep)
+    return {
+        "episodes": n,
+        "ep_beats": ep_beats,
+        "beat_ep": beat_ep,
+        "midpoint_ep": beat_ep.get(10),
+        "act1_end_ep": beat_ep.get(6),
+        "all_is_lost_ep": beat_ep.get(12),
+        "climax_ep": beat_ep.get(14),
+        "act_eps": act_eps,
+    }
+
+
+_SERIES_SLOT_NOTE = {
+    1: "사건의 한가운데에서 시작한다. B-Story 세계(시대·사회·조직)를 병렬로 깐다.",
+    5: "일상을 깨뜨리는 촉발. 주인공이 첫 선택을 강요받는다.",
+    10: "★ 시즌 반환점 — 게임의 규칙이 바뀐다. 이 회차 엔딩이 시즌의 허리다.",
+    12: "가장 낮은 지점. 주인공이 모든 것을 잃는다. ★ 아직 반격하지 않는다.",
+    14: "주인공의 역전. Beat 12에서 잃은 것이 새로운 무기가 된다. ★ Beat 12 행동 반복 금지.",
+}
+
+
+def build_series_beat_structure(n: int) -> dict:
+    """회차 수 n에 맞춘 EP 키 비트 구조. get_beat_structure()와 같은 모양
+    {'EP1': [(num, name, desc), ...]} 을 반환한다."""
+    base = {num: (name, desc) for lst in BEAT_STRUCTURE_FILM.values() for num, name, desc in lst}
+    ep_beats = series_episode_beats(n)
+    last_ep = max(ep_beats) if ep_beats else 1
+    out = {}
+    for ep, beats in ep_beats.items():
+        rows = []
+        for i, b in enumerate(beats):
+            name, desc = base[b]
+            note = _SERIES_SLOT_NOTE.get(b, "")
+            if note:
+                desc = f"{desc} / {note}"
+            if i == 0 and ep > 1:
+                desc = f"EP{ep - 1} 클리프행어를 콜드오픈이 이어받는다. {desc}"
+            if i == len(beats) - 1 and ep < last_ep:
+                name = f"{name} + EP{ep} 클리프행어"
+            rows.append((b, name, desc))
+        out[f"EP{ep}"] = rows
+    return out
+
+
+def beat_episode_map(fmt: str) -> dict:
+    """비트 번호 → 회차 번호. 영화면 빈 dict."""
+    if not is_series_format(fmt):
+        return {}
+    return dict(series_frame(fmt)["beat_ep"])
+
+
+# Series Engine v2.2.1 CLIFFHANGER_TYPES 7종과 1:1 대응 (인계 시 같은 어휘)
+CLIFFHANGER_TYPES = {
+    "폭로": "숨겨진 정보가 드러난다. (Revelation)",
+    "위기": "새로운 위험이 닥친다. (Threat)",
+    "결단": "불가능한 선택 앞에 놓인다. (Choice)",
+    "배신": "믿던 인물이 배신한다. (Betrayal)",
+    "역전": "상황이 완전히 뒤집힌다. (Reversal)",
+    "등장": "예상 못한 인물·사건이 나타난다. (Arrival)",
+    "질문": "대답할 수 없는 질문이 남는다. (Question)",
+}
+CLIFFHANGER_TYPE_EN = {"폭로": "Revelation", "위기": "Threat", "결단": "Choice", "배신": "Betrayal",
+                       "역전": "Reversal", "등장": "Arrival", "질문": "Question"}
+
+
+def build_series_frame_block(fmt: str) -> str:
+    """시즌 골격 선언 블록 — 시리즈일 때만. 회차 배치는 엔진 계산값이다."""
+    if not is_series_format(fmt):
+        return ""
+    fr = series_frame(fmt)
+    n = fr["episodes"]
+    ep_lines = []
+    for ep, bs in fr["ep_beats"].items():
+        if bs:
+            rng = f"Beat {bs[0]}" if len(bs) == 1 else f"Beat {bs[0]}~{bs[-1]}"
+        else:
+            rng = "슬롯 비트 없음 — 회차 플랜으로 설계"
+        ep_lines.append(f"  EP{ep}: {rng}")
+    def _eps(lst):
+        return "·".join(f"EP{e}" for e in lst) if lst else "-"
+    ctypes = " / ".join(f"{k}({v})" for k, v in CLIFFHANGER_TYPES.items())
+    return f"""
+[★ v2.9.0 시즌 골격 — {n}부작 · 엔진 계산값 · 바꾸지 말 것 ★]
+회차별 비트 슬롯:
+{chr(10).join(ep_lines)}
+- 시즌 반환점(Midpoint, Beat 10) = EP{fr['midpoint_ep']} 엔딩.
+- 1막 끝(Beat 6) = EP{fr['act1_end_ep']} / All Is Lost(Beat 12) = EP{fr['all_is_lost_ep']} / 클라이맥스(Beat 14) = EP{fr['climax_ep']}.
+- 막별 회차: 1막 {_eps(fr['act_eps'][1])} / 2막 {_eps(fr['act_eps'][2])} / 3막 {_eps(fr['act_eps'][3])}.
+- 영화의 3막 비율로 회차를 나누지 마라. 반환점·막 구분을 다른 회차로 적지 마라.
+[회차 단위 원칙]
+- 매 회차는 콜드오픈으로 시작한다. EP2부터 콜드오픈은 직전 회차 클리프행어를 받는다.
+- 매 회차에 A플롯(사건)·B플롯(관계)·C플롯(배경·조직) 진행이 있다.
+- 마지막 회차를 제외한 매 회차는 클리프행어로 끝난다. 유형: {ctypes}
+  같은 유형을 연속 두 회차에 쓰지 않는다.
+- 진상·반전 정보는 회차별 공개 일정을 따른다. 뒤 회차의 진상을 앞 회차 장면에 미리 화면화하지 마라.
+"""
 
 
 # ─── Sorkin/Curtis 9원칙 + 관객 심리 6원칙 + 서브플롯 ───
@@ -7579,6 +7880,8 @@ def get_format_authority_block(fmt: str) -> str:
             "모든 사건은 한 편 안에서 시작되고 닫혀야 한다."
         )
 
+    series_frame_block = build_series_frame_block(f) if is_series else ""
+
     return f"""
 [★★★ 포맷 권위 선언 — 최우선 규칙 ★★★]
 확정 포맷: {f}
@@ -7601,7 +7904,7 @@ LOCKED 블록이나 아이디어 원문에 위 포맷과 다른 포맷 표현
 ※ 이 예외는 포맷 항목에만 적용된다.
    결말 형식·음악 규약·시각 모티프 등 나머지 LOCKED는 절대 보존 대상이며,
    포맷을 근거로 재해석하거나 약화시켜서는 안 된다.
-"""
+{series_frame_block}"""
 
 
 # ═══════════════════════════════════════════════════
@@ -8427,9 +8730,20 @@ def build_sequence_instruction(fmt: str = "", structure_type: str = "") -> str:
     slots = "\n".join(slot_lines)
     type_block = build_structure_type_block(structure_type, fmt)
     if is_series_format(fmt):
+        fr = series_frame(fmt)
+        ep_slot = " / ".join(f"EP{e}={bs}" for e, bs in fr["ep_beats"].items())
         budget_rule = (
-            "- 시리즈: storyline 항목은 에피소드 단위. act 필드에는 해당 에피소드가 속한 막(1/2/3)을 적는다.\n"
-            "- scene_budget은 에피소드별 권장 씬 수 (정수). 합계 제한은 두지 않는다."
+            f"- 시리즈: storyline 항목 = 정확히 {fr['episodes']}개. 1항목 = 1회차. seq와 ep는 회차 번호(1~{fr['episodes']}).\n"
+            f"- beats는 회차별 슬롯 그대로 적는다 (엔진 계산값): {ep_slot}\n"
+            "- act는 그 회차 첫 비트의 막(1/2/3). 반환점·막 구분은 시즌 골격 블록을 따른다.\n"
+            "- scene_budget은 회차별 권장 씬 수 (정수, 회당 30~45 내외). 합계 제한은 두지 않는다.\n"
+            "- [v2.9.0 회차 플랜 — 시리즈 전용 필드, 각 1문장]\n"
+            "  cold_open: 회차 첫 장면(콜드오픈)에서 벌어지는 일\n"
+            "  receives_hook: 콜드오픈이 직전 회차 클리프행어를 어떻게 받는가 (EP1은 '시즌 오프닝')\n"
+            "  a_plot: 이 회차의 사건 플롯 / b_plot: 관계 플롯 / c_plot: 배경·조직 플롯 (없으면 빈 문자열)\n"
+            "  reveals: 이 회차에서 관객에게 공개되는 서사 원장 id 목록 (원장이 없으면 공개 내용 짧게)\n"
+            f"  cliffhanger_type: {' / '.join(CLIFFHANGER_TYPES)} 중 하나 (마지막 회차는 빈 문자열)\n"
+            "  cliffhanger: 회 엔딩 장면 1문장 (마지막 회차는 빈 문자열)"
         )
     else:
         budget_rule = (
@@ -8460,6 +8774,10 @@ def validate_sequences(storyline: list, fmt: str = "") -> list:
     count = len(storyline)
     if not series and not (SEQ_COUNT_MIN <= count <= SEQ_COUNT_MAX):
         warns.append(f"시퀀스 {count}개 — 영화는 {SEQ_COUNT_MIN}~{SEQ_COUNT_MAX}개여야 합니다.")
+    if series:
+        _n_eps = series_frame(fmt)["episodes"]
+        if count != _n_eps:
+            warns.append(f"회차 {count}개 — {_n_eps}부작이면 storyline이 {_n_eps}개여야 합니다.")
 
     # 영화: 비트 → 막 (1~6 = 1막, 7~12 = 2막, 13~16 = 3막). 시리즈는 EP 키라 생략.
     beat_act = {}
@@ -8513,7 +8831,7 @@ def validate_sequences(storyline: list, fmt: str = "") -> list:
             budget_ok = False
             warns.append(f"{tag} — scene_budget(권장 씬 수)이 정수가 아닙니다.")
 
-    missing = [b for b in range(1, n + 1) if b not in seen]
+    missing = [b for b in range(1, 17) if b not in seen] if series else [b for b in range(1, n + 1) if b not in seen]
     if missing:
         warns.append(f"어느 시퀀스에도 배정되지 않은 비트: {missing}")
     extra = sorted(b for b in seen if b < 1 or b > n)
@@ -8726,8 +9044,12 @@ Treatment의 비트를 씬 단위로 나눠 번호순 목록을 만든다. 대�
 - time은 다음 5종만 쓴다: {' / '.join(SCENE_TIME_SLOTS)}.
 - int_ext는 INT / EXT / INT/EXT 중 하나.
 - characters에는 등장인물 목록의 이름만 쓴다. 엑스트라는 역할명(예: '경비원')으로.
-- 모든 씬에 seq(시퀀스 번호)와 beat(비트 번호)를 적는다.
+- 모든 씬에 seq(시퀀스 번호)와 beat(비트 번호)를 적는다. 시리즈면 ep(회차)도 적고, seq는 회차 번호와 같다.
 - 시퀀스별 씬 수는 제시된 권장 씬 수를 따른다.
+- [v2.9.0 원장 태그] 서사 원장이 주어졌으면 해당 씬에 id를 단다 — 없으면 빈 배열.
+  reveals: 이 씬에서 관객에게 공개되는 R-id / plants·payoffs: 심거나 회수하는 P-id / motifs: 등장하는 M-id.
+  공개 지점 전의 씬에는 R-id를 달지 않으며, 그 진상도 화면에 올리지 않는다.
+- 시리즈 회차의 첫 씬은 콜드오픈이고, 마지막 회차가 아니면 마지막 씬은 클리프행어다.
 - dialogue_mode는 아래 6종 중 하나. 기본은 {DIALOGUE_MODE_DEFAULT}다.
 {modes}
   '고백'은 작품 전체에서 {CONFESSION_MAX}씬 이하.
@@ -8746,30 +9068,45 @@ SCENE_LIST_SCHEMA = """{
       "time": "낮",
       "summary": "누가 무엇을 해서 무엇이 바뀌는가 — 한 줄",
       "characters": ["인물명"],
-      "dialogue_mode": "서브텍스트"
+      "dialogue_mode": "서브텍스트",
+      "reveals": [],
+      "plants": [],
+      "payoffs": [],
+      "motifs": []
     }
   ]
 }"""
+SCENE_LIST_SCHEMA_SERIES = SCENE_LIST_SCHEMA.replace('"seq": 1,', '"ep": 1,\n      "seq": 1,')
 
 
-def renumber_scenes(act_parts: list) -> list:
-    """막별 결과를 이어 붙이고 씬 번호를 1부터 다시 매긴다."""
+def renumber_scenes(act_parts: list, per_episode: bool = False) -> list:
+    """막별 결과를 이어 붙이고 씬 번호를 1부터 다시 매긴다.
+    v2.9.0: per_episode=True(시리즈)면 회차마다 S#1부터 다시 매긴다 (한국 시리즈 원고 관례)."""
     out = []
     for part in act_parts:
         for s in (part or []):
             if isinstance(s, dict):
                 out.append(dict(s))
+    if per_episode:
+        cnt = {}
+        for s in out:
+            ep = _to_int(s.get("ep"))
+            cnt[ep] = cnt.get(ep, 0) + 1
+            s["no"] = cnt[ep]
+        return out
     for i, s in enumerate(out, 1):
         s["no"] = i
     return out
 
 
 def validate_scene_list(scenes: list, storyline: list = None, main_characters: list = None,
-                        variant: str = "기본안", fmt: str = "") -> list:
-    """씬리스트 파이썬 검사. 경고 문자열 리스트 반환."""
+                        variant: str = "기본안", fmt: str = "", ledger=None, corrections: list = None) -> list:
+    """씬리스트 파이썬 검사. 경고 문자열 리스트 반환.
+    v2.9.0: ledger·corrections 디폴트 인자 — 서사 원장·사실성 정정 대조를 덧붙인다."""
     warns = []
     if not isinstance(scenes, list) or not scenes:
         return ["씬리스트가 비어 있습니다."]
+    _lab = lambda s: _scene_label(s, fmt)
 
     # ① 동일 장소 연속
     run, prev = 1, None
@@ -8778,13 +9115,13 @@ def validate_scene_list(scenes: list, storyline: list = None, main_characters: l
         if loc and loc == prev:
             run += 1
             if run == SAME_LOCATION_RUN_MAX + 1:
-                warns.append(f"S#{s.get('no')} — '{loc}' {run}씬 연속 (허용 {SAME_LOCATION_RUN_MAX}).")
+                warns.append(f"{_lab(s)} — '{loc}' {run}씬 연속 (허용 {SAME_LOCATION_RUN_MAX}).")
         else:
             run = 1
         prev = loc
 
     # ② 시간대 5종 밖
-    bad_time = [f"S#{s.get('no')}({s.get('time')})" for s in scenes
+    bad_time = [f"{_lab(s)}({s.get('time')})" for s in scenes
                 if str(s.get("time", "")).strip() not in SCENE_TIME_SLOTS]
     if bad_time:
         warns.append(f"시간대 5종({'/'.join(SCENE_TIME_SLOTS)}) 밖 표기: {', '.join(bad_time[:10])}"
@@ -8825,7 +9162,7 @@ def validate_scene_list(scenes: list, storyline: list = None, main_characters: l
             warns.append(f"씬리스트에 한 번도 등장하지 않는 주요 인물: {', '.join(absent)}")
 
     # 보조: 대사 방식
-    bad_mode = [f"S#{s.get('no')}" for s in scenes if s.get("dialogue_mode") not in DIALOGUE_MODES]
+    bad_mode = [_lab(s) for s in scenes if s.get("dialogue_mode") not in DIALOGUE_MODES]
     if bad_mode:
         warns.append(f"대사 방식 6종 밖: {', '.join(bad_mode[:10])}")
     conf = sum(1 for s in scenes if s.get("dialogue_mode") == "고백")
@@ -8844,6 +9181,15 @@ def validate_scene_list(scenes: list, storyline: list = None, main_characters: l
     miss = [b for b in range(1, n + 1) if b not in got_beats]
     if miss and len(got_beats) > 0:
         warns.append(f"씬이 하나도 없는 비트: {miss}")
+    # v2.9.0: 시리즈 — 씬이 없는 회차
+    if is_series_format(fmt):
+        n_eps = series_frame(fmt)["episodes"]
+        got_eps = {_to_int(s.get("ep")) for s in scenes if isinstance(s, dict)}
+        miss_ep = [e for e in range(1, n_eps + 1) if e not in got_eps]
+        if miss_ep and len(got_eps - {0}) > 0:
+            warns.append(f"씬이 하나도 없는 회차: {', '.join(f'EP{e}' for e in miss_ep)}")
+    # v2.9.0: 서사 원장 · 사실성 정정 대조
+    warns += validate_scenes_against_ledger(scenes, ledger, fmt, corrections)
     return warns
 
 
@@ -8914,12 +9260,795 @@ def build_writer_handoff_v28(project: dict) -> dict:
         "scene_list_locked": {
             "variant": sl.get("locked_variant", ""),
             "locked_at": sl.get("locked_at", ""),
-            "scenes": sl.get("locked") or [],
+            "scenes": _scenes_with_ep(project, sl.get("locked") or []),
         },
         "dialogue_modes": DIALOGUE_MODES,
         "speech_registers": SPEECH_REGISTER_DEFS,
         "time_slots": SCENE_TIME_SLOTS,
+        # v2.9.0 — 서사 원장 · 시즌 골격 · 회차 플랜 · 사실성 정정 (키가 없던 구버전과 공존)
+        "story_ledger": get_locked_ledger(project) or {},
+        "reality_corrections": reality_corrections(project),
+        "series_frame": _handoff_series_frame(project),
+        "episode_plan": [
+            dict({k: s.get(k) for k in ["ep", "act", "beats", "label", "goal", "summary", "scene_budget",
+                                        "turning_point"] + EPISODE_PLAN_FIELDS},
+                 cliffhanger_type_en=CLIFFHANGER_TYPE_EN.get(str(s.get("cliffhanger_type", "")).strip(), ""))
+            for s in (story.get("storyline") or []) if isinstance(s, dict)
+        ] if is_series_format(project.get("format", "")) else [],
     }
+
+
+def _scenes_with_ep(project: dict, scenes: list) -> list:
+    """v2.9.0: 시리즈 씬에 ep가 없으면 프로젝트 회차 배치로 채운 사본을 돌려준다 (원본 불변)."""
+    if not is_series_format(project.get("format", "")):
+        return scenes
+    bmap = project_beat_episode_map(project)
+    out = []
+    for s in scenes:
+        if isinstance(s, dict) and not s.get("ep") and bmap.get(_to_int(s.get("beat"))):
+            s = dict(s, ep=bmap[_to_int(s.get("beat"))])
+        out.append(s)
+    return out
+
+
+def _handoff_series_frame(project: dict) -> dict:
+    fmt = project.get("format", "")
+    if not is_series_format(fmt):
+        return {}
+    fr = series_frame(resolve_episode_count(project))
+    return {k: (({str(a): b for a, b in v.items()}) if isinstance(v, dict) else v)
+            for k, v in fr.items() if k != "beat_ep"}
+
+
+# ═══════════════════════════════════════════════════
+# v2.9.0 — STORY LEDGER (서사 원장) · 사실성 정정 환류 · 메타 대조
+# ───────────────────────────────────────────────────
+# 발견 경위: 〈왕게임〉 4-1안 실행 보강 메모 (2026-10-19). 출력 JSON 대조 결과 7건.
+#   ① 4·6부 반전(탄피·파견·설계자)이 1부 씬에서 이미 화면화됨
+#   ② 6부 섬에 한지석·민국·박철이 모두 있음 — "직접 손대지 않는다·육지에서 기다린다" 무시
+#   ③ 대사·소품의 회차 이동, 탄피 소유자 뒤바뀜
+#   ④ 백마가 캄보디아발 상자에서 발견 (시드: 국내 제조품)
+#   ⑤ Reality Gate가 잡은 '합동신문센터'가 Treatment Gate를 통과
+#   ⑥ 투자자 요약 "마약왕 고명수", 반환점 6부 표기
+#   ⑦ 횟집 별실(1·7·8부 전용)이 상설 아지트로 변질
+# 코드 확인: 위 5종(공개 시점·출석 제약·금지 사실·복선 소유/회차·모티프 등장 회차)을
+#   담는 필드가 엔진 어디에도 없었다. LOCKED는 문장 목록이라 '언제'와 '누가'가 없다.
+#   Reality Gate 결과는 project["reality_gate"]에만 있고 하류 프롬프트로 가지 않았다.
+# 해법: 서사 원장 5표를 Structure 직전에 만들고, 작가가 고쳐 잠근다.
+#   잠긴 원장만 하류(Structure·Scene·Treatment·Tone·씬리스트·메타·Gate E)에 주입하고,
+#   씬리스트·트리트먼트 출력을 파이썬으로 대조한다.
+# 원칙: 원장은 LOCKED·시드·Core·바이블에 이미 있는 사실만 정리한다. 새 설정을 만들지 않는다.
+#   좌표는 시리즈면 회차(ep), 영화면 비트(beat). 둘 다 적혀 있으면 시리즈는 ep를 쓴다.
+# ═══════════════════════════════════════════════════
+
+LEDGER_TABLES = {
+    "reveals": "공개 일정",
+    "presence": "출석·행동 제약",
+    "negative_facts": "금지 사실",
+    "setup_payoff": "복선 소유·회차",
+    "motifs": "모티프 등장 회차",
+}
+PRESENCE_RULES = ["부재", "장소 금지", "직접 행동 금지"]
+
+LEDGER_SCHEMA = """{
+  "reveals": [
+    {"id": "R1", "truth": "관객이 나중에 알아야 하는 진상 한 줄", "ep": 4, "beat": 9,
+     "hint_rule": "공개 전에 화면에 허용되는 것 한 줄 (예: 탄피가 있다는 것만 보인다. 누구 것인지는 모른다)",
+     "known_by": "처음부터 아는 인물:회차 (예: 고명수:1, 박철:4)",
+     "source": "LOCKED | 시드 | Core | 바이블", "basis": "근거 원문 40자 이내", "proposed": false}
+  ],
+  "presence": [
+    {"id": "C1", "character": "인물명", "rule": "부재 | 장소 금지 | 직접 행동 금지",
+     "location": "장소 (장소 금지일 때)", "eps": [6], "beats": [],
+     "note": "규칙 원문 한 줄", "source": "LOCKED", "basis": "근거 원문"}
+  ],
+  "negative_facts": [
+    {"id": "N1", "fact": "그렇지 않다로 정해진 사실 한 줄", "terms": ["원고에 나오면 곧 오류인 고유 명칭"],
+     "source": "시드", "basis": "근거 원문"}
+  ],
+  "setup_payoff": [
+    {"id": "P1", "item": "소품·단서·대사", "owner": "소유자", "plant_ep": 4, "plant_beat": 0,
+     "payoff_ep": 7, "payoff_beat": 0, "note": "", "source": "LOCKED", "basis": "근거 원문"}
+  ],
+  "motifs": [
+    {"id": "M1", "motif": "모티프·공간 이름", "keywords": ["다른 표기"], "eps": [1, 7, 8], "beats": [],
+     "exclusive": true, "note": "용도 한 줄", "source": "시드", "basis": "근거 원문"}
+  ]
+}"""
+
+
+def build_system_story_ledger(fmt: str = "") -> str:
+    return f"""당신은 한국 영화·시리즈의 연속성 담당 스토리 에디터다.
+LOCKED · Idea Engine 시드 · Core Build · 캐릭터 바이블에 이미 정해진 사실을 다섯 표로 정리한다.
+새 설정·새 사건·더 재미있는 대안을 만들지 않는다. 근거가 없는 항목은 쓰지 않는다.
+{get_format_authority_block(fmt)}
+[다섯 표]
+1. reveals (공개 일정) — 관객이 나중에 알아야 하는 진상·정체·배후·반전.
+   - ep(시리즈 회차) / beat(엔진 슬롯 1~16): 관객에게 처음 공개되는 지점.
+     LOCKED·시드가 회차를 정했으면 그대로 쓴다. 정하지 않았으면 시즌 골격에 맞춰 제안하고 proposed를 true로 한다.
+   - hint_rule: 공개 전 회차에서 화면에 허용되는 범위. 진상 자체를 보여주는 장면은 허용하지 않는다.
+   - known_by: 공개 전부터 진상을 아는 인물과 그 시점. '인물:회차'를 쉼표로.
+2. presence (출석·행동 제약) — 인물 규칙 중 장소·출석·행동에 관한 것.
+   - rule은 세 가지 중 하나: 부재(그 범위에 나오지 않는다) / 장소 금지(그 장소에 가지 않는다) / 직접 행동 금지(직접 손대지 않는다 등).
+   - eps·beats가 비어 있으면 작품 전체에 적용된다.
+3. negative_facts (금지 사실) — 세계관·소품 출처·제도에서 '그렇지 않다'로 정해진 사실.
+   - terms: 원고에 나오는 순간 오류인 고유 명칭만 (예: 2014년에 바뀐 기관의 옛 이름). 일반 단어는 넣지 않는다.
+   - 아래 [Reality Gate 적출 사항]이 있으면 작가가 무시 처리하지 않은 항목을 모두 이 표에 옮긴다 (source: Reality Gate).
+4. setup_payoff (복선 소유·회차) — 명명된 소품·단서·대사의 소유자, 심는 지점, 회수 지점.
+   - 소유자를 바꾸거나 지점을 옮기면 안 되는 것만.
+5. motifs (모티프 등장 회차) — 시각 모티프·특정 공간의 등장 지점.
+   - exclusive가 true면 적힌 지점 밖에서는 나오지 않는다 (예: 1·7·8부 전용 공간).
+   - keywords: 원고에서 같은 대상을 가리키는 다른 표기.
+
+[공통]
+- id는 표별 접두어 + 번호 (R1, C1, N1, P1, M1).
+- source와 basis(근거 원문 40자 이내)를 반드시 적는다. basis가 없으면 그 항목을 쓰지 않는다.
+- 영화면 ep는 0, 시리즈면 ep를 우선 채운다.
+{JSON_OUTPUT_RULES_STRICT}"""
+
+
+def _to_int(v, default=0) -> int:
+    try:
+        return int(str(v).strip().upper().replace("EP", "").replace("BEAT", "").strip())
+    except (TypeError, ValueError):
+        return default
+
+
+def _to_int_list(v) -> list:
+    if v is None or v == "":
+        return []
+    if isinstance(v, (int, float)) and not (isinstance(v, float) and v != v):
+        return [int(v)]
+    if isinstance(v, list):
+        out = []
+        for x in v:
+            out += _to_int_list(x)
+        return out
+    out = []
+    for part in re.split(r"[,\s·/]+", str(v)):
+        part = part.strip().upper().replace("EP", "").replace("부", "").replace("화", "")
+        if not part:
+            continue
+        m = re.match(r"^(\d+)\s*[~\-–]\s*(\d+)$", part)
+        if m:
+            a, b = int(m.group(1)), int(m.group(2))
+            out += list(range(min(a, b), max(a, b) + 1))
+        elif part.isdigit():
+            out.append(int(part))
+    return out
+
+
+def _to_str_list(v) -> list:
+    if v is None:
+        return []
+    if isinstance(v, list):
+        return [str(x).strip() for x in v if str(x).strip()]
+    return [x.strip() for x in re.split(r"[,，]", str(v)) if x.strip()]
+
+
+def _to_bool(v, default=True) -> bool:
+    if isinstance(v, bool):
+        return v
+    s = str(v).strip().lower()
+    if s in ("true", "1", "y", "yes", "예", "o", "전용"):
+        return True
+    if s in ("false", "0", "n", "no", "아니오", "x"):
+        return False
+    return default
+
+
+def _parse_known_by(v) -> list:
+    """'고명수:1, 박철:4' 또는 [{'character':..,'ep':..}] → [{'character','ep'}]"""
+    out = []
+    if isinstance(v, list):
+        for x in v:
+            if isinstance(x, dict):
+                out.append({"character": str(x.get("character", "")).strip(),
+                            "ep": _to_int(x.get("ep") or x.get("from") or 0)})
+            elif str(x).strip():
+                out += _parse_known_by(str(x))
+        return [x for x in out if x["character"]]
+    for part in re.split(r"[,，]", str(v or "")):
+        part = part.strip()
+        if not part:
+            continue
+        if ":" in part:
+            name, at = part.split(":", 1)
+            out.append({"character": name.strip(), "ep": _to_int(at)})
+        else:
+            out.append({"character": part, "ep": 0})
+    return out
+
+
+def normalize_ledger(raw) -> dict:
+    """LLM 출력·편집표·구버전 무엇이 와도 같은 모양으로 정리한다."""
+    raw = raw if isinstance(raw, dict) else {}
+    out = {k: [] for k in LEDGER_TABLES}
+    for i, x in enumerate(raw.get("reveals") or [], 1):
+        if not isinstance(x, dict) or not str(x.get("truth", "")).strip():
+            continue
+        out["reveals"].append({
+            "id": str(x.get("id") or f"R{i}").strip(), "truth": str(x.get("truth", "")).strip(),
+            "ep": _to_int(x.get("ep")), "beat": _to_int(x.get("beat")),
+            "hint_rule": str(x.get("hint_rule", "")).strip(),
+            "known_by": _parse_known_by(x.get("known_by")),
+            "source": str(x.get("source", "")).strip(), "basis": str(x.get("basis", "")).strip(),
+            "proposed": _to_bool(x.get("proposed"), False),
+        })
+    for i, x in enumerate(raw.get("presence") or [], 1):
+        if not isinstance(x, dict) or not str(x.get("character", "")).strip():
+            continue
+        rule = str(x.get("rule", "")).strip()
+        out["presence"].append({
+            "id": str(x.get("id") or f"C{i}").strip(), "character": str(x.get("character", "")).strip(),
+            "rule": rule if rule in PRESENCE_RULES else (rule or "직접 행동 금지"),
+            "location": str(x.get("location", "")).strip(),
+            "eps": _to_int_list(x.get("eps")), "beats": _to_int_list(x.get("beats")),
+            "note": str(x.get("note", "")).strip(),
+            "source": str(x.get("source", "")).strip(), "basis": str(x.get("basis", "")).strip(),
+        })
+    for i, x in enumerate(raw.get("negative_facts") or [], 1):
+        if not isinstance(x, dict) or not str(x.get("fact", "")).strip():
+            continue
+        out["negative_facts"].append({
+            "id": str(x.get("id") or f"N{i}").strip(), "fact": str(x.get("fact", "")).strip(),
+            "terms": _to_str_list(x.get("terms")),
+            "source": str(x.get("source", "")).strip(), "basis": str(x.get("basis", "")).strip(),
+        })
+    for i, x in enumerate(raw.get("setup_payoff") or [], 1):
+        if not isinstance(x, dict) or not str(x.get("item", "")).strip():
+            continue
+        out["setup_payoff"].append({
+            "id": str(x.get("id") or f"P{i}").strip(), "item": str(x.get("item", "")).strip(),
+            "owner": str(x.get("owner", "")).strip(),
+            "plant_ep": _to_int(x.get("plant_ep")), "plant_beat": _to_int(x.get("plant_beat")),
+            "payoff_ep": _to_int(x.get("payoff_ep")), "payoff_beat": _to_int(x.get("payoff_beat")),
+            "note": str(x.get("note", "")).strip(),
+            "source": str(x.get("source", "")).strip(), "basis": str(x.get("basis", "")).strip(),
+        })
+    for i, x in enumerate(raw.get("motifs") or [], 1):
+        if not isinstance(x, dict) or not str(x.get("motif", "")).strip():
+            continue
+        out["motifs"].append({
+            "id": str(x.get("id") or f"M{i}").strip(), "motif": str(x.get("motif", "")).strip(),
+            "keywords": _to_str_list(x.get("keywords")),
+            "eps": _to_int_list(x.get("eps")), "beats": _to_int_list(x.get("beats")),
+            "exclusive": _to_bool(x.get("exclusive"), True),
+            "note": str(x.get("note", "")).strip(),
+            "source": str(x.get("source", "")).strip(), "basis": str(x.get("basis", "")).strip(),
+        })
+    return out
+
+
+def ledger_is_empty(ledger) -> bool:
+    return not ledger or not any((ledger or {}).get(k) for k in LEDGER_TABLES)
+
+
+def get_locked_ledger(project: dict):
+    """잠긴 원장만 반환 (작가 주권 — 초안은 하류에 주입하지 않는다). 없으면 None."""
+    sl = (project or {}).get("story_ledger") or {}
+    lk = sl.get("locked")
+    return normalize_ledger(lk) if lk else None
+
+
+# ── 편집표 변환 (Streamlit data_editor용) ──
+_LEDGER_LIST_FIELDS = {"eps", "beats", "keywords", "terms"}
+
+
+def ledger_to_rows(table: str, items: list) -> list:
+    rows = []
+    for x in items or []:
+        r = {}
+        for k, v in x.items():
+            if k == "known_by":
+                r[k] = ", ".join(f"{d['character']}:{d['ep']}" if d.get("ep") else d["character"] for d in v)
+            elif k in _LEDGER_LIST_FIELDS:
+                r[k] = ", ".join(str(i) for i in v)
+            else:
+                r[k] = v
+        rows.append(r)
+    return rows
+
+
+LEDGER_COLUMNS = {
+    "reveals": ["id", "truth", "ep", "beat", "hint_rule", "known_by", "proposed", "source", "basis"],
+    "presence": ["id", "character", "rule", "location", "eps", "beats", "note", "source", "basis"],
+    "negative_facts": ["id", "fact", "terms", "source", "basis"],
+    "setup_payoff": ["id", "item", "owner", "plant_ep", "plant_beat", "payoff_ep", "payoff_beat", "note", "source", "basis"],
+    "motifs": ["id", "motif", "keywords", "eps", "beats", "exclusive", "note", "source", "basis"],
+}
+
+
+def rows_to_ledger_table(table: str, rows: list) -> list:
+    clean = []
+    for r in rows or []:
+        r = {k: ("" if v is None or (isinstance(v, float) and v != v) else v) for k, v in dict(r).items()}
+        if any(str(v).strip() for k, v in r.items() if k != "id"):
+            clean.append(r)
+    return normalize_ledger({table: clean})[table]
+
+
+# ── 좌표 ──
+def _pos_of(ep, beat, fmt: str, bmap: dict) -> int:
+    """비교용 좌표. 시리즈 = 회차(없으면 비트→회차), 영화 = 비트."""
+    if is_series_format(fmt):
+        return _to_int(ep) or bmap.get(_to_int(beat), 0)
+    return _to_int(beat)
+
+
+def _scope_of(item: dict, fmt: str, bmap: dict) -> set:
+    eps, beats = item.get("eps") or [], item.get("beats") or []
+    if is_series_format(fmt):
+        return set(eps) | {bmap.get(b, 0) for b in beats if bmap.get(b)}
+    return set(beats)
+
+
+def _pos_label(pos: int, fmt: str) -> str:
+    return f"EP{pos}" if is_series_format(fmt) else f"Beat {pos}"
+
+
+# ── 사실성 정정 (Reality Gate 환류) ──
+def reality_corrections(project: dict) -> list:
+    """Reality Gate 적출 중 작가가 '무시'하지 않은 항목. 반영(applied)도 포함한다 —
+    LOCKED만 교체되고 Core·Structure 본문에 옛 전제가 남아 있을 수 있기 때문."""
+    rg = (project or {}).get("reality_gate") or {}
+    out = []
+    for iss in rg.get("issues") or []:
+        if not isinstance(iss, dict) or iss.get("status") == "ignored":
+            continue
+        out.append({
+            "id": f"RG-{iss.get('id', '')}", "severity": iss.get("severity", ""),
+            "status": iss.get("status", "pending"),
+            "error": iss.get("error", ""), "reality": iss.get("reality", ""),
+            "location": iss.get("location", ""),
+            "terms": _to_str_list(iss.get("error_terms")),
+            "correct": _to_str_list(iss.get("correct_terms")),
+        })
+    return out
+
+
+def build_reality_corrections_block(project: dict) -> str:
+    rc = reality_corrections(project)
+    if not rc:
+        return ""
+    applied = [x for x in rc if x.get("status") == "applied"]
+    pending = [x for x in rc if x.get("status") != "applied"]
+    lines = []
+
+    def _line(x):
+        t = f" / 쓰지 말 표현: {', '.join(x['terms'])}" if x["terms"] else ""
+        c = f" / 대신: {', '.join(x['correct'])}" if x["correct"] else ""
+        return f"- {x['id']} [{x['severity']}] 오류: {x['error']} → 실제: {x['reality']}{t}{c}"
+    if applied:
+        lines += ["", "[★ v2.9.0 사실성 정정 — 작가가 반영한 Reality Gate 적출 · 하류 전 단계 강제 ★]",
+                  "아래 전제는 현실과 다르다. 원고·설계 어디에도 틀린 전제를 다시 쓰지 마라. 회상 장소·옛 명칭도 같다."]
+        lines += [_line(x) for x in applied]
+    if pending:
+        lines += ["", "[v2.9.0 사실성 확인 필요 — Reality Gate 적출 · 작가 미결정]",
+                  "작가가 아직 반영·무시를 정하지 않았다. 의도된 설정일 수 있으므로 기존 설정은 바꾸지 말고,",
+                  "이 전제를 새 장면·새 디테일로 넓히지 마라. 쓰지 말 표현이 있으면 그 표현은 쓰지 않는다."]
+        lines += [_line(x) for x in pending]
+    return "\n".join(lines) + "\n"
+
+
+# ── 주입 블록 ──
+def build_ledger_block(ledger, fmt: str = "", focus_beats: list = None) -> str:
+    """잠긴 원장 → 프롬프트 블록. focus_beats가 있으면 이번 생성 범위를 표시한다."""
+    if ledger_is_empty(ledger):
+        return ""
+    ledger = normalize_ledger(ledger)
+    series = is_series_format(fmt)
+    bmap = beat_episode_map(fmt)
+    focus = set()
+    if focus_beats:
+        focus = {bmap.get(int(b), 0) for b in focus_beats} if series else {int(b) for b in focus_beats}
+        focus.discard(0)
+    lo = min(focus) if focus else 0
+    unit = "회차" if series else "비트"
+    L = ["", f"[★★ v2.9.0 서사 원장 — 작가 잠금 · LOCKED와 같은 등급 ★★]",
+         f"좌표 단위: {unit}. 이 원장과 어긋나는 장면·대사·요약은 실패다."]
+    if focus:
+        L.append(f"이번 생성 범위: {', '.join(_pos_label(p, fmt) for p in sorted(focus))}")
+    if ledger["reveals"]:
+        L.append("\n[공개 일정] — 공개 지점 전에는 진상을 화면·대사·인물 행동으로 드러내지 않는다.")
+        for r in ledger["reveals"]:
+            pos = _pos_of(r["ep"], r["beat"], fmt, bmap)
+            status = ""
+            if focus and pos:
+                if pos > max(focus):
+                    status = " ▶ 이번 범위에서 공개 금지"
+                elif pos in focus:
+                    status = " ▶ 이번 범위에서 공개"
+                elif pos < lo:
+                    status = " ▶ 이미 공개됨"
+            kb = ", ".join(f"{k['character']}({_pos_label(k['ep'], fmt) if k['ep'] else '처음부터'})" for k in r["known_by"])
+            L.append(f"- {r['id']} {r['truth']} — 공개 {_pos_label(pos, fmt) if pos else '미정'}{status}")
+            if r["hint_rule"]:
+                L.append(f"    공개 전 허용 범위: {r['hint_rule']}")
+            if kb:
+                L.append(f"    미리 아는 인물: {kb} — 그 밖의 인물은 공개 전까지 아는 듯 행동하지 않는다.")
+    if ledger["presence"]:
+        L.append("\n[출석·행동 제약] — 클라이맥스라도 인물을 모으기 위해 이 규칙을 깨지 않는다.")
+        for c in ledger["presence"]:
+            sc = _scope_of(c, fmt, bmap)
+            scope = ", ".join(_pos_label(p, fmt) for p in sorted(sc)) if sc else "작품 전체"
+            loc = f" / 장소: {c['location']}" if c["location"] else ""
+            L.append(f"- {c['id']} {c['character']} — {c['rule']}{loc} / 범위: {scope}" + (f" / {c['note']}" if c["note"] else ""))
+    if ledger["negative_facts"]:
+        L.append("\n[금지 사실] — 장면 디테일(물건 출처·장소·명칭)을 만들 때도 지킨다.")
+        for nf in ledger["negative_facts"]:
+            t = f" / 쓰지 말 표현: {', '.join(nf['terms'])}" if nf["terms"] else ""
+            L.append(f"- {nf['id']} {nf['fact']}{t}")
+    if ledger["setup_payoff"]:
+        L.append("\n[복선 소유·회차] — 소유자를 바꾸거나 다른 지점으로 옮기지 않는다.")
+        for sp in ledger["setup_payoff"]:
+            pp = _pos_of(sp["plant_ep"], sp["plant_beat"], fmt, bmap)
+            po = _pos_of(sp["payoff_ep"], sp["payoff_beat"], fmt, bmap)
+            L.append(f"- {sp['id']} {sp['item']} — 소유: {sp['owner'] or '미정'} / 심기 {_pos_label(pp, fmt) if pp else '미정'}"
+                     f" / 회수 {_pos_label(po, fmt) if po else '미정'}" + (f" / {sp['note']}" if sp["note"] else ""))
+    if ledger["motifs"]:
+        L.append("\n[모티프 등장 회차]")
+        for m in ledger["motifs"]:
+            sc = _scope_of(m, fmt, bmap)
+            where = ", ".join(_pos_label(p, fmt) for p in sorted(sc)) if sc else "지정 없음"
+            rule = "이 지점에서만 등장. 상설 공간·반복 소품으로 바꾸지 말 것" if m["exclusive"] else "이 지점에는 반드시 등장"
+            L.append(f"- {m['id']} {m['motif']} — {where} · {rule}" + (f" / {m['note']}" if m["note"] else ""))
+    L.append("\n출력의 태그 필드(reveals·plants·payoffs·motifs·ledger_refs)에는 위 id를 그대로 쓴다.")
+    return "\n".join(L) + "\n"
+
+
+# ── 파이썬 대조 검사 ──
+def _neg_terms(ledger, corrections) -> list:
+    terms = []
+    for nf in (ledger or {}).get("negative_facts") or []:
+        terms += [(t, nf["id"]) for t in nf.get("terms") or []]
+    for rc in corrections or []:
+        terms += [(t, rc["id"]) for t in rc.get("terms") or []]
+    return [(t, i) for t, i in terms if len(t) >= 2]
+
+
+def _motif_keys(m: dict) -> list:
+    return [k for k in [m.get("motif", "")] + list(m.get("keywords") or []) if len(str(k)) >= 2]
+
+
+def _scene_label(s: dict, fmt: str) -> str:
+    if is_series_format(fmt) and s.get("ep"):
+        return f"EP{s.get('ep')} S#{s.get('no')}"
+    return f"S#{s.get('no')}"
+
+
+def validate_scenes_against_ledger(scenes: list, ledger, fmt: str = "", corrections: list = None) -> list:
+    """씬리스트 ↔ 원장·사실성 정정 대조. 경고 문자열 리스트."""
+    warns = []
+    if not scenes or (ledger_is_empty(ledger) and not corrections):
+        return warns
+    ledger = normalize_ledger(ledger) if ledger else {k: [] for k in LEDGER_TABLES}
+    bmap = beat_episode_map(fmt)
+    series = is_series_format(fmt)
+
+    def spos(s):
+        return _pos_of(s.get("ep"), s.get("beat"), fmt, bmap)
+
+    def tags(s, key):
+        return [t.upper() for t in _to_str_list(s.get(key))]
+
+    reveal = {r["id"].upper(): r for r in ledger["reveals"]}
+    spmap = {p["id"].upper(): p for p in ledger["setup_payoff"]}
+    seen_reveal, seen_plant, seen_payoff = {}, {}, {}
+    for s in scenes:
+        if not isinstance(s, dict):
+            continue
+        lab, p = _scene_label(s, fmt), spos(s)
+        text = f"{s.get('location', '')} {s.get('summary', '')}"
+        chars = " ".join(_to_str_list(s.get("characters")))
+        # ① 조기 공개
+        for rid in tags(s, "reveals"):
+            r = reveal.get(rid)
+            if not r:
+                continue
+            rp = _pos_of(r["ep"], r["beat"], fmt, bmap)
+            seen_reveal.setdefault(rid, []).append(p)
+            if rp and p and p < rp:
+                warns.append(f"[공개 일정] {lab} — {rid} '{r['truth'][:30]}' 조기 공개 ({_pos_label(p, fmt)} < 공개 지점 {_pos_label(rp, fmt)})")
+        # ② 출석 제약
+        for c in ledger["presence"]:
+            if c["character"] not in chars:
+                continue
+            sc = _scope_of(c, fmt, bmap)
+            if sc and p not in sc:
+                continue
+            if c["rule"] == "부재":
+                warns.append(f"[출석 제약] {lab} — {c['id']} {c['character']}는 {', '.join(_pos_label(x, fmt) for x in sorted(sc)) or '작품 전체'}에 나오지 않아야 합니다.")
+            elif c["rule"] == "장소 금지" and c["location"] and c["location"] in str(s.get("location", "")):
+                warns.append(f"[출석 제약] {lab} — {c['id']} {c['character']}는 '{c['location']}'에 가지 않아야 합니다.")
+        # ③ 복선 지점·소유
+        for key, store, fld in (("plants", seen_plant, "plant"), ("payoffs", seen_payoff, "payoff")):
+            for pid in tags(s, key):
+                sp = spmap.get(pid)
+                if not sp:
+                    continue
+                store.setdefault(pid, []).append(p)
+                want = _pos_of(sp[f"{fld}_ep"], sp[f"{fld}_beat"], fmt, bmap)
+                if want and p and p != want:
+                    warns.append(f"[복선 회차] {lab} — {pid} '{sp['item']}' {'심기' if fld == 'plant' else '회수'}가 {_pos_label(p, fmt)}에 있습니다 (원장: {_pos_label(want, fmt)}).")
+                if sp["owner"] and fld == "plant" and sp["owner"] not in chars:
+                    warns.append(f"[복선 소유] {lab} — {pid} '{sp['item']}'를 심는 씬에 소유자 {sp['owner']}가 없습니다 (확인 필요).")
+        # ④ 금지 사실
+        for t, nid in _neg_terms(ledger, corrections):
+            if t in text:
+                warns.append(f"[금지 사실] {lab} — '{t}' ({nid})")
+        # ⑤ 모티프 전용 지점
+        for m in ledger["motifs"]:
+            sc = _scope_of(m, fmt, bmap)
+            hit = m["id"].upper() in tags(s, "motifs") or any(k in text for k in _motif_keys(m))
+            if hit and m["exclusive"] and sc and p and p not in sc:
+                warns.append(f"[모티프] {lab} — {m['id']} '{m['motif']}'는 {', '.join(_pos_label(x, fmt) for x in sorted(sc))} 전용입니다.")
+    # 누락 — 정해진 지점에 해당 씬이 없음
+    scene_pos = {spos(s) for s in scenes if isinstance(s, dict)}
+    for r in ledger["reveals"]:
+        rp = _pos_of(r["ep"], r["beat"], fmt, bmap)
+        if rp and rp in scene_pos and rp not in seen_reveal.get(r["id"].upper(), []):
+            warns.append(f"[공개 일정] {r['id']} '{r['truth'][:30]}' — {_pos_label(rp, fmt)}에 reveals 태그가 붙은 씬이 없습니다.")
+    for m in ledger["motifs"]:
+        for x in sorted(_scope_of(m, fmt, bmap)):
+            if x not in scene_pos:
+                continue
+            ok = any(spos(s) == x and (m["id"].upper() in tags(s, "motifs")
+                                       or any(k in f"{s.get('location', '')} {s.get('summary', '')}" for k in _motif_keys(m)))
+                     for s in scenes if isinstance(s, dict))
+            if not ok:
+                warns.append(f"[모티프] {m['id']} '{m['motif']}' — {_pos_label(x, fmt)}에 등장 씬이 없습니다.")
+    return warns
+
+
+def _sentences(text: str) -> list:
+    return [x for x in re.split(r"(?<=[.!?。])\s+|\n+", str(text or "")) if x.strip()]
+
+
+def validate_treatment_against_ledger(beats: list, ledger, fmt: str = "", corrections: list = None) -> list:
+    """트리트먼트 비트 ↔ 원장 대조. 비트에는 등장인물 목록이 없어 출석 검사는 문장 단위 동시 등장으로 본다 (확인 필요 표시)."""
+    warns = []
+    if not beats or (ledger_is_empty(ledger) and not corrections):
+        return warns
+    ledger = normalize_ledger(ledger) if ledger else {k: [] for k in LEDGER_TABLES}
+    bmap = beat_episode_map(fmt)
+    for b in beats:
+        if not isinstance(b, dict):
+            continue
+        bn = _to_int(b.get("beat_no"))
+        _own = b.get("episode") if isinstance(b.get("episode"), int) else 0   # 비트에 찍힌 회차 우선
+        p = _pos_of(_own, bn, fmt, bmap)
+        lab = f"Beat {bn}" + (f"(EP{bmap.get(bn)})" if bmap.get(bn) else "")
+        narr = str(b.get("narrative", ""))
+        alltext = " ".join(str(b.get(k, "")) for k in ("narrative", "event_summary", "punch", "cliffhanger", "plant_payoff"))
+        refs = [x.upper() for x in re.findall(r"(?<![A-Za-z0-9])([RPMCN]\d+)(?!\d)", str(b.get("ledger_refs", "")), flags=re.I)]
+        for rid in refs:
+            r = next((x for x in ledger["reveals"] if x["id"].upper() == rid), None)
+            if r:
+                rp = _pos_of(r["ep"], r["beat"], fmt, bmap)
+                if rp and p and p < rp:
+                    warns.append(f"[공개 일정] {lab} — {rid} 조기 공개 (공개 지점 {_pos_label(rp, fmt)})")
+        for t, nid in _neg_terms(ledger, corrections):
+            if t in alltext:
+                warns.append(f"[금지 사실] {lab} — '{t}' ({nid})")
+        spid = str(b.get("setup_payoff_id", ""))
+        for kind, name in re.findall(r"(SETUP|PAYOFF)\s*:\s*([^,]+)", spid, flags=re.I):
+            name = name.strip()
+            for sp in ledger["setup_payoff"]:
+                if not sp["item"] or (sp["item"] not in name and name not in sp["item"]):
+                    continue
+                fld = "plant" if kind.upper() == "SETUP" else "payoff"
+                want = _pos_of(sp[f"{fld}_ep"], sp[f"{fld}_beat"], fmt, bmap)
+                if want and p and want != p:
+                    warns.append(f"[복선 회차] {lab} — {sp['id']} '{sp['item']}' {'심기' if fld == 'plant' else '회수'}가 원장({_pos_label(want, fmt)})과 다릅니다.")
+        for m in ledger["motifs"]:
+            sc = _scope_of(m, fmt, bmap)
+            if m["exclusive"] and sc and p and p not in sc and any(k in narr for k in _motif_keys(m)):
+                warns.append(f"[모티프] {lab} — {m['id']} '{m['motif']}'는 {', '.join(_pos_label(x, fmt) for x in sorted(sc))} 전용입니다.")
+        for c in ledger["presence"]:
+            sc = _scope_of(c, fmt, bmap)
+            if sc and p not in sc:
+                continue
+            for sent in _sentences(narr):
+                if c["character"] not in sent:
+                    continue
+                if c["rule"] == "장소 금지" and c["location"] and c["location"] in sent:
+                    warns.append(f"[출석 제약·확인 필요] {lab} — {c['id']} {c['character']}와 '{c['location']}'가 한 문장에 함께 나옵니다.")
+                    break
+                if c["rule"] == "부재":
+                    warns.append(f"[출석 제약·확인 필요] {lab} — {c['id']} {c['character']}가 부재 범위에 언급됩니다.")
+                    break
+    return warns
+
+
+# ── 시드 모티프 등장 지점 힌트 ──
+def seed_motif_hints(seed_locked: dict) -> list:
+    """시드 locked_visual_motifs의 등장 지점 필드를 읽는다(필드명 관용 수용).
+    appearance_beats / appearance_eps / episodes / beats 중 있는 것. 없으면 빈 리스트."""
+    out = []
+    for m in (seed_locked or {}).get("locked_visual_motifs") or []:
+        if not isinstance(m, dict):
+            continue
+        name = m.get("motif") or m.get("name") or ""
+        at = None
+        for k in ("appearance_eps", "appearance_episodes", "appearance_beats", "episodes", "eps", "beats"):
+            if m.get(k):
+                at = (k, m.get(k))
+                break
+        if name and at:
+            out.append({"motif": name, "field": at[0], "value": at[1]})
+    return out
+
+
+# ── 시리즈 회차 플랜 (storyline 시리즈 항목) ──
+EPISODE_PLAN_FIELDS = ["cold_open", "receives_hook", "a_plot", "b_plot", "c_plot",
+                       "reveals", "cliffhanger_type", "cliffhanger"]
+
+
+def normalize_series_storyline(storyline: list, fmt: str) -> list:
+    """시리즈 storyline의 회차 좌표를 엔진 계산값으로 고정한다 (seq·ep·beats·act).
+    LLM이 적은 반환점·막 표기 오류가 하류로 가지 않게 한다. 영화면 그대로 반환."""
+    if not is_series_format(fmt) or not isinstance(storyline, list):
+        return storyline
+    fr = series_frame(fmt)
+    out = []
+    for i, s in enumerate(storyline, 1):
+        if not isinstance(s, dict):
+            continue
+        s = dict(s)
+        ep = _to_int(s.get("ep")) or _to_int(s.get("seq")) or i
+        bs = fr["ep_beats"].get(ep)
+        if bs is not None:
+            s["ep"] = ep
+            s["seq"] = ep
+            s["beats"] = list(bs)
+            if bs:
+                s["act"] = FILM_SLOT_ACT[bs[0]]
+            s["turning_point"] = ("시즌 반환점" if ep == fr["midpoint_ep"] else
+                                  "All Is Lost" if ep == fr["all_is_lost_ep"] else
+                                  "클라이맥스" if ep == fr["climax_ep"] else
+                                  "1막 끝" if ep == fr["act1_end_ep"] else "")
+        out.append(s)
+    return out
+
+
+def validate_episode_plan(storyline: list, fmt: str, ledger=None) -> list:
+    """시리즈 회차 플랜 검사 (콜드오픈 연결·클리프행어 유형·공개 일정)."""
+    if not is_series_format(fmt):
+        return []
+    warns = []
+    fr = series_frame(fmt)
+    n = fr["episodes"]
+    eps = [s for s in (storyline or []) if isinstance(s, dict)]
+    if len(eps) != n:
+        warns.append(f"회차 플랜 {len(eps)}개 — {n}부작이면 {n}개여야 합니다.")
+    if eps and not any(str(s.get(k, "")).strip() for s in eps for k in EPISODE_PLAN_FIELDS):
+        return warns + ["회차 플랜 필드가 없는 구버전 storyline입니다 (v2.9.0 이전 생성). "
+                        "Structure를 다시 실행하면 콜드오픈·A/B/C 플롯·클리프행어 유형이 생성됩니다."]
+    prev_type = ""
+    type_count = {}
+    cap = max(2, -(-n // 3))
+    reveal = {r["id"].upper(): r for r in (normalize_ledger(ledger)["reveals"] if ledger else [])}
+    bmap = fr["beat_ep"]
+    for s in eps:
+        ep = _to_int(s.get("ep") or s.get("seq"))
+        tag = f"EP{ep}"
+        if not str(s.get("cold_open", "")).strip():
+            warns.append(f"{tag} — 콜드오픈이 비어 있습니다.")
+        if ep > 1 and not str(s.get("receives_hook", "")).strip():
+            warns.append(f"{tag} — 콜드오픈이 EP{ep - 1} 클리프행어를 어떻게 받는지(receives_hook)가 비어 있습니다.")
+        for k, lab in (("a_plot", "A플롯"), ("b_plot", "B플롯")):
+            if not str(s.get(k, "")).strip():
+                warns.append(f"{tag} — {lab}이 비어 있습니다.")
+        ct = str(s.get("cliffhanger_type", "")).strip()
+        if ep < n:
+            if not str(s.get("cliffhanger", "")).strip():
+                warns.append(f"{tag} — 클리프행어가 비어 있습니다.")
+            if ct and ct not in CLIFFHANGER_TYPES:
+                warns.append(f"{tag} — 클리프행어 유형 '{ct}'는 7종({'/'.join(CLIFFHANGER_TYPES)}) 밖입니다.")
+            if ct and ct == prev_type:
+                warns.append(f"{tag} — 클리프행어 유형 '{ct}'가 직전 회차와 같습니다.")
+            if ct:
+                type_count[ct] = type_count.get(ct, 0) + 1
+            prev_type = ct
+        for rid in [t.upper() for t in _to_str_list(s.get("reveals"))]:
+            r = reveal.get(rid)
+            if r:
+                rp = _pos_of(r["ep"], r["beat"], fmt, bmap)
+                if rp and ep < rp:
+                    warns.append(f"{tag} — {rid} 조기 공개 (원장 공개 회차 EP{rp}).")
+    for ct, c in type_count.items():
+        if c > cap:
+            warns.append(f"클리프행어 유형 '{ct}' {c}회 — {n}부작 상한 {cap}회를 넘었습니다.")
+    return warns
+
+
+# ── 메타 텍스트 대조 (투자자 요약·감독 포인트) ──
+META_ROLE_TERMS = ("마약왕", "보스", "두목", "배후", "흑막", "설계자", "진범", "범인", "주범",
+                   "킬러", "스파이", "내부자", "배신자", "브로커", "회장", "조직원")
+
+
+def check_meta_consistency(meta: dict, characters: list, fmt: str = "") -> list:
+    """메타 텍스트가 본문 사실과 어긋나는지 대조. 판정이 아니라 확인 목록이다."""
+    warns = []
+    if not isinstance(meta, dict):
+        return warns
+    texts = [str(meta.get("investor_summary", ""))] + [str(x) for x in (meta.get("director_notes") or [])]
+    blob = " ".join(texts)
+    chars = [c for c in (characters or []) if isinstance(c, dict) and c.get("name")]
+    for c in chars:
+        name = str(c["name"]).strip()
+        bio = json.dumps(c, ensure_ascii=False)
+        for m in re.finditer(re.escape(name), blob):
+            near = blob[max(0, m.start() - 8):m.start()] + blob[m.end():m.end() + 4]
+            for term in META_ROLE_TERMS:
+                if term in near and term not in bio:
+                    warns.append(f"[메타 역할] '{term} {name}' — 캐릭터 바이블에 없는 역할 표현입니다.")
+    if is_series_format(fmt):
+        fr = series_frame(fmt)
+        for m in re.finditer(r"(?:EP\s*(\d+)|(\d+)\s*(?:부|화|회))[^.。]{0,20}?(반환점|미드포인트|중간점|Midpoint)"
+                             r"|(반환점|미드포인트|중간점|Midpoint)[^.。]{0,20}?(?:EP\s*(\d+)|(\d+)\s*(?:부|화|회))", blob):
+            g = [x for x in m.groups() if x and x.isdigit()]
+            if g and int(g[0]) != fr["midpoint_ep"]:
+                warns.append(f"[메타 골격] 반환점을 EP{g[0]}로 적었습니다 — 시즌 골격은 EP{fr['midpoint_ep']} 엔딩입니다.")
+    return list(dict.fromkeys(warns))
+
+
+def episode_layout_from_storyline(storyline: list, fmt: str = "") -> dict:
+    """작가(또는 이전 엔진)가 storyline에 정한 회차 배치 → {비트: 회차}. 온전하지 않으면 빈 dict.
+
+    온전함 = 회차 번호가 1부터 오름차순, 각 회차의 beats가 1~16을 빠짐없이 한 번씩, 비트가 앞으로만 진행.
+    v2.9.0 실물 대조(「왕게임」 2026-10-19 JSON)에서 추가: 작가가 손본 JSON은 회당 2비트 배치였고
+    본문도 그 배치로 쓰여 있었다. 템플릿으로 덮어쓰면 EP5 내용이 EP4로 표기된다.
+    """
+    if not is_series_format(fmt) or not isinstance(storyline, list) or not storyline:
+        return {}
+    out, prev_ep, prev_beat = {}, 0, 0
+    for s in storyline:
+        if not isinstance(s, dict):
+            return {}
+        m = re.search(r"EP\s*(\d+)", str(s.get("pages", "")), flags=re.I)
+        ep = _to_int(s.get("ep")) or (int(m.group(1)) if m else 0) or _to_int(s.get("seq"))
+        beats = _to_int_list(s.get("beats"))
+        if not ep or ep <= prev_ep or not beats:
+            return {}
+        for b in beats:
+            if b in out or b <= prev_beat:
+                return {}
+            out[b] = ep
+            prev_beat = b
+        prev_ep = ep
+    return out if sorted(out) == list(range(1, 17)) else {}
+
+
+def project_beat_episode_map(project: dict) -> dict:
+    """프로젝트의 비트→회차. storyline에 온전한 작가 배치가 있으면 그것, 없으면 시즌 골격 계산값."""
+    project = project or {}
+    fe = format_with_episodes(project.get("format", ""), resolve_episode_count(project))
+    lay = episode_layout_from_storyline((project.get("structure_story") or {}).get("storyline") or [], fe)
+    return lay or beat_episode_map(fe)
+
+
+def stamp_episode_labels(items: list, fmt: str, beat_key: str = "beat_no", mode: str = "treatment",
+                         layout: dict = None) -> list:
+    """비트 항목에 회차를 엔진 계산값으로 찍는다 (LLM 기재값 덮어쓰기).
+    mode='treatment' → episode=정수(Series Engine이 'EP{episode}'로 출력), episode_label='EP4'
+    mode='beat_sheet' → episode='EP4' (Series Engine이 그대로 출력)."""
+    if not is_series_format(fmt) or not isinstance(items, list):
+        return items
+    bmap = layout or beat_episode_map(fmt)
+    for it in items:
+        if not isinstance(it, dict):
+            continue
+        ep = bmap.get(_to_int(it.get(beat_key)))
+        if not ep:
+            continue
+        if mode == "beat_sheet":
+            it["episode"] = f"EP{ep}"
+        else:
+            it["episode"] = ep
+            it["episode_label"] = f"EP{ep}"
+    return items
 
 
 def build_system_core(genre: str, fact_based: bool = False, historical: bool = False, film_type: str = "",
@@ -9997,7 +11126,8 @@ narrative의 모든 씬에 최소 1개의 '관객이 웃는 순간'이 있어야
 """
     
     if is_series:
-        scope_spec = "에피소드당 40~50분 기준, 1비트 = 10~20분 분량 = 4~6개의 독립된 씬"
+        scope_spec = ("에피소드당 40~60분 기준. v2.9.0: 회차당 비트 수가 1~3개로 다르다 — "
+                      "비트가 1개인 회차는 그 비트가 회차 전체(콜드오픈~클리프행어)를 담는다")
         min_chars = "4000"
         max_chars = "6000"
     else:
@@ -10014,6 +11144,8 @@ narrative의 모든 씬에 최소 1개의 '관객이 웃는 순간'이 있어야
 - 매 에피소드에 A-Story + B-Story 진행이 반드시 공존해야 한다.
 - 에피소드 첫 비트는 이전 에피소드 클리프행어의 즉각적 결과로 시작한다 (EP1 제외).
 - B-Story 시간축이 매 에피소드마다 자막/뉴스/대사로 표시되어야 한다.
+- [v2.9.0] episode 필드는 엔진이 시즌 골격으로 다시 찍는다. 반환점·막 구분은 시즌 골격 블록을 따른다.
+- [v2.9.0] 회차 플랜(콜드오픈·A/B/C 플롯·공개 정보·클리프행어 유형)이 주어지면 그대로 따른다.
 """
     
     b_story_block = ""
@@ -10708,7 +11840,8 @@ TREATMENT_BEAT_SCHEMA_TEMPLATE = """{{
             "setup_payoff_id": "★ v2.6.0 ★ 이 비트에서 도입(setup) 또는 회수(payoff)되는 명명 인물·소품 ID. 형식: 'SETUP:Pak Wiranto' 또는 'PAYOFF:검은 세단'. 둘 다 없으면 빈 문자열. 복수면 쉼표로 구분.",
             "physical_cost_stage": "★ v2.6.0 — protagonist가 있는 비트에서 필수 ★ 이 비트에서 주인공이 치르는 신체적 대가 단계 (정수 1/2/3/4). Beat 1~5는 1, Beat 6~8은 2, Beat 9~11은 3, Beat 12~는 4가 기본값. 0은 대가 진행 없음.",
             "physical_cost_description": "★ v2.6.0 ★ 이 비트에서 누적된 대가 1문장 (예: '손바닥 열기 자국이 손등으로 번진다'). 이전 단계 흔적도 함께 보여야 함. physical_cost_stage가 0이면 빈 문자열.",
-            "antagonist_active_action": "★ v2.6.0 — 적대자가 영향을 미치는 모든 비트에서 필수 ★ 이 비트에서 적대자의 능동 행위 1개. 침묵·외면 등 수동 회피는 카운트 안 됨. villain_beat 필드보다 더 구체적인 행동 단위. 적대자 영향 없는 비트면 빈 문자열."
+            "antagonist_active_action": "★ v2.6.0 — 적대자가 영향을 미치는 모든 비트에서 필수 ★ 이 비트에서 적대자의 능동 행위 1개. 침묵·외면 등 수동 회피는 카운트 안 됨. villain_beat 필드보다 더 구체적인 행동 단위. 적대자 영향 없는 비트면 빈 문자열.",
+            "ledger_refs": "★ v2.9.0 ★ 서사 원장이 주어졌으면 이 비트에서 공개(R)·심기/회수(P)·등장(M)하는 원장 id를 쉼표로. 예: 'R2 공개, P1 심기, M1'. 없으면 빈 문자열."
         }}
     ]
 }}"""

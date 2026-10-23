@@ -653,7 +653,7 @@ def _get_project_stage(project: dict) -> str:
     return "초기"
 
 
-def save_project_to_json(project: dict, engine_version: str = "v2.8.2") -> str:
+def save_project_to_json(project: dict, engine_version: str = "v2.9.0") -> str:
     """프로젝트 전체를 JSON 문자열로 직렬화.
     
     Args:
@@ -711,7 +711,7 @@ def load_project_from_json(json_str: str) -> dict:
     
     # 엔진 버전 호환성 체크 (경고만, 실패 아님)
     saved_version = meta.get("engine_version", "unknown")
-    current_version = "v2.8.2"
+    current_version = "v2.9.0"
     if saved_version != current_version:
         warnings.append(
             f"엔진 버전 차이 — 저장 시: {saved_version} / 현재: {current_version}. "
@@ -984,13 +984,30 @@ def get_client():
     return _AnthropicCompat(client, _sdk_strips_sampling_args())
 
 
-def _build_project_locked_block(project: dict) -> str:
+def _build_project_locked_block(project: dict, with_ledger: bool = True) -> str:
     """프로젝트의 LOCKED 항목으로 프롬프트 주입 블록 생성.
-    v2.3: OPEN 필드 폐지. LOCKED 항목이 없으면 빈 문자열 반환."""
+    v2.3: OPEN 필드 폐지. LOCKED 항목이 없으면 빈 문자열 반환.
+    v2.9.0: Reality Gate 사실성 정정 + 잠긴 서사 원장을 함께 붙인다.
+      with_ledger=False — 호출부가 범위 지정 원장 블록을 따로 넣을 때(Treatment·씬리스트) 중복 방지."""
     locked = project.get("locked_items", [])
-    if not locked:
-        return ""
-    return P.build_locked_block(locked)
+    out = P.build_locked_block(locked) if locked else ""
+    out += P.build_reality_corrections_block(project)
+    if with_ledger:
+        out += P.build_ledger_block(P.get_locked_ledger(project), _fmt_eff(project))
+    return out
+
+
+def _ep_text(b: dict) -> str:
+    """v2.9.0: 비트의 회차 표기. episode는 정수(엔진 고정값) 또는 구버전 문자열."""
+    if b.get("episode_label"):
+        return str(b["episode_label"])
+    ep = b.get("episode", "")
+    return f"EP{ep}" if isinstance(ep, int) and ep else str(ep or "")
+
+
+def _fmt_eff(project: dict) -> str:
+    """v2.9.0: 구조 계산용 유효 포맷. 시리즈면 '· N부작'을 명시한다 (project['format']는 불변)."""
+    return P.format_with_episodes(project.get("format", ""), P.resolve_episode_count(project))
 
 
 # ─── API Call: Research (v2.4.2: web_search 통합 + 최신 작품 우선 + 토큰 로깅) ───
@@ -1807,7 +1824,9 @@ def call_reality_gate(project, core_data):
         "원 설계 의도를 보존하면서 사실만 교정한 대안 1",
         "원 설계 의도를 보존하면서 사실만 교정한 대안 2"
       ],
-      "suggested_locked": "대안 1을 반영한 LOCKED 교체 문장 (원문과 같은 형식, 1줄)"
+      "suggested_locked": "대안 1을 반영한 LOCKED 교체 문장 (원문과 같은 형식, 1줄)",
+      "error_terms": ["원고에 나오면 곧 오류인 틀린 고유 명칭 (없으면 빈 배열. 일반 단어 금지)"],
+      "correct_terms": ["대신 쓸 정확한 명칭 (없으면 빈 배열)"]
     }}
   ],
   "author_note": "작가가 의도적으로 비튼 것으로 보이는 설정이 있으면 여기에 기록. 없으면 빈 문자열."
@@ -1842,6 +1861,74 @@ def call_reality_gate(project, core_data):
         if raw:
             with st.expander("🔧 Reality Gate Raw Response (디버그)"):
                 st.text_area("Raw", raw, height=400)
+        return None
+
+
+# ─── v2.9.0: 서사 원장 생성 (Structure 직전) ───
+def call_story_ledger(project: dict):
+    """LOCKED·시드·Core·바이블·Reality Gate에서 서사 원장 5표 초안을 만든다.
+    새 설정을 만들지 않는다. 결과는 초안이며, 작가가 고쳐 잠근 것만 하류에 주입된다."""
+    try:
+        client = get_client()
+        fe = _fmt_eff(project)
+        core = project.get("core") or {}
+        bible = (project.get("char_bible") or {}).get("characters", []) or []
+        locked_items = project.get("locked_items", []) or []
+        seed = project.get("seed_locked") or {}
+        seed_txt = json.dumps(seed, ensure_ascii=False)
+        if len(seed_txt) > 12000:
+            seed_txt = seed_txt[:12000] + " …(이하 생략)"
+        core_brief = {
+            "logline": (core.get("logline_pack") or {}).get("washed", ""),
+            "world_build": core.get("world_build", {}),
+            "planting_payoff": core.get("planting_payoff", []),
+            "characters": [{k: c.get(k) for k in ("name", "role", "goal", "secret", "flaw")}
+                           for c in (core.get("characters", []) + core.get("extended_characters", []))
+                           if isinstance(c, dict)],
+        }
+        bible_brief = [{k: c.get(k) for k in ("name", "role", "occupation", "secret", "flaw", "tactics",
+                                               "contradiction", "wound_event")}
+                       for c in bible if isinstance(c, dict)]
+        rc = P.reality_corrections(project)
+        hints = P.seed_motif_hints(seed)
+        user_prompt = f"""[작품] {project.get('title','')} / 장르: {project.get('genre','')} / 포맷: {fe}
+
+[LOCKED]
+{chr(10).join(f'- {x}' for x in locked_items) if locked_items else '(없음)'}
+
+[Idea Engine 시드 원본]
+{seed_txt if seed else '(없음)'}
+
+[시드 모티프 등장 지점 필드]
+{json.dumps(hints, ensure_ascii=False) if hints else '(없음)'}
+
+[Core Build 요약]
+{json.dumps(core_brief, ensure_ascii=False)}
+
+[캐릭터 바이블 요약]
+{json.dumps(bible_brief, ensure_ascii=False) if bible_brief else '(없음)'}
+
+[Reality Gate 적출 사항 — 작가가 무시하지 않은 것]
+{json.dumps(rc, ensure_ascii=False) if rc else '(없음)'}
+
+[JSON 스키마]
+{P.LEDGER_SCHEMA}
+"""
+        with client.messages.stream(
+            model=ANTHROPIC_MODEL, max_tokens=12000, temperature=0.1,
+            system=P.build_system_story_ledger(fe),
+            messages=[{"role": "user", "content": user_prompt}],
+        ) as stream:
+            response = stream.get_final_message()
+        txt = "".join(b.text for b in response.content if hasattr(b, "text")).strip()
+        st.session_state["last_ledger_raw"] = txt
+        return P.normalize_ledger(safe_json_loads(txt))
+    except Exception as e:
+        st.error(f"서사 원장 생성 실패: {e}")
+        raw = st.session_state.get("last_ledger_raw", "")
+        if raw:
+            with st.expander("🔧 Ledger Raw (디버그)"):
+                st.text_area("Raw", raw, height=300)
         return None
 
 
@@ -2092,9 +2179,10 @@ Strategy: {gns.get("strategy","")}
 규칙:
 - synopsis_1p 각 항목 2문장 이내
 - storyline은 8개 시퀀스 (영화 기준)
-- 시리즈면 시퀀스 대신 에피소드 단위 6~8개
+- 시리즈면 시퀀스 대신 에피소드 단위 — 개수는 아래 시퀀스 설계 지시의 회차 수를 따른다
 - 각 시퀀스의 summary, conflict, hook 1문장씩
-{P.build_sequence_instruction(fmt, structure_type)}"""
+{P.build_sequence_instruction(fmt, structure_type)}
+{P.build_series_frame_block(fmt)}"""
 
         response = client.messages.create(
             model=ANTHROPIC_MODEL, max_tokens=16000, temperature=0.3,
@@ -2209,7 +2297,7 @@ Goal: {gns.get("goal","")} / Need: {gns.get("need","")} / Strategy: {gns.get("st
 - character_arcs는 Core Build의 캐릭터 전원
 - relationship_changes는 핵심 관계 3~4쌍
 - 모든 필드 1문장 이내로 압축
-"""
+{P.build_series_frame_block(fmt)}"""
 
         response = client.messages.create(
             model=ANTHROPIC_MODEL, max_tokens=16000, temperature=0.25,
@@ -2406,6 +2494,7 @@ Goal: {gns.get("goal","")} / Need: {gns.get("need","")} / Strategy: {gns.get("st
 {opening_strategy_block}
 {bjnd_scene_block}
 {locked_block}
+{P.build_series_frame_block(fmt)}
 [Storyline]
 {storyline_json}
 
@@ -2441,16 +2530,11 @@ Goal: {gns.get("goal","")} / Need: {gns.get("need","")} / Strategy: {gns.get("st
 
 # ─── 16비트 구조 정의 ───
 def _get_series_act_mapping(fmt):
-    """미니시리즈의 에피소드를 3막에 매핑"""
-    bs = P.get_beat_structure(fmt)
-    eps = list(bs.keys())
-    n = len(eps)
-    if n <= 3:
-        return {1: eps[:1], 2: eps[1:2], 3: eps[2:]}
-    elif n <= 6:
-        return {1: eps[:2], 2: eps[2:4], 3: eps[4:]}
-    else:  # 8화
-        return {1: eps[:3], 2: eps[3:6], 3: eps[6:]}
+    """미니시리즈의 에피소드를 3막에 매핑.
+    v2.9.0: 시즌 골격 계산값 사용 (8부작 = 1막 EP1·2 / 2막 EP3~6 / 3막 EP7·8).
+    v2.8.2까지는 EP 개수로 3/3/2를 하드코딩해 반환점이 6부로 밀렸다."""
+    fr = P.series_frame(fmt)
+    return {a: [f"EP{e}" for e in eps] for a, eps in fr["act_eps"].items()}
 
 
 def _build_b_story_context(core_data):
@@ -2480,7 +2564,7 @@ def _build_b_story_context(core_data):
 # ─── API Call: Treatment Build (16비트 줄글) ───
 def call_treatment_beats(core_data, story_data, scene_data, genre, fmt, act_number, locked_block="",
                           fact_based=False, historical=False, film_type="", research=None,
-                          structure_type="", state_axes=None, speech_matrix=None):
+                          structure_type="", state_axes=None, speech_matrix=None, ledger=None):
     """Treatment Build: 막별 비트 줄글 생성 — 영화/시리즈 자동 분기.
     
     [v2.3.8 추가 전파 필드]
@@ -2508,13 +2592,16 @@ def call_treatment_beats(core_data, story_data, scene_data, genre, fmt, act_numb
 
         # ── 비트 목록 구성 ──
         if is_series:
+            # v2.9.0: 막 = 슬롯 범위(1~6/7~12/13~16) 고정. 회차는 슬롯 위에 얹는 라벨이다.
+            #   회차 경계가 막 경계와 어긋나는 회차 수(예: 4부작)에서도 비트가 빠지거나 겹치지 않는다.
             act_ep_map = _get_series_act_mapping(fmt)
             bs = P.get_beat_structure(fmt)
             all_beats = []
-            for ep_key in act_ep_map.get(act_number, []):
-                for beat_tuple in bs.get(ep_key, []):
-                    all_beats.append((beat_tuple[0], f"[{ep_key}] {beat_tuple[1]}", beat_tuple[2] if len(beat_tuple) > 2 else ""))
-            beats = all_beats
+            for ep_key, ep_beats in bs.items():
+                for beat_tuple in ep_beats:
+                    if P.FILM_SLOT_ACT.get(beat_tuple[0]) == act_number:
+                        all_beats.append((beat_tuple[0], f"[{ep_key}] {beat_tuple[1]}", beat_tuple[2] if len(beat_tuple) > 2 else ""))
+            beats = sorted(all_beats, key=lambda x: x[0])
         else:
             bs = P.BEAT_STRUCTURE_FILM
             beats = bs[act_number]
@@ -2604,12 +2691,29 @@ Water Cooler Moment: {wc.get("scene_or_setup", "")}
         state_target_block = P.build_state_targets_for_treatment(state_axes, [b[0] for b in beats])
         # v2.8.2: 캐릭터 바이블의 말투 관계 — 이 막의 전환 지점 + 현재 말단계 참조표
         state_target_block += P.build_speech_shifts_for_treatment(speech_matrix, [b[0] for b in beats])
+        # v2.9.0: 서사 원장 — 이 막 범위 기준으로 공개 금지·공개·이미 공개 표시
+        state_target_block += P.build_ledger_block(ledger, fmt, [b[0] for b in beats]) if ledger else ""
 
         # ── 시리즈용 추가 정보 ──
         series_info = ""
         if is_series:
             ep_list = act_ep_map.get(act_number, [])
             series_info = f"\n[에피소드 구성] 이 {act_label}은 {', '.join(ep_list)}에 해당합니다. 각 에피소드의 마지막 비트는 반드시 클리프행어로 끝내세요.\n"
+            series_info += P.build_series_frame_block(fmt)
+            # v2.9.0: 이 막 회차의 회차 플랜 (Structure storyline 시리즈 필드)
+            _ep_nums = {int(e.replace("EP", "")) for e in ep_list}
+            _plan_lines = []
+            for _s in storyline:
+                if not isinstance(_s, dict) or P._to_int(_s.get("ep") or _s.get("seq")) not in _ep_nums:
+                    continue
+                _plan_lines.append(
+                    f"EP{_s.get('ep') or _s.get('seq')} [{_s.get('turning_point','')}] 콜드오픈: {_s.get('cold_open','')}"
+                    f" / 받는 훅: {_s.get('receives_hook','')} / A: {_s.get('a_plot','')} / B: {_s.get('b_plot','')}"
+                    f" / C: {_s.get('c_plot','')} / 공개: {_s.get('reveals','')}"
+                    f" / 클리프행어({_s.get('cliffhanger_type','')}): {_s.get('cliffhanger','')}"
+                )
+            if _plan_lines:
+                series_info += "\n[★ v2.9.0 이 막의 회차 플랜 — Structure에서 확정. 그대로 따를 것 ★]\n" + "\n".join(_plan_lines) + "\n"
 
         # ── BJND 씬 레벨 집행 블록 (v2.3 신규) — 모든 막에 주입 (막별 Cost 단계 규칙 내장) ──
         bjnd_scene_block = P.build_bjnd_scene_block(core_data)
@@ -3202,8 +3306,10 @@ def build_writer_engine_handoff_v26(act1: dict, act2: dict, act3: dict,
     }
 
 
-def call_treatment_meta(act1, act2, act3, core_data):
-    """Treatment 감정곡선 + 감독포인트 + 투자자요약"""
+def call_treatment_meta(act1, act2, act3, core_data, project=None):
+    """Treatment 감정곡선 + 감독포인트 + 투자자요약
+    v2.9.0: project 디폴트 인자 — 서사 원장·시즌 골격·바이블 역할을 함께 넣어
+      메타 텍스트가 본문 사실과 어긋나지 않게 한다 (〈왕게임〉 '마약왕 고명수'·'반환점 6부')."""
     try:
         client = get_client()
         all_beats = []
@@ -3223,6 +3329,28 @@ def call_treatment_meta(act1, act2, act3, core_data):
                 char_registry.append(f"{name}({age}, {role})")
         char_registry_str = " / ".join(char_registry) if char_registry else "(캐릭터 정보 없음)"
 
+        # v2.9.0: 메타 대조 근거 — 바이블 역할 한 줄 + 시즌 골격 + 원장 + 회차 콜드오픈
+        _facts = ""
+        if project:
+            _bible = (project.get("char_bible") or {}).get("characters", []) or []
+            _roles = [f"{c.get('name','')}: {c.get('role','')} / {c.get('occupation','')} / {str(c.get('secret',''))[:60]}"
+                      for c in _bible if isinstance(c, dict) and c.get("name")]
+            _fe = _fmt_eff(project)
+            _story = project.get("structure_story") or {}
+            _cold = [f"EP{s.get('ep') or s.get('seq')} 콜드오픈: {s.get('cold_open','')}"
+                     for s in (_story.get("storyline") or []) if isinstance(s, dict) and s.get("cold_open")]
+            _facts = (
+                "\n[★ v2.9.0 메타 대조 근거 — 메타 텍스트는 아래 사실과 어긋나면 안 된다 ★]\n"
+                + ("인물 역할(바이블):\n" + "\n".join(_roles[:12]) + "\n" if _roles else "")
+                + P.build_series_frame_block(_fe)
+                + ("\n".join(_cold) + "\n" if _cold else "")
+                + P.build_ledger_block(P.get_locked_ledger(project), _fe)
+                + P.build_reality_corrections_block(project)
+                + "- 투자자 요약·감독 포인트에서 인물을 바이블에 없는 역할·직함으로 부르지 않는다 (예: 바이블에 없는 '마약왕').\n"
+                + "- 공개 일정상 뒤에 밝혀지는 진상은 투자자 요약에서 '반전'으로 언급하되 회차를 바꾸지 않는다.\n"
+                + "- 감독 포인트는 회차 플랜의 콜드오픈·클리프행어와 충돌하지 않는다.\n"
+            )
+
         response = client.messages.create(
             model=ANTHROPIC_MODEL, max_tokens=2000, temperature=0.3,
             system=P.SYSTEM_TREATMENT_META,
@@ -3233,7 +3361,7 @@ def call_treatment_meta(act1, act2, act3, core_data):
 
 [★ 등장 캐릭터 레지스트리 — 감독 포인트에서 이름을 쓸 때 반드시 이 목록의 이름만 사용할 것]
 {char_registry_str}
-
+{_facts}
 [JSON 스키마]
 {{
   "emotion_curve": [
@@ -3260,7 +3388,7 @@ def call_treatment_meta(act1, act2, act3, core_data):
         return None
 
 
-def call_treatment_gate(treatment_data, core_data=None, genre=""):
+def call_treatment_gate(treatment_data, core_data=None, genre="", project=None):
     """Gate E: Treatment Gate 채점 — v2.3.6 강화판.
     
     이전 문제: beat_summary에 글자 수(chars)만 전달. 실제 내용 미검증.
@@ -3320,6 +3448,24 @@ Ending Payoff: {ending_payoff}
 위 시대에 존재하지 않는 요소가 Treatment에 포함되었는지 반드시 확인하라.
 (예: 1980년대 설정인데 스마트폰/SNS/AI, 1970년대인데 PC, 조선시대인데 사진기 등)
 """
+
+        # v2.9.0: Reality Gate 적출·서사 원장·파이썬 사전 검사를 Gate E에 넘긴다.
+        #   v2.8.2까지 Reality Gate가 잡은 오류('합동신문센터')가 Gate E에 전달되지 않아 통과했다.
+        if project:
+            _fe = _fmt_eff(project)
+            _all = []
+            for _k in ("act1", "act2", "act3"):
+                _all += (treatment_data.get(_k) or {}).get("beats", []) or []
+            _pre = P.validate_treatment_against_ledger(
+                _all, P.get_locked_ledger(project), _fe, P.reality_corrections(project))
+            core_context += P.build_reality_corrections_block(project)
+            core_context += P.build_ledger_block(P.get_locked_ledger(project), _fe)
+            core_context += P.build_series_frame_block(_fe)
+            if _pre:
+                core_context += ("\n[엔진 사전 검사 결과 — 사실이면 critical_issues에 그대로 옮기고 logic/period 점수에 반영하라]\n"
+                                 + "\n".join(f"- {w}" for w in _pre[:30]) + "\n")
+            core_context += ("\n★ 사실성 정정·금지 사실·공개 일정·출석 제약·모티프 회차 위반은 logic_consistency 또는 "
+                             "period_consistency 감점 사유다. 위반 비트는 critical_issues에 비트 번호와 함께 적는다.\n")
 
         response = client.messages.create(
             model=ANTHROPIC_MODEL, max_tokens=2500, temperature=0.2,
@@ -3460,8 +3606,11 @@ def call_tone_document(core_data, structure_data, scene_data, treatment_data, ch
 
 # ─── DOCX 생성 ───
 # ─── API Call: Scene List (v2.8.1 신규, C6) ───
-def call_scene_list_act(project: dict, variant: str, act_number: int):
+def call_scene_list_act(project: dict, variant: str, act_number: int, ep: int = 0):
     """씬리스트 1막 분량 생성. 안(기본/압축/변주) × 막 단위 독립 호출.
+
+    v2.9.0: ep 디폴트 인자 — 시리즈는 회차 단위로 호출한다(ep>0). act_number는 무시된다.
+      회차 단위가 시리즈의 기본 단위이고, 2막(4개 회차)을 한 번에 만들면 출력 절단이 재발한다.
 
     v2.6.4 교훈: 100씬을 한 번에 생성하면 출력 절단이 재발한다.
     Treatment와 같은 막별 독립 실행 구조로 피해 범위를 막 1개로 한정한다.
@@ -3472,12 +3621,18 @@ def call_scene_list_act(project: dict, variant: str, act_number: int):
         core = project.get("core") or {}
         story = project.get("structure_story") or {}
         treatment = project.get("treatment") or {}
-        fmt = project.get("format", "")
+        fmt = _fmt_eff(project)
         genre = project.get("genre", "")
         ratio = P.SCENE_LIST_VARIANTS.get(variant, {}).get("budget_ratio", 1.0)
+        series_unit = bool(ep) and P.is_series_format(fmt)
+        unit_key = f"ep{ep}" if series_unit else f"act{act_number}"
+        unit_label = f"EP{ep}" if series_unit else f"{act_number}막"
 
         storyline = [s for s in (story.get("storyline") or []) if isinstance(s, dict)]
-        act_seqs = [s for s in storyline if str(s.get("act", "")) == str(act_number)]
+        if series_unit:
+            act_seqs = [s for s in storyline if P._to_int(s.get("ep") or s.get("seq")) == ep]
+        else:
+            act_seqs = [s for s in storyline if str(s.get("act", "")) == str(act_number)]
         if not act_seqs:
             act_seqs = storyline   # 구버전 storyline(act 필드 없음) fallback
         seq_lines = []
@@ -3492,7 +3647,13 @@ def call_scene_list_act(project: dict, variant: str, act_number: int):
                 f"  목표: {s.get('goal','')}\n  요약: {s.get('summary','')}"
             )
 
-        beats = ((treatment.get(f"act{act_number}") or {}).get("beats")) or []
+        if series_unit:
+            _want = set(P.series_frame(fmt)["ep_beats"].get(ep, []))
+            beats = [b for k in ("act1", "act2", "act3")
+                     for b in ((treatment.get(k) or {}).get("beats") or [])
+                     if isinstance(b, dict) and P._to_int(b.get("beat_no")) in _want]
+        else:
+            beats = ((treatment.get(f"act{act_number}") or {}).get("beats")) or []
         beat_lines = []
         for b in beats:
             if not isinstance(b, dict):
@@ -3509,7 +3670,20 @@ def call_scene_list_act(project: dict, variant: str, act_number: int):
         # 앞서 생성한 같은 안의 다른 막 장소명 — 표기 통일용
         done = ((project.get("scene_list") or {}).get("variants") or {}).get(variant, {})
         used_locs = sorted({str(s.get("location", "")) for k, part in done.items()
-                            if k != f"act{act_number}" for s in (part or []) if isinstance(s, dict)} - {""})
+                            if k != unit_key for s in (part or []) if isinstance(s, dict)} - {""})
+
+        # v2.9.0: 회차 플랜 · 서사 원장(이 범위 기준)
+        plan_block = ""
+        if series_unit and act_seqs:
+            s0 = act_seqs[0]
+            plan_block = (f"\n[★ EP{ep} 회차 플랜 — 그대로 따를 것 ★]\n"
+                          + "\n".join(f"{k}: {s0.get(k, '')}" for k in ["turning_point"] + P.EPISODE_PLAN_FIELDS)
+                          + "\n- 첫 씬은 콜드오픈이다. receives_hook대로 직전 회차 클리프행어를 받는다."
+                          + ("\n- 마지막 씬은 클리프행어다." if ep < P.series_frame(fmt)["episodes"] else "")
+                          + "\n")
+        _focus = sorted(P.series_frame(fmt)["ep_beats"].get(ep, [])) if series_unit else \
+            [b for b, a in P.FILM_SLOT_ACT.items() if a == act_number]
+        ledger_block = P.build_ledger_block(P.get_locked_ledger(project), fmt, _focus or None)
 
         td = project.get("tone_doc") or {}
         dlg_rules = td.get("dialogue_rules") if isinstance(td, dict) else None
@@ -3520,14 +3694,16 @@ def call_scene_list_act(project: dict, variant: str, act_number: int):
             locked_text=_locked_text, idea_text=_idea_text,
         )
         user_prompt = f"""[작품] 장르: {genre} / 포맷: {fmt} / 구조 골격: {P.normalize_structure_type(project.get('structure_type'))}
-{_build_project_locked_block(project)}
+{_build_project_locked_block(project, with_ledger=False)}
+{ledger_block}
+{plan_block}
 [등장인물]
 {char_lines}
 
-[{act_number}막 시퀀스 — 권장 씬 수는 '{variant}' 기준으로 이미 환산됨]
+[{unit_label} 시퀀스 — 권장 씬 수는 '{variant}' 기준으로 이미 환산됨]
 {chr(10).join(seq_lines)}
 
-[{act_number}막 Treatment 비트]
+[{unit_label} Treatment 비트]
 {chr(10).join(beat_lines) if beat_lines else '(Treatment 비트 없음 — 시퀀스 요약만으로 구성)'}
 
 [이미 쓴 장소명 — 같은 장소는 이 표기를 그대로 쓸 것]
@@ -3537,12 +3713,12 @@ def call_scene_list_act(project: dict, variant: str, act_number: int):
 {json.dumps(dlg_rules, ensure_ascii=False)[:1500] if dlg_rules else '(없음)'}
 
 [JSON 스키마]
-{P.SCENE_LIST_SCHEMA}
+{P.SCENE_LIST_SCHEMA_SERIES if series_unit else P.SCENE_LIST_SCHEMA}
 
 규칙:
-- {act_number}막 시퀀스의 씬만 출력한다. no는 1부터 매긴다 (엔진이 전체 번호를 다시 매긴다).
+- {unit_label} 시퀀스의 씬만 출력한다. no는 1부터 매긴다 (엔진이 전체 번호를 다시 매긴다).
 - 비트의 사건·선택·결과가 빠짐없이 어느 씬에든 들어가야 한다.
-"""
+""" + (f"- 모든 씬의 ep와 seq는 {ep}다.\n" if series_unit else "")
         txt = ""
         for temp in (0.4, 0.2):
             response = client.messages.create(
@@ -3560,10 +3736,19 @@ def call_scene_list_act(project: dict, variant: str, act_number: int):
                 data = None
             scenes = (data or {}).get("scenes") if isinstance(data, dict) else None
             if isinstance(scenes, list) and scenes:
+                # v2.9.0: 회차·태그를 엔진이 고정한다
+                for _s in scenes:
+                    if not isinstance(_s, dict):
+                        continue
+                    if series_unit:
+                        _s["ep"] = ep
+                        _s["seq"] = ep
+                    for _k in ("reveals", "plants", "payoffs", "motifs"):
+                        _s[_k] = P._to_str_list(_s.get(_k))
                 return scenes
         raise ValueError("씬리스트 JSON을 읽지 못했습니다 (2회 시도).")
     except Exception as e:
-        st.error(f"씬리스트 {variant} {act_number}막 생성 실패: {e}")
+        st.error(f"씬리스트 {variant} {('EP' + str(ep)) if ep else (str(act_number) + '막')} 생성 실패: {e}")
         raw = st.session_state.get("last_scene_list_raw", "")
         if raw:
             with st.expander("🔧 Scene List Raw (디버그)"):
@@ -3980,6 +4165,49 @@ def generate_docx(project):
             if seq.get("goal") or seq.get("scene_budget"):   # v2.8.2 — 구버전은 생략
                 _bts = ", ".join(str(b) for b in (seq.get("beats") or []))
                 add_labeled("목표", f"{seq.get('goal','')}  (Beat {_bts} · 권장 {seq.get('scene_budget','')}씬)")
+            if seq.get("cold_open") or seq.get("cliffhanger"):   # v2.9.0 — 시리즈 회차 플랜
+                if seq.get("turning_point"):
+                    add_labeled("시즌 골격", seq["turning_point"])
+                add_labeled("콜드오픈", f"{seq.get('cold_open','')}  ← {seq.get('receives_hook','')}")
+                add_labeled("A·B·C", f"{seq.get('a_plot','')} / {seq.get('b_plot','')} / {seq.get('c_plot','')}")
+                if seq.get("reveals"):
+                    add_labeled("공개", ", ".join(P._to_str_list(seq.get("reveals"))))
+                if seq.get("cliffhanger"):
+                    add_labeled(f"클리프행어({seq.get('cliffhanger_type','')})", seq.get("cliffhanger", ""))
+
+        # ── v2.9.0 서사 원장 STORY LEDGER (잠긴 것만) ──
+        _dl = P.get_locked_ledger(project)
+        if _dl and not P.ledger_is_empty(_dl):
+            doc.add_page_break()
+            add_yellow_header("서사 원장", "STORY LEDGER")
+            if _dl["reveals"]:
+                add_sub_header("공개 일정")
+                add_simple_table(["ID", "진상", "공개", "공개 전 허용", "미리 아는 인물"],
+                                 [[r["id"], r["truth"], f"EP{r['ep']}" if r["ep"] else f"Beat {r['beat']}", r["hint_rule"],
+                                   ", ".join(k["character"] for k in r["known_by"])] for r in _dl["reveals"]], size=7)
+            if _dl["presence"]:
+                add_sub_header("출석·행동 제약")
+                add_simple_table(["ID", "인물", "규칙", "장소", "범위", "비고"],
+                                 [[c["id"], c["character"], c["rule"], c["location"],
+                                   ", ".join(f"EP{e}" for e in c["eps"]) or ", ".join(f"B{b}" for b in c["beats"]) or "전체",
+                                   c["note"]] for c in _dl["presence"]], size=7)
+            if _dl["negative_facts"]:
+                add_sub_header("금지 사실")
+                add_simple_table(["ID", "사실", "쓰지 말 표현"],
+                                 [[n["id"], n["fact"], ", ".join(n["terms"])] for n in _dl["negative_facts"]], size=7)
+            if _dl["setup_payoff"]:
+                add_sub_header("복선 소유·회차")
+                add_simple_table(["ID", "항목", "소유", "심기", "회수"],
+                                 [[s["id"], s["item"], s["owner"],
+                                   f"EP{s['plant_ep']}" if s["plant_ep"] else (f"Beat {s['plant_beat']}" if s["plant_beat"] else ""),
+                                   f"EP{s['payoff_ep']}" if s["payoff_ep"] else (f"Beat {s['payoff_beat']}" if s["payoff_beat"] else "")]
+                                  for s in _dl["setup_payoff"]], size=7)
+            if _dl["motifs"]:
+                add_sub_header("모티프 등장 회차")
+                add_simple_table(["ID", "모티프", "등장", "전용"],
+                                 [[m["id"], m["motif"],
+                                   ", ".join(f"EP{e}" for e in m["eps"]) or ", ".join(f"B{b}" for b in m["beats"]),
+                                   "전용" if m["exclusive"] else "필수"] for m in _dl["motifs"]], size=7)
 
     if diag:
         doc.add_page_break()
@@ -4103,7 +4331,7 @@ def generate_docx(project):
                     beat_no = b.get("beat_no", "")
                     beat_name = b.get("beat_name", "")
                     narrative = b.get("narrative", "")
-                    episode = b.get("episode", "")
+                    episode = _ep_text(b)
                     event_s = b.get("event_summary", "")
                     decision_s = b.get("decision_summary", "")
                     consequence_s = b.get("consequence_summary", "")
@@ -4304,9 +4532,10 @@ def generate_docx(project):
         doc.add_page_break()
         add_yellow_header("씬리스트", "SCENE LIST")
         add_body(f"{_sl.get('locked_variant','')} · {len(_sl['locked'])}씬 · 잠금 {_sl.get('locked_at','')}", size=9)
+        _is_ser = P.is_series_format(_fmt_eff(project))   # v2.9.0: 시리즈는 SEQ 자리에 EP
         add_simple_table(
-            ["S#", "SEQ", "Beat", "장소 — 시간", "내용", "인물", "대사"],
-            [[s.get("no"), s.get("seq"), s.get("beat"),
+            ["S#", "EP" if _is_ser else "SEQ", "Beat", "장소 — 시간", "내용", "인물", "대사"],
+            [[s.get("no"), (f"EP{s.get('ep')}" if _is_ser else s.get("seq")), s.get("beat"),
               f"{s.get('int_ext','')}. {s.get('location','')} — {s.get('time','')}".lstrip(". "),
               s.get("summary", ""),
               ", ".join(s.get("characters", [])) if isinstance(s.get("characters"), list) else s.get("characters", ""),
@@ -4670,10 +4899,14 @@ if st.session_state.view == "home":
                     if isinstance(m, dict):
                         motif = m.get("motif", "") or m.get("name", "")
                         function = m.get("function", "") or m.get("role", "")
+                        # v2.9.0: 등장 지점 필드(appearance_eps/appearance_beats 등)가 있으면 함께 싣는다
+                        _at = next((m.get(_k) for _k in ("appearance_eps", "appearance_episodes", "appearance_beats",
+                                                          "episodes", "eps", "beats") if m.get(_k)), None)
+                        _at_txt = f" (등장: {_at if isinstance(_at, str) else ', '.join(map(str, _at)) if isinstance(_at, list) else _at})" if _at else ""
                         if motif and function:
-                            _lock_lines.append(f"- {motif} → {function}")
+                            _lock_lines.append(f"- {motif} → {function}{_at_txt}")
                         elif motif:
-                            _lock_lines.append(f"- {motif}")
+                            _lock_lines.append(f"- {motif}{_at_txt}")
                     elif isinstance(m, str):
                         _lock_lines.append(f"- {m}")
 
@@ -5187,6 +5420,34 @@ elif st.session_state.view == "project" and st.session_state.cur:
             project["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
             st.success(f"포맷 확정: {_new_fmt}. 이후 생성되는 모든 단계에 반영됩니다.")
             st.rerun()
+
+        # ── v2.9.0: 시리즈 회차 수 확정 ──
+        # 진단: v2.8.2까지 회차 수는 포맷 문자열에 '8'이 있는지로만 정해졌다.
+        #   "미니시리즈(4~8화)"는 6부작이어도 8화 구조를 받았고, 시드의 episode_count는 쓰이지 않았다.
+        if P.is_series_format(_cur_fmt):
+            _ep_now = P.resolve_episode_count(project)
+            if project.get("episode_count"):
+                _ep_src = "작가 확정"
+            elif isinstance(_seed_lf, dict) and (_seed_lf.get("episode_count") or _seed_lf.get("episodes")):
+                _ep_src = "Idea Engine 시드"
+            else:
+                _ep_src = "포맷 표기·기본값"
+            _ep_new = st.number_input(
+                "📺 회차 수 (부작)", min_value=P.SERIES_EP_MIN, max_value=P.SERIES_EP_MAX,
+                value=int(_ep_now), step=1, key=f"ep_count_{st.session_state.cur}",
+            )
+            _fr = P.series_frame(int(_ep_new))
+            st.caption(
+                f"현재 적용: {_ep_now}부작 ({_ep_src}) · 입력값 기준 시즌 골격 — 반환점 EP{_fr['midpoint_ep']} 엔딩 · "
+                f"1막 EP{'·'.join(map(str, _fr['act_eps'][1]))} / 2막 EP{'·'.join(map(str, _fr['act_eps'][2]))} / "
+                f"3막 EP{'·'.join(map(str, _fr['act_eps'][3]))} · All Is Lost EP{_fr['all_is_lost_ep']} · 클라이맥스 EP{_fr['climax_ep']}"
+            )
+            if int(_ep_new) != _ep_now and project.get("structure_story"):
+                st.warning("회차 수가 바뀌면 회차별 비트 배치가 달라집니다. Structure부터 재실행해야 반영됩니다.")
+            if st.button("💾 회차 수 저장", key="save_ep_count"):
+                project["episode_count"] = int(_ep_new)
+                project["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
+                st.rerun()
 
     st.markdown("---")
 
@@ -6609,13 +6870,107 @@ elif st.session_state.view == "structure" and st.session_state.cur:
         )
     project["structure_type"] = _picked
 
+    # ─── v2.9.0 서사 원장 (Story Ledger) ───
+    # 〈왕게임〉 메모: 공개 시점·출석 제약·금지 사실·복선 소유·모티프 회차가 엔진에 필드로 없어
+    #   1부에 6부 반전이 화면화되고, 6부 섬에 '육지에서 기다리는' 인물이 모였다.
+    #   원장은 이미 정해진 사실만 정리하고, 작가가 잠근 것만 하류에 주입한다.
+    _fe = _fmt_eff(project)
+    st.markdown("#### 📒 서사 원장 (Story Ledger)")
+    st.caption(
+        "LOCKED·시드·Core·캐릭터 바이블에 이미 정해진 사실을 다섯 표로 정리합니다 — "
+        "공개 일정 · 출석·행동 제약 · 금지 사실 · 복선 소유·회차 · 모티프 등장 회차. "
+        "작가가 고쳐 잠근 원장만 Structure 이후 모든 단계에 주입되고, 트리트먼트·씬리스트를 대조 검사합니다."
+    )
+    if P.is_series_format(_fe):
+        _sf = P.series_frame(_fe)
+        st.caption(
+            f"시즌 골격: {_sf['episodes']}부작 · 반환점 EP{_sf['midpoint_ep']} 엔딩 · "
+            f"1막 EP{'·'.join(map(str, _sf['act_eps'][1]))} / 2막 EP{'·'.join(map(str, _sf['act_eps'][2]))} / "
+            f"3막 EP{'·'.join(map(str, _sf['act_eps'][3]))} · 좌표 단위는 회차(ep)입니다."
+        )
+    else:
+        st.caption("영화 — 좌표 단위는 비트(1~16)입니다.")
+    _led = project.setdefault("story_ledger", {})
+    _rc_n = len(P.reality_corrections(project))
+    if _rc_n:
+        st.caption(f"Reality Gate 적출 {_rc_n}건(무시 처리 제외)은 원장 생성 시 금지 사실로 옮겨지며, 원장과 별도로도 하류 전 단계에 주입됩니다.")
+    if _led.get("locked"):
+        _lg = P.normalize_ledger(_led["locked"])
+        st.success(f"🔒 원장 잠김 — {_led.get('locked_at', '')} · "
+                   + " · ".join(f"{P.LEDGER_TABLES[k]} {len(_lg[k])}" for k in P.LEDGER_TABLES))
+        with st.expander("잠긴 원장 보기", expanded=False):
+            for _k, _lab in P.LEDGER_TABLES.items():
+                if _lg[_k]:
+                    st.markdown(f"**{_lab}**")
+                    st.dataframe(P.ledger_to_rows(_k, _lg[_k]), width="stretch", hide_index=True)
+        if project.get("structure_story"):
+            st.caption("원장을 바꾸면 Structure부터 다시 실행해야 이미 만든 단계에 반영됩니다.")
+        if st.button("🔓 원장 잠금 해제하고 편집", key="ledger_unlock"):
+            _led["draft"] = _led["locked"]
+            _led["locked"] = None
+            _led["rev"] = int(_led.get("rev", 0)) + 1
+            st.rerun()
+    else:
+        _lc1, _lc2 = st.columns(2)
+        with _lc1:
+            if st.button("📒 원장 초안 " + ("재생성" if _led.get("draft") else "생성"), key="ledger_gen", width="stretch"):
+                with st.spinner("LOCKED·시드·Core·바이블에서 원장 초안 정리 중... (약 30–60초)"):
+                    _res = call_story_ledger(project)
+                if _res is not None:
+                    _led["draft"] = _res
+                    _led["rev"] = int(_led.get("rev", 0)) + 1
+                    project["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
+                    st.rerun()
+        with _lc2:
+            if not _led.get("draft") and st.button("✏️ 빈 원장으로 직접 작성", key="ledger_blank", width="stretch"):
+                _led["draft"] = P.normalize_ledger({})
+                _led["rev"] = int(_led.get("rev", 0)) + 1
+                st.rerun()
+        if _led.get("draft") is not None:
+            import pandas as pd
+            _draft = P.normalize_ledger(_led["draft"])
+            _new_ledger = {}
+            _ltabs = st.tabs([f"{lab} ({len(_draft[k])})" for k, lab in P.LEDGER_TABLES.items()])
+            for _tab, (_k, _lab) in zip(_ltabs, P.LEDGER_TABLES.items()):
+                with _tab:
+                    _cfg = {}
+                    if _k == "presence":
+                        _cfg["rule"] = st.column_config.SelectboxColumn("rule", options=P.PRESENCE_RULES)
+                    _df = pd.DataFrame(P.ledger_to_rows(_k, _draft[_k]), columns=P.LEDGER_COLUMNS[_k])
+                    _ed = st.data_editor(
+                        _df, num_rows="dynamic", hide_index=True, width="stretch",
+                        key=f"ledger_{_k}_{st.session_state.cur}_{_led.get('rev', 0)}", column_config=_cfg,
+                    )
+                    _new_ledger[_k] = P.rows_to_ledger_table(_k, _ed.to_dict("records") if hasattr(_ed, "to_dict") else list(_ed))
+            st.caption("목록 칸(eps·beats·keywords·terms)은 쉼표로 구분 · known_by는 '인물:회차' · "
+                       "proposed=True는 시드·LOCKED에 지점이 없어 엔진이 제안한 값입니다.")
+            _prop = [r["id"] for r in _new_ledger.get("reveals", []) if r.get("proposed")]
+            if _prop:
+                st.warning(f"제안값 공개 지점 {len(_prop)}건({', '.join(_prop)}) — 작가 확인 후 잠그십시오.")
+            _lb1, _lb2 = st.columns(2)
+            with _lb1:
+                if st.button("💾 원장 편집 보존", key="ledger_save", width="stretch"):
+                    _led["draft"] = _new_ledger
+                    _led["rev"] = int(_led.get("rev", 0)) + 1
+                    st.rerun()
+            with _lb2:
+                if st.button("🔒 원장 잠금", type="primary", key="ledger_lock", width="stretch"):
+                    _led["locked"] = _new_ledger
+                    _led["draft"] = _new_ledger
+                    _led["locked_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
+                    project["updated_at"] = _led["locked_at"]
+                    st.rerun()
+        else:
+            st.info("원장 없이도 Structure를 진행할 수 있습니다. 반전·진상 공개가 있는 작품, 특히 시리즈는 원장 잠금을 권합니다.")
+    st.markdown("---")
+
     if st.button("🏗️ Structure Build 실행", type="primary"):
         if not core:
             st.error("Core Build가 없습니다.")
         else:
             with st.spinner("① 시놉시스 + 스토리라인... (20–30초)"):
                 story = call_structure_story(
-                    core, project["genre"], project["target_market"], project["format"],
+                    core, project["genre"], project["target_market"], _fmt_eff(project),
                     locked_block=_build_project_locked_block(project),
                     fact_based=project.get("fact_based", False),
                     historical=project.get("historical", False),
@@ -6623,10 +6978,12 @@ elif st.session_state.view == "structure" and st.session_state.cur:
                     structure_type=project.get("structure_type", ""),
                 )
             if story:
+                # v2.9.0: 시리즈 회차 좌표(seq·ep·beats·act)를 시즌 골격 계산값으로 고정
+                story["storyline"] = P.normalize_series_storyline(story.get("storyline", []), _fmt_eff(project))
                 project["structure_story"] = story
                 with st.spinner("② 구조 진단 + 캐릭터 변화표... (20–30초)"):
                     diag = call_structure_diagnosis(
-                        core, story, project["genre"], project["format"],
+                        core, story, project["genre"], _fmt_eff(project),
                         locked_block=_build_project_locked_block(project),
                         fact_based=project.get("fact_based", False),
                         historical=project.get("historical", False),
@@ -6634,6 +6991,8 @@ elif st.session_state.view == "structure" and st.session_state.cur:
                         structure_type=project.get("structure_type", ""),
                     )
                 if diag:
+                    # v2.9.0: beat_sheet의 회차를 엔진 계산값으로 찍는다 (Series Engine이 이 값을 읽는다)
+                    P.stamp_episode_labels(diag.get("beat_sheet", []), _fmt_eff(project), "beat_no", "beat_sheet")
                     project["structure_diag"] = diag
                     with st.spinner("③ Gate D 채점... (10초)"):
                         gate_d = call_structure_gate(story, diag, project.get("genre", ""))
@@ -6674,11 +7033,55 @@ elif st.session_state.view == "structure" and st.session_state.cur:
             st.caption(f"권장 씬 수 합계: {_budget_total}")
             if story.get("adjust_reason"):
                 st.caption(f"시퀀스 수 조정 이유: {story['adjust_reason']}")
-            _seq_warns = P.validate_sequences(story.get("storyline", []), project.get("format", ""))
+            _seq_warns = P.validate_sequences(story.get("storyline", []), _fmt_eff(project))
             if _seq_warns:
                 st.warning("시퀀스 검사\n\n" + "\n".join(f"- {w}" for w in _seq_warns))
             else:
                 st.success("시퀀스 검사 통과 — 비트 배정·막 순서·씬 예산 정상.")
+
+        # ─── v2.9.0 회차 플랜 (시리즈) ───
+        _fe2 = _fmt_eff(project)
+        if P.is_series_format(_fe2):
+            st.markdown("#### 📺 회차 플랜")
+            for _s in story.get("storyline", []):
+                if not isinstance(_s, dict):
+                    continue
+                _tp = f" · ★ {_s['turning_point']}" if _s.get("turning_point") else ""
+                st.markdown(
+                    f'<div class="card"><div class="cl">EP{_s.get("ep") or _s.get("seq")} · Beat {", ".join(map(str, _s.get("beats") or []))}{_tp}</div>'
+                    f'<span style="font-size:.82rem">'
+                    f'🎬 <b>콜드오픈</b> {_s.get("cold_open","")}<br>'
+                    f'↩️ <b>받는 훅</b> {_s.get("receives_hook","")}<br>'
+                    f'A {_s.get("a_plot","")} · B {_s.get("b_plot","")} · C {_s.get("c_plot","")}<br>'
+                    f'🔓 <b>공개</b> {", ".join(P._to_str_list(_s.get("reveals")))}<br>'
+                    f'⏭️ <b>클리프행어({_s.get("cliffhanger_type","")})</b> {_s.get("cliffhanger","")}'
+                    f'</span></div>', unsafe_allow_html=True)
+            _epw = P.validate_episode_plan(story.get("storyline", []), _fe2, P.get_locked_ledger(project))
+            if _epw:
+                st.warning("회차 플랜 검사\n\n" + "\n".join(f"- {w}" for w in _epw))
+            else:
+                st.success("회차 플랜 검사 통과 — 콜드오픈 연결·클리프행어 유형·공개 일정 정상.")
+            # v2.9.0 실물 대조 보완: storyline에 온전한 작가 회차 배치가 있으면 그 배치를 쓴다
+            _author_layout = P.episode_layout_from_storyline(story.get("storyline", []), _fe2)
+            _tmpl_layout = P.beat_episode_map(_fe2)
+            if _author_layout and _author_layout != _tmpl_layout:
+                st.info("이 프로젝트의 storyline에는 작가가 정한 회차 배치가 있고, 엔진 시즌 골격과 비트 배치가 다릅니다. "
+                        "회차 표기·검사는 작가 배치를 따릅니다. 본문을 다시 생성하면 엔진 시즌 골격이 적용됩니다.")
+            if st.button("🔧 회차 표기 정리", key="restamp_eps",
+                         help="beat_sheet·트리트먼트 비트·씬리스트의 회차 표기를 채웁니다. storyline에 온전한 작가 회차 배치가 있으면 그 배치를, 없으면 시즌 골격 계산값을 씁니다. 본문은 바꾸지 않습니다."):
+                if not _author_layout:
+                    story["storyline"] = P.normalize_series_storyline(story.get("storyline", []), _fe2)
+                _lay = P.project_beat_episode_map(project)
+                P.stamp_episode_labels((project.get("structure_diag") or {}).get("beat_sheet", []), _fe2, "beat_no", "beat_sheet", layout=_lay)
+                for _src in (project.get("treatment") or {}, project.get("treatment_partial") or {}):
+                    for _k in ("act1", "act2", "act3"):
+                        P.stamp_episode_labels((_src.get(_k) or {}).get("beats", []), _fe2, layout=_lay)
+                _sl0 = project.get("scene_list") or {}
+                for _key in ("locked", "draft"):
+                    if _sl0.get(_key):
+                        _sl0[_key] = P._scenes_with_ep(project, _sl0[_key])
+                project["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
+                st.rerun()
 
     if project.get("structure_diag"):
         diag = project["structure_diag"]
@@ -6695,6 +7098,8 @@ elif st.session_state.view == "structure" and st.session_state.cur:
         for bt in diag.get("beat_sheet", []):
             status = bt.get("status", "")
             _bno = f"Beat {bt.get('beat_no')} " if bt.get("beat_no") else ""
+            if bt.get("episode"):   # v2.9.0
+                _bno += f"({bt.get('episode')}) "
             color = {"있음":"var(--g)","약함":"var(--y)","없음":"var(--r)"}.get(status, "var(--dim)")
             st.markdown(
                 f'<div style="margin:.3rem 0;font-size:.85rem">'
@@ -6762,7 +7167,7 @@ elif st.session_state.view == "structure" and st.session_state.cur:
                 pass
             with st.expander("비트별 목표값 표", expanded=False):
                 st.dataframe(_rows, width="stretch", hide_index=True)
-            _sa_warns = P.validate_state_axes(_sa, project.get("format", ""))
+            _sa_warns = P.validate_state_axes(_sa, _fmt_eff(project))
             if _sa_warns:
                 st.warning("상태 축 검사\n\n" + "\n".join(f"- {w}" for w in _sa_warns))
             else:
@@ -6904,7 +7309,7 @@ elif st.session_state.view == "scene_design" and st.session_state.cur:
         else:
             with st.spinner("핵심 장면 설계 중... (약 30–40초)"):
                 sd = call_scene_design(
-                    core, story, diag, project["genre"], project["format"],
+                    core, story, diag, project["genre"], _fmt_eff(project),
                     locked_block=_build_project_locked_block(project),
                     fact_based=project.get("fact_based", False),
                     historical=project.get("historical", False),
@@ -7040,8 +7445,9 @@ elif st.session_state.view == "treatment" and st.session_state.cur:
             return
         with st.spinner(spinner_label):
             result = call_treatment_beats(
-                core, story, scene_data, project["genre"], project["format"], act_n,
-                locked_block=_build_project_locked_block(project),
+                core, story, scene_data, project["genre"], _fmt_eff(project), act_n,
+                locked_block=_build_project_locked_block(project, with_ledger=False),
+                ledger=P.get_locked_ledger(project),
                 fact_based=project.get("fact_based", False),
                 historical=project.get("historical", False),
                 film_type=project.get("film_type", ""),
@@ -7051,6 +7457,8 @@ elif st.session_state.view == "treatment" and st.session_state.cur:
                 speech_matrix=P.build_speech_matrix((project.get("char_bible") or {}).get("characters", [])),
             )
         if result:
+            # v2.9.0: 회차를 엔진 계산값으로 고정 (LLM 기재값 덮어쓰기)
+            P.stamp_episode_labels(result.get("beats", []), _fmt_eff(project), layout=P.project_beat_episode_map(project))
             project.setdefault("treatment_partial", {})[f"act{act_n}"] = result
             project["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
             st.rerun()
@@ -7078,6 +7486,12 @@ elif st.session_state.view == "treatment" and st.session_state.cur:
                 for _b in _act_data.get("beats", []):
                     st.markdown(f"**Beat {_b.get('beat_no', '')}. {_b.get('beat_name', '')}** · {len(_b.get('narrative', ''))}자")
                     st.write(_b.get("narrative", ""))
+            # v2.9.0: 막별 원장 대조
+            _lw = P.validate_treatment_against_ledger(
+                _act_data.get("beats", []), P.get_locked_ledger(project), _fmt_eff(project),
+                P.reality_corrections(project))
+            if _lw:
+                st.warning(f"{_name} 원장·사실성 대조 {len(_lw)}건 — 재생성 전 확인\n\n" + "\n".join(f"- {w}" for w in _lw))
 
     # ── v2.6.6: 확정 전 중간 저장 (Mr. MOON 운영 중 발견) ──
     # v2.6.3 막별 독립 실행 개편 때 Treatment 페이지의 JSON 저장 버튼이
@@ -7114,18 +7528,40 @@ elif st.session_state.view == "treatment" and st.session_state.cur:
             project.pop("treatment_partial", None)  # v2.6.2: 확정 시 부분 저장분 정리
             project["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
 
+            _fe3 = _fmt_eff(project)
+            for _a in (act1, act2, act3):   # v2.9.0: 회차 고정
+                P.stamp_episode_labels(_a.get("beats", []), _fe3, layout=P.project_beat_episode_map(project))
             with st.spinner("④ 감정 곡선 + 감독 포인트... (약 10초)"):
-                meta = call_treatment_meta(act1, act2, act3, core)
+                meta = call_treatment_meta(act1, act2, act3, core, project=project)
             if meta:
                 project["treatment"]["meta"] = meta
+                # v2.9.0: 메타 텍스트 ↔ 바이블·시즌 골격 대조
+                project["treatment"]["meta_check"] = P.check_meta_consistency(
+                    meta, (project.get("char_bible") or {}).get("characters", []) or core.get("characters", []), _fe3)
+            # v2.9.0: 전체 비트 원장·사실성 대조
+            project["treatment"]["ledger_check"] = P.validate_treatment_against_ledger(
+                act1.get("beats", []) + act2.get("beats", []) + act3.get("beats", []),
+                P.get_locked_ledger(project), _fe3, P.reality_corrections(project))
 
             # v2.6.0 — Writer Engine v3.7.1 인계용 4블록 자동 생성
             # (시퀀스 사이클 / 적대자 행위 / Setup-Payoff / 물리적 대가)
             try:
+                # v2.9.0: 키 오류 수정 — v2.6.0부터 존재하지 않는 project["characters"]를 넘겨
+                #   적대자·주인공 이름 매칭이 항상 fallback으로 돌았다. 바이블은 project["char_bible"].
                 handoff = build_writer_engine_handoff_v26(
                     act1, act2, act3,
-                    char_bible=project.get("characters")
+                    char_bible=project.get("char_bible")
                 )
+                # v2.9.0: Setup-Payoff 표에 원장의 소유자·회차를 덧붙인다 (기존 키 보존)
+                _lg = P.get_locked_ledger(project)
+                if _lg and _lg.get("setup_payoff"):
+                    for _row in handoff.get("setup_payoff_table", []) or []:
+                        _it = str(_row.get("item", ""))
+                        for _sp in _lg["setup_payoff"]:
+                            if _sp["item"] and (_sp["item"] in _it or _it in _sp["item"]):
+                                _row.update({"ledger_id": _sp["id"], "owner": _sp["owner"],
+                                             "plant_ep": _sp["plant_ep"], "payoff_ep": _sp["payoff_ep"]})
+                                break
                 project["treatment"]["writer_handoff_v26"] = handoff
                 # 경고가 있으면 사용자에게 표시 (선택적)
                 all_warnings = []
@@ -7152,6 +7588,7 @@ elif st.session_state.view == "treatment" and st.session_state.cur:
                     project["treatment"],
                     core_data=core,
                     genre=project["genre"],
+                    project=project,
                 )
             if gate_e:
                 project["treatment_gate"] = gate_e
@@ -7174,7 +7611,7 @@ elif st.session_state.view == "treatment" and st.session_state.cur:
                 for b in act_data.get("beats", []):
                     beat_no = b.get("beat_no", "")
                     beat_name = b.get("beat_name", "")
-                    episode = b.get("episode", "")
+                    episode = _ep_text(b)
                     narrative = b.get("narrative", "").replace("\n", "<br>")
                     char_count = len(b.get("narrative", ""))
                     event_s = b.get("event_summary", "")
@@ -7221,6 +7658,15 @@ elif st.session_state.view == "treatment" and st.session_state.cur:
                     )
 
                 st.markdown("")
+
+        # v2.9.0: 원장·사실성·메타 대조 결과
+        _lc, _mc = treat.get("ledger_check") or [], treat.get("meta_check") or []
+        if _lc or _mc:
+            with st.expander(f"⚠️ v2.9.0 대조 검사 — 원장·사실성 {len(_lc)}건 / 메타 {len(_mc)}건", expanded=True):
+                for _w in _lc + _mc:
+                    st.warning(_w)
+        elif "ledger_check" in treat:
+            st.success("v2.9.0 대조 검사 통과 — 원장·사실성·메타 정합.")
 
         # 감정 곡선
         meta = treat.get("meta", {})
@@ -7362,7 +7808,7 @@ elif st.session_state.view == "tone_doc" and st.session_state.cur:
                     core, project.get("structure_story", {}),
                     project.get("scene_design", {}), treatment,
                     project.get("char_bible", {}),
-                    project["genre"], project["format"],
+                    project["genre"], _fmt_eff(project),
                     locked_block=_build_project_locked_block(project),
                     fact_based=project.get("fact_based", False),
                     historical=project.get("historical", False),
@@ -7516,7 +7962,15 @@ elif st.session_state.view == "scene_list" and st.session_state.cur:
     story = project.get("structure_story") or {}
     sl = project.setdefault("scene_list", {})
     sl.setdefault("variants", {})
-    fmt = project.get("format", "")
+    fmt = _fmt_eff(project)   # v2.9.0: 회차 수 포함 유효 포맷
+    # v2.9.0: 생성 단위 — 영화는 막(3개), 시리즈는 회차(N개). 키: act1.. / ep1..
+    _series = P.is_series_format(fmt)
+    if _series:
+        _units = [(f"ep{e}", f"EP{e}", 0, e) for e in range(1, P.series_frame(fmt)["episodes"] + 1)]
+    else:
+        _units = [(f"act{n}", f"{n}막", n, 0) for n in (1, 2, 3)]
+    _ledger = P.get_locked_ledger(project)
+    _corr = P.reality_corrections(project)
 
     st.markdown(f"## {project['title']}")
     st.caption(f"{project['genre']} · {project['target_market']} · {project['format']}")
@@ -7540,13 +7994,18 @@ elif st.session_state.view == "scene_list" and st.session_state.cur:
         rows = []
         for s in scenes or []:
             ch = s.get("characters", [])
-            rows.append({
+            r = {"ep": s.get("ep")} if _series else {}
+            r.update({
                 "no": s.get("no"), "seq": s.get("seq"), "beat": s.get("beat"),
                 "int_ext": s.get("int_ext", ""), "location": s.get("location", ""),
                 "time": s.get("time", ""), "summary": s.get("summary", ""),
                 "characters": ", ".join(ch) if isinstance(ch, list) else str(ch or ""),
                 "dialogue_mode": s.get("dialogue_mode", P.DIALOGUE_MODE_DEFAULT),
             })
+            # v2.9.0: 원장 태그 (쉼표 구분)
+            for _k in ("reveals", "plants", "payoffs", "motifs"):
+                r[_k] = ", ".join(P._to_str_list(s.get(_k)))
+            rows.append(r)
         return rows
 
     def _rows_to_scenes(rows):
@@ -7557,22 +8016,25 @@ elif st.session_state.view == "scene_list" and st.session_state.cur:
             if not any(str(v or "").strip() for k, v in r.items() if k != "no"):
                 continue   # 빈 줄 제거
             s = dict(r)
-            for k in ("seq", "beat"):
+            for k in ("seq", "beat", "ep"):
+                if k not in s:
+                    continue
                 try:
                     s[k] = int(s.get(k))
                 except (TypeError, ValueError):
                     s[k] = s.get(k)
             s["characters"] = [x.strip() for x in str(s.get("characters") or "").split(",") if x.strip()]
+            for _k in ("reveals", "plants", "payoffs", "motifs"):
+                s[_k] = P._to_str_list(s.get(_k))
             out.append(s)
-        for i, s in enumerate(out, 1):
-            s["no"] = i
-        return out
+        return P.renumber_scenes([out], per_episode=_series)   # v2.9.0: 시리즈는 회차별 S#1부터
 
     # ── 잠긴 상태 ──
     if sl.get("locked"):
         st.success(f"🔒 잠금 완료 — {sl.get('locked_variant','')} · {len(sl['locked'])}씬 · {sl.get('locked_at','')}")
         st.dataframe(_scenes_to_rows(sl["locked"]), width="stretch", hide_index=True)
-        _w = P.validate_scene_list(sl["locked"], _storyline, _main_chars, sl.get("locked_variant") or "기본안", fmt)
+        _w = P.validate_scene_list(P._scenes_with_ep(project, sl["locked"]), _storyline, _main_chars, sl.get("locked_variant") or "기본안", fmt,
+                                   ledger=_ledger, corrections=_corr)
         if _w:
             st.warning("잠긴 씬리스트 검사 (참고)\n\n" + "\n".join(f"- {w}" for w in _w))
         c1, c2 = st.columns(2)
@@ -7611,32 +8073,39 @@ elif st.session_state.view == "scene_list" and st.session_state.cur:
         st.caption(ENGINE_FOOTER)
         st.stop()
 
-    # ── 3안 × 3막 생성 ──
+    # ── 3안 × 3막(시리즈는 3안 × N회차) 생성 ──
     st.markdown("#### ① 세 안 생성")
+    if _series:
+        st.caption(f"시리즈는 회차 단위로 생성합니다 ({len(_units)}회차). 씬 번호는 회차마다 S#1부터 매깁니다.")
+    if _ledger:
+        st.caption("🔒 잠긴 서사 원장이 생성·검사에 적용됩니다 (공개 일정·출석 제약·금지 사실·복선·모티프).")
     _tabs = st.tabs(list(P.SCENE_LIST_VARIANTS.keys()))
     for _tab, _vname in zip(_tabs, P.SCENE_LIST_VARIANTS.keys()):
         with _tab:
             st.caption(P.SCENE_LIST_VARIANTS[_vname]["desc"])
             _vdata = sl["variants"].setdefault(_vname, {})
-            _cols = st.columns(3)
-            for _col, _n in zip(_cols, (1, 2, 3)):
-                with _col:
-                    _done = bool(_vdata.get(f"act{_n}"))
-                    _lbl = f"{'🔄 ' if _done else ''}{_n}막 {'재생성' if _done else '생성'}"
-                    if st.button(_lbl, key=f"sl_{_vname}_{_n}", width="stretch"):
-                        with st.spinner(f"{_vname} {_n}막 씬 나누는 중... (약 1–2분)"):
-                            _res = call_scene_list_act(project, _vname, _n)
-                        if _res:
-                            _vdata[f"act{_n}"] = _res
-                            project["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
-                            st.rerun()
-                    st.caption(f"✓ {len(_vdata[f'act{_n}'])}씬" if _done else "미생성")
-            _merged = P.renumber_scenes([_vdata.get(f"act{i}") for i in (1, 2, 3)])
+            for _row_start in range(0, len(_units), 4):
+                _row_units = _units[_row_start:_row_start + 4]
+                _cols = st.columns(4 if _series else 3)
+                for _col, (_ukey, _ulab, _uact, _uep) in zip(_cols, _row_units):
+                    with _col:
+                        _done = bool(_vdata.get(_ukey))
+                        _lbl = f"{'🔄 ' if _done else ''}{_ulab} {'재생성' if _done else '생성'}"
+                        if st.button(_lbl, key=f"sl_{_vname}_{_ukey}", width="stretch"):
+                            with st.spinner(f"{_vname} {_ulab} 씬 나누는 중... (약 1–2분)"):
+                                _res = call_scene_list_act(project, _vname, _uact, ep=_uep)
+                            if _res:
+                                _vdata[_ukey] = _res
+                                project["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
+                                st.rerun()
+                        st.caption(f"✓ {len(_vdata[_ukey])}씬" if _done else "미생성")
+            _all_done = all(_vdata.get(u[0]) for u in _units)
+            _merged = P.renumber_scenes([_vdata.get(u[0]) for u in _units], per_episode=_series)
             if _merged:
                 st.dataframe(_scenes_to_rows(_merged), width="stretch", hide_index=True, height=320)
-                _warns = P.validate_scene_list(_merged, _storyline, _main_chars, _vname, fmt) \
-                    if all(_vdata.get(f"act{i}") for i in (1, 2, 3)) else []
-                if all(_vdata.get(f"act{i}") for i in (1, 2, 3)):
+                _warns = P.validate_scene_list(_merged, _storyline, _main_chars, _vname, fmt,
+                                               ledger=_ledger, corrections=_corr) if _all_done else []
+                if _all_done:
                     st.caption(f"총 {len(_merged)}씬")
                     if _warns:
                         st.warning("검사\n\n" + "\n".join(f"- {w}" for w in _warns))
@@ -7654,21 +8123,22 @@ elif st.session_state.view == "scene_list" and st.session_state.cur:
 
     # ── 안 선택 → 편집 ──
     _complete = [v for v in P.SCENE_LIST_VARIANTS
-                 if all((sl["variants"].get(v) or {}).get(f"act{i}") for i in (1, 2, 3))]
+                 if all((sl["variants"].get(v) or {}).get(u[0]) for u in _units)]
     st.markdown("---")
     st.markdown("#### ② 안 선택 · 직접 편집 · 잠금")
     if not _complete:
-        st.info("세 막이 모두 생성된 안이 있어야 선택할 수 있습니다.")
+        st.info(("모든 회차가" if _series else "세 막이 모두") + " 생성된 안이 있어야 선택할 수 있습니다.")
     else:
         _pick = st.radio("편집할 안", _complete, horizontal=True, key=f"sl_pick_{st.session_state.cur}")
         if st.button(f"✏️ {_pick}으로 편집 시작 (현재 편집본을 덮어씁니다)"):
-            sl["draft"] = P.renumber_scenes([sl["variants"][_pick].get(f"act{i}") for i in (1, 2, 3)])
+            sl["draft"] = P.renumber_scenes([sl["variants"][_pick].get(u[0]) for u in _units], per_episode=_series)
             sl["draft_variant"] = _pick
             sl["draft_rev"] = int(sl.get("draft_rev", 0)) + 1
             st.rerun()
 
     if sl.get("draft"):
-        st.caption(f"편집본 원안: {sl.get('draft_variant','')} · 행 추가·삭제 가능 · 등장인물은 쉼표로 구분 · 번호는 잠글 때 순서대로 다시 매깁니다.")
+        st.caption(f"편집본 원안: {sl.get('draft_variant','')} · 행 추가·삭제 가능 · 등장인물·원장 태그는 쉼표로 구분 · 번호는 잠글 때 순서대로 다시 매깁니다"
+                   + (" (회차별 S#1부터)." if _series else "."))
         import pandas as pd
         # 편집본이 바뀔 때마다 편집기 키를 바꿔, 이전 편집 상태가 새 표에 잘못 덧씌워지지 않게 한다
         _edited = st.data_editor(
@@ -7684,7 +8154,8 @@ elif st.session_state.view == "scene_list" and st.session_state.cur:
         )
         _rows = _edited.to_dict("records") if hasattr(_edited, "to_dict") else list(_edited)
         _draft_now = _rows_to_scenes(_rows)
-        _dw = P.validate_scene_list(_draft_now, _storyline, _main_chars, sl.get("draft_variant", "기본안"), fmt)
+        _dw = P.validate_scene_list(P._scenes_with_ep(project, _draft_now), _storyline, _main_chars, sl.get("draft_variant", "기본안"), fmt,
+                                    ledger=_ledger, corrections=_corr)
         if _dw:
             st.warning("편집본 검사\n\n" + "\n".join(f"- {w}" for w in _dw))
         else:
