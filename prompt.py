@@ -34,6 +34,11 @@ v2.9.1 패치 (2026-10-23) — Market Lens VN 인계 정합
   제9조·제32조/시행규칙 05/2023 점검 기준 + 극적 장치 오탐 금지.
 [4] 리서치 (B-8) — market_research_domains: VN 시드만 4개 도메인 추가.
   크롤러 허용 미확인 → main.py에서 실패 시 기본 목록으로 1회 재시도.
+[6] 타겟 시장 선택지에 "베트남"·"인도네시아" 추가 (기존에는 "동남아"뿐이라
+  VN 단독 시드도 '직접 입력'으로 떨어졌다. Mr. MOON 운영 중 지적).
+[5] Writer 인계 — build_writer_handoff_v28에 market_lens 키 추가
+  (빈 dict면 렌즈 없음). 대사 언어 표기·팩 오적용 차단은 Writer Engine 측
+  주문서(Writer_Engine_Request_v2.9.1_MarketLens.docx)로 전달.
 [하위 호환] 함수 시그니처 무수정(디폴트 인자 추가만). market_lens 없는
   시드·구버전 프로젝트 JSON은 v2.9.0과 동일 동작.
 
@@ -9306,6 +9311,8 @@ def build_writer_handoff_v28(project: dict) -> dict:
                  cliffhanger_type_en=CLIFFHANGER_TYPE_EN.get(str(s.get("cliffhanger_type", "")).strip(), ""))
             for s in (story.get("storyline") or []) if isinstance(s, dict)
         ] if is_series_format(project.get("format", "")) else [],
+        # v2.9.1 — 시장 렌즈 (Idea Engine market_lens 정규화본). 없으면 빈 dict → Writer 현행 동작.
+        "market_lens": get_market_lens(project),
     }
 
 

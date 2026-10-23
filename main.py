@@ -5053,8 +5053,9 @@ if st.session_state.view == "home":
                 index=_genre_default_idx,
             )
 
+            # v2.9.1: 베트남·인도네시아 단독 선택지 추가 (Idea Engine market_lens 코드 VN·ID 대응)
             _market_options = ["미지정", "한국", "북미/미국", "일본", "중국",
-                               "동남아", "유럽", "중동", "글로벌", "직접 입력"]
+                               "동남아", "베트남", "인도네시아", "유럽", "중동", "글로벌", "직접 입력"]
             _market_default_idx = 0
             # v2.9.1: market_lens가 있으면 시장 판단은 코드로만 한다 (자유 서술 부분 문자열 매칭 금지).
             #   단일 시장이면 해당 선택지, 복수 시장이면 원문 그대로 '직접 입력'.
