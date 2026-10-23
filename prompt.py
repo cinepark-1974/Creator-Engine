@@ -2,10 +2,40 @@
 👖 BLUE JEANS Creator Engine — Prompt Library
 
 ╔══════════════════════════════════════════════════════════╗
-║  VERSION: v2.9.0                                         ║
+║  VERSION: v2.9.1                                         ║
 ║  BUILD DATE: 2026-10-23                                  ║
 ║  STATUS: Production                                      ║
 ╚══════════════════════════════════════════════════════════╝
+
+─────────────────────────────────────────────────────────
+v2.9.1 패치 (2026-10-23) — Market Lens VN 인계 정합
+─────────────────────────────────────────────────────────
+[경위] Idea Engine v2.3.5(Market Lens VN) 제안서 2026-10-23. 시장 정보가
+  target_market 자유 서술 한 줄로만 넘어와 시장 코드·VN 8축 평가·현지화
+  조건·예상 등급이 Creator에 도달하지 않는다. 코드 대조로 추가 확인한 결함:
+  ① main.py 새 프로젝트 타겟 시장 selectbox가 부분 문자열 매칭.
+     "베트남 + 한국 공동제작" → "한국"으로 선택되어 베트남이 사라진다
+     (선택지에 베트남 자체가 없음). 제안서 B-1이 지적한 구조 그대로.
+  ② "베트남전"·"월남전"이 _is_modern_hist·period_pack 키워드라,
+     역사영화 체크 시 베트남 무대 작품에 한국 현대사 규칙이 실린다.
+
+[1] 시장 코드 수신 (B-1·B-3)
+  normalize_market_lens / get_market_lens / market_lens_has_vn 신설.
+  판단은 _idea_engine_meta.market_lens.primary·secondary 코드만 쓴다.
+  키 없음(v2.3.5 이전 시드)·KR·JP·ID → 프롬프트 변화 없음.
+[2] 시장 렌즈 블록 (B-2·B-4·B-5·B-7·B-8) — VN 포함 시드에만
+  build_market_lens_block: LOCKED 아님 선언 / 한국 시대·직업 규칙의
+  적용 범위(한국 무대·한국 제도 안 인물) / HORROR·PERIOD 경고 /
+  현지화 조건·확인 필요 항목은 작가 결정 대기 의제 / 예상 등급은
+  창작적 판단 + 7기준 표시(강제 아님) / 수치 생성 금지 · 출처·기준일 표기.
+  MARKET_LENS_BEGIN/END 표지 + strip_market_lens_block으로 시대 감지
+  스캔에서 렌즈 구간 제거 (렌즈 문구가 시대 규칙을 오발동시키지 않게).
+[3] Reality Gate (B-6) — build_vn_reality_gate_block: 영화법 제13조·
+  제9조·제32조/시행규칙 05/2023 점검 기준 + 극적 장치 오탐 금지.
+[4] 리서치 (B-8) — market_research_domains: VN 시드만 4개 도메인 추가.
+  크롤러 허용 미확인 → main.py에서 실패 시 기본 목록으로 1회 재시도.
+[하위 호환] 함수 시그니처 무수정(디폴트 인자 추가만). market_lens 없는
+  시드·구버전 프로젝트 JSON은 v2.9.0과 동일 동작.
 
 ─────────────────────────────────────────────────────────
 v2.9.0 패치 (2026-10-23) — 시리즈 구조 템플릿 라우팅 · 서사 원장 · 사실성 환류
@@ -1740,7 +1770,7 @@ BLUE JEANS 3축 (Mr.MOON 고유)
 # 수정 시 ENGINE_VERSION과 ENGINE_BUILD_DATE를 함께 갱신하세요.
 # ═══════════════════════════════════════════════════
 
-ENGINE_VERSION = "v2.9.0"
+ENGINE_VERSION = "v2.9.1"
 ENGINE_BUILD_DATE = "2026-10-23"
 ENGINE_STATUS = "Production"
 
@@ -7175,7 +7205,8 @@ def build_scan_text_for_period_detection(project: dict = None,
     if isinstance(locked_items, list):
         for item in locked_items:
             if isinstance(item, str):
-                locked_parts.append(item)
+                # v2.9.1: 시장 렌즈 블록은 시대 감지 대상에서 제외 (오감지 차단)
+                locked_parts.append(strip_market_lens_block(item))
             elif isinstance(item, dict):
                 # LOCKED 항목이 dict 형태면 value 추출
                 for v in item.values():
@@ -9605,6 +9636,210 @@ def reality_corrections(project: dict) -> list:
             "correct": _to_str_list(iss.get("correct_terms")),
         })
     return out
+
+
+# ═══════════════════════════════════════════════════
+# v2.9.1: Market Lens 인계 (Idea Engine v2.3.6 _idea_engine_meta.market_lens)
+#   원칙: 시장 렌즈는 참고 정보다. LOCKED를 바꾸는 근거가 아니다.
+#   시장 판단은 market_lens.primary / secondary 코드로만 한다.
+#   target_market 자유 서술은 부분 문자열로 파싱하지 않는다.
+# ═══════════════════════════════════════════════════
+
+MARKET_CODES = ("KR", "JP", "ID", "VN")
+MARKET_CODE_LABELS = {"KR": "한국", "JP": "일본", "ID": "인도네시아", "VN": "베트남"}
+JAPAN_TRACK_LABELS = {
+    "INDIE_ARTHOUSE": "인디·아트하우스",
+    "KR_REMAKE_TARGET": "한국 리메이크 타겟",
+    "COPROD_VIPO": "공동제작(VIPO)",
+}
+EVIDENCE_TYPES = ("VERIFIED", "INFERENCE", "CREATIVE_JUDGMENT", "VERIFICATION_REQUIRED")
+
+# 프롬프트에 주입되는 렌즈 블록의 경계 표지.
+# 시대·직업·작가주의 자동 감지 스캔에서 이 구간을 제거한다 (오감지 차단).
+MARKET_LENS_BEGIN = "[MARKET_LENS_BEGIN]"
+MARKET_LENS_END = "[MARKET_LENS_END]"
+
+# B-6: VN 포함 시드의 Reality Gate 점검 기준 (Idea Engine 렌즈 VERIFIED 항목, 제안서 2026-10-23)
+VN_REALITY_FACTS = [
+    ("외국 제작사가 베트남에서 촬영하려면 베트남 영화 제작 서비스 업체와 계약하고 "
+     "문화체육관광부 허가(베트남어 상세 촬영 대본 제출)를 받아야 한다", "베트남 영화법 05/2022/QH15 제13조 (S5)"),
+    ("상영 금지 내용 — 국가 통합 훼손, 역사 왜곡, 종교 모욕, 아동 권리 침해, 성차별 등",
+     "베트남 영화법 05/2022/QH15 제9조 (S5)"),
+    ("등급 6종 P · K · T13 · T16 · T18 · C. 평가 기준 7가지 — 주제, 폭력, 노출·성, 마약, 공포, 언어, 위험 모방 행동",
+     "영화법 제32조 (S5) · 시행규칙 05/2023 (S6)"),
+]
+VN_RATING_CRITERIA = ["주제", "폭력", "노출·성", "마약", "공포", "언어", "위험 모방 행동"]
+
+# B-8: VN 포함 시드의 리서치 화이트리스트 추가 도메인 (Anthropic 크롤러 허용 여부 미확인 → 호출부에서 실패 시 기본 목록으로 재시도)
+VN_RESEARCH_DOMAINS = ["thuvienphapluat.vn", "vbpl.moj.gov.vn", "kobiz.or.kr", "acfm.kr"]
+
+
+def _norm_code(v) -> str:
+    s = str(v or "").strip().upper()
+    return s if s in MARKET_CODES else ""
+
+
+def normalize_market_lens(raw) -> dict:
+    """market_lens 원본을 방어적으로 정규화. 형식이 맞지 않으면 빈 dict."""
+    if not isinstance(raw, dict):
+        return {}
+    primary = _norm_code(raw.get("primary"))
+    if not primary:
+        return {}
+    secondary = _norm_code(raw.get("secondary"))
+    if secondary == primary:
+        secondary = ""
+    vn_eval = raw.get("vn_evaluation") if isinstance(raw.get("vn_evaluation"), dict) else {}
+    vn_eval = {k: v for k, v in vn_eval.items() if k != "applied"}
+    axes = []
+    for a in vn_eval.get("axes", []) or []:
+        if not isinstance(a, dict):
+            continue
+        ev = []
+        for e in a.get("evidence", []) or []:
+            if isinstance(e, dict):
+                t = str(e.get("type", "")).strip().upper()
+                ev.append({"type": t if t in EVIDENCE_TYPES else "INFERENCE",
+                           "text": str(e.get("text", "")).strip(),
+                           "source": str(e.get("source", "") or "").strip()})
+        try:
+            stars = int(a.get("stars", 0) or 0)
+        except (TypeError, ValueError):
+            stars = 0
+        axes.append({"axis": str(a.get("axis", "")), "label": str(a.get("label", "") or a.get("axis", "")),
+                     "stars": max(0, min(5, stars)), "verdict": str(a.get("verdict", "")).strip(),
+                     "evidence": ev})
+
+    def _str_list(x):
+        return [str(i).strip() for i in (x or []) if str(i).strip()] if isinstance(x, list) else []
+    sources = [s for s in (raw.get("sources") or []) if isinstance(s, dict)] if isinstance(raw.get("sources"), list) else []
+    jt = str(raw.get("japan_track", "") or "").strip().upper()
+    return {
+        "schema": str(raw.get("schema", "") or ""),
+        "target_market_raw": str(raw.get("target_market_raw", "") or ""),
+        "primary": primary,
+        "secondary": secondary,
+        "japan_doc_mode": bool(raw.get("japan_doc_mode", False)),
+        "japan_track": jt if jt in JAPAN_TRACK_LABELS else "",
+        "vietnam_lens_mode": bool(raw.get("vietnam_lens_mode", False)) or "VN" in (primary, secondary),
+        "lens_data_as_of": str(raw.get("lens_data_as_of", "") or ""),
+        "vn_evaluation": {
+            "axes": axes,
+            "expected_rating": str(vn_eval.get("expected_rating", "") or "").strip(),
+            "primary_window": str(vn_eval.get("primary_window", "") or "").strip(),
+            "localization_conditions": _str_list(vn_eval.get("localization_conditions")),
+            "verification_required": _str_list(vn_eval.get("verification_required")),
+        } if vn_eval else {},
+        "sources": [{"id": str(s.get("id", "")), "name": str(s.get("name", "")),
+                     "as_of": str(s.get("as_of", "")), "url": str(s.get("url", ""))} for s in sources],
+    }
+
+
+def get_market_lens(project: dict = None, seed_full: dict = None) -> dict:
+    """프로젝트 → 정규화 렌즈. 우선순위: project['market_lens'] → seed_full 메타 → 없음({}).
+    키가 없으면 v2.3.5 이전 시드로 보고 현행(한국 기준) 동작을 유지한다."""
+    project = project or {}
+    if isinstance(project.get("market_lens"), dict) and project["market_lens"]:
+        lens = normalize_market_lens(project["market_lens"])
+        if lens:
+            return lens
+    src = seed_full if seed_full is not None else (project.get("seed_full") or {})
+    meta = src.get("_idea_engine_meta", {}) if isinstance(src, dict) else {}
+    return normalize_market_lens(meta.get("market_lens") if isinstance(meta, dict) else None)
+
+
+def market_lens_has_vn(lens: dict) -> bool:
+    return bool(lens) and "VN" in (lens.get("primary"), lens.get("secondary"))
+
+
+def market_codes_label(lens: dict) -> str:
+    if not lens:
+        return ""
+    t = f"{lens['primary']}({MARKET_CODE_LABELS.get(lens['primary'], '')}) 1차"
+    if lens.get("secondary"):
+        t += f" · {lens['secondary']}({MARKET_CODE_LABELS.get(lens['secondary'], '')}) 2차"
+    return t
+
+
+def strip_market_lens_block(text: str) -> str:
+    """시대·직업 자동 감지 스캔에서 렌즈 블록 구간을 제거한다."""
+    if not text or MARKET_LENS_BEGIN not in text:
+        return text or ""
+    return re.sub(re.escape(MARKET_LENS_BEGIN) + r".*?" + re.escape(MARKET_LENS_END), " ", text, flags=re.S)
+
+
+def _genre_is(genre: str, *keys) -> bool:
+    g = genre or ""
+    return any(k in g for k in keys)
+
+
+def build_market_lens_block(project: dict) -> str:
+    """VN 포함 시드에만 블록을 만든다. KR·JP·ID·렌즈 없음 → 빈 문자열 (현행 동작 보존, B-3)."""
+    lens = get_market_lens(project)
+    if not market_lens_has_vn(lens):
+        return ""
+    genre = project.get("genre", "") or ""
+    historical = bool(project.get("historical", False))
+    ve = lens.get("vn_evaluation") or {}
+    L = ["", MARKET_LENS_BEGIN,
+         "[v2.9.1 시장 렌즈 — Idea Engine 인계 참고 정보 · LOCKED 아님]",
+         f"시장 코드: {market_codes_label(lens)}  (렌즈 기준일 {lens.get('lens_data_as_of') or '미기재'})",
+         "★ 이 블록은 LOCKED를 바꾸는 근거가 아니다. 인물·배경·결말을 이 정보로 고치지 마라.",
+         "",
+         "[적용 범위 — 한국 기준 룰의 오적용 차단]",
+         "- 장르 룰은 기존 한국 장르 분류 그대로 쓴다. 베트남 시장 장르군으로 장르를 바꾸지 않는다.",
+         "- 시스템 프롬프트의 한국 시대 OVERRIDE·Period Pack 규칙과 한국 직업·제도 현실은 "
+         "무대가 한국이거나 한국 제도 안에서 일하는 인물에게만 적용한다.",
+         "- 베트남 경찰·법원·행정 등 베트남 제도 안에서 일하는 인물에는 한국 제도 현실을 적용하지 않는다. "
+         "필요한 디테일은 '현지 제도 고증 필요'로 표시하고 단정하지 않는다.",
+         "- 베트남에 있는 한국인 인물(주재원·유학생·교민 등)은 한국 쪽 직업 현실을 그대로 쓴다. "
+         "판정 기준은 '그 인물이 어느 나라 제도 안에서 일하는가'다."]
+    if _genre_is(genre, "호러", "공포", "미스터리"):
+        L += ["- [HORROR] 베트남 민속 신앙을 한국 무속 장치로 대체하지 않는다. "
+              "현지 민속 디테일은 '현지 민속 고증 필요'로 표시한다. "
+              "베트남 영화국이 과도한 유혈·미신 요소에 신중을 권고했다(규정 아닌 권고)."]
+    if historical or _genre_is(genre, "시대극", "사극", "전쟁"):
+        L += ["- [PERIOD] 무대가 베트남인 시대 장면에는 한국 시대 OVERRIDE·Period Pack 규칙을 적용하지 않는다. "
+              "베트남 영화법 제9조(역사 왜곡 등 금지 조항) 저촉 여부를 작가 점검 의제로 남긴다."]
+    loc = ve.get("localization_conditions") or []
+    ver = ve.get("verification_required") or []
+    if loc or ver:
+        L += ["", "[작가 결정 대기 의제 — 자동 반영 금지]"]
+        L += [f"- (현지화 조건) {x}" for x in loc]
+        L += [f"- (확인 필요 · 사실로 단정 금지) {x}" for x in ver]
+    if ve.get("expected_rating"):
+        L += ["", f"[예상 등급 — Idea Engine 창작적 판단, 확정 등급 아님] {ve['expected_rating']}",
+              f"수위 참고 기준(시행규칙 05/2023, 표시용·강제 아님): {' / '.join(VN_RATING_CRITERIA)}. 수위 결정은 작가 몫이다."]
+    if ve.get("primary_window"):
+        L += [f"[1차 윈도 — 참고] {ve['primary_window']}"]
+    L += ["", "[수치 생성 금지]",
+          "- 베트남 제작비·손익분기점·관객 수 예측·미래 개봉 일정·특정 배급사의 선택 가능성을 새로 만들지 않는다.",
+          f"- 렌즈의 VERIFIED 정보를 인용할 때는 출처 번호와 기준일({lens.get('lens_data_as_of') or '미기재'})을 함께 쓴다."]
+    if lens.get("sources"):
+        L += ["[렌즈 출처] " + " / ".join(f"{s['id']} {s['name']}" + (f" ({s['as_of']})" if s.get("as_of") else "")
+                                          for s in lens["sources"] if s.get("id") or s.get("name"))]
+    L += [MARKET_LENS_END, ""]
+    return "\n".join(L)
+
+
+def build_vn_reality_gate_block(project: dict) -> str:
+    """B-6: VN 포함 시드의 Reality Gate 추가 점검 기준. 그 외에는 빈 문자열."""
+    if not market_lens_has_vn(get_market_lens(project)):
+        return ""
+    L = ["", "[v2.9.1 베트남 제도 점검 기준 — Idea Engine 렌즈 VERIFIED 항목]",
+         "아래는 판정 근거로 쓸 수 있는 확정 자료다."]
+    L += [f"- {fact} — 근거: {src}" for fact, src in VN_REALITY_FACTS]
+    L += ["",
+          "[베트남 무대 판정 규칙]",
+          "- 베트남 제도 안의 인물·절차에 한국 제도 자료(직업 사실성 참조 자료 포함)를 근거로 적출하지 않는다.",
+          "- 플롯이 의도적으로 규정을 어기는 설정(예: 외국 촬영팀이 허가 없이 몰래 촬영한다)은 사실 오류가 아니라 극적 장치다. 적출하지 않는다.",
+          "- 위 자료에 없는 베트남 제도는 확신이 없으면 적출하지 않는다."]
+    return "\n".join(L) + "\n"
+
+
+def market_research_domains(project: dict) -> list:
+    """B-8: VN 포함 시드일 때만 리서치 화이트리스트 추가 도메인 반환."""
+    return list(VN_RESEARCH_DOMAINS) if market_lens_has_vn(get_market_lens(project)) else []
 
 
 def build_reality_corrections_block(project: dict) -> str:

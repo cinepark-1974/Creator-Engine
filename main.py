@@ -653,7 +653,7 @@ def _get_project_stage(project: dict) -> str:
     return "초기"
 
 
-def save_project_to_json(project: dict, engine_version: str = "v2.9.0") -> str:
+def save_project_to_json(project: dict, engine_version: str = "v2.9.1") -> str:
     """프로젝트 전체를 JSON 문자열로 직렬화.
     
     Args:
@@ -711,7 +711,7 @@ def load_project_from_json(json_str: str) -> dict:
     
     # 엔진 버전 호환성 체크 (경고만, 실패 아님)
     saved_version = meta.get("engine_version", "unknown")
-    current_version = "v2.9.0"
+    current_version = "v2.9.1"
     if saved_version != current_version:
         warnings.append(
             f"엔진 버전 차이 — 저장 시: {saved_version} / 현재: {current_version}. "
@@ -994,6 +994,8 @@ def _build_project_locked_block(project: dict, with_ledger: bool = True) -> str:
     out += P.build_reality_corrections_block(project)
     if with_ledger:
         out += P.build_ledger_block(P.get_locked_ledger(project), _fmt_eff(project))
+    # v2.9.1: 시장 렌즈 블록 (VN 포함 시드에만 생성 · LOCKED 아님 · 렌즈 없으면 빈 문자열)
+    out += P.build_market_lens_block(project)
     return out
 
 
@@ -1011,7 +1013,7 @@ def _fmt_eff(project: dict) -> str:
 
 
 # ─── API Call: Research (v2.4.2: web_search 통합 + 최신 작품 우선 + 토큰 로깅) ───
-def call_research(idea, genre, market):
+def call_research(idea, genre, market, extra_domains=None):
     """
     v2.4.2 변경:
       - web_search 도구 활성화 (max_uses=3, 4개 도메인 화이트리스트)
@@ -1075,27 +1077,42 @@ def call_research(idea, genre, market):
 """
 
         # v2.4.2: web_search 도구 추가 (max_uses=3, 5개 도메인 화이트리스트)
-        response = client.messages.create(
-            model=ANTHROPIC_MODEL,
-            max_tokens=8000,
-            temperature=0.2,
-            system=system_prompt,
-            messages=[{"role": "user", "content": user_prompt}],
-            tools=[{
-                "type": "web_search_20250305",
-                "name": "web_search",
-                "max_uses": 3,
-                "allowed_domains": [
-                    "vkobis.or.kr",   # 영진위 온라인 통합전산망 (IPTV+OTT 박스오피스)
-                    "kobis.or.kr",    # 영진위 영화 정보 DB
-                    "cine21.co.kr",   # 씨네21 — 한국 영화 매체 (인터뷰·비평·라인업)
-                    "cine21.com",     # 씨네21 — 같은 매체 다른 도메인
-                    "imdb.com",       # 글로벌 영화·드라마 DB
-                    "variety.com",    # 할리우드 산업·신작 보도
-                    # v2.4.2.1: yna.co.kr 제거 — Anthropic crawler 차단 (invalid_request_error)
-                ],
-            }],
-        )
+        _base_domains = [
+            "vkobis.or.kr",   # 영진위 온라인 통합전산망 (IPTV+OTT 박스오피스)
+            "kobis.or.kr",    # 영진위 영화 정보 DB
+            "cine21.co.kr",   # 씨네21 — 한국 영화 매체 (인터뷰·비평·라인업)
+            "cine21.com",     # 씨네21 — 같은 매체 다른 도메인
+            "imdb.com",       # 글로벌 영화·드라마 DB
+            "variety.com",    # 할리우드 산업·신작 보도
+            # v2.4.2.1: yna.co.kr 제거 — Anthropic crawler 차단 (invalid_request_error)
+        ]
+        # v2.9.1: VN 포함 시드는 베트남 시장·법령 도메인 추가 (extra_domains 미전달 시 v2.9.0과 동일)
+        _extra = [d for d in (extra_domains or []) if d and d not in _base_domains]
+
+        def _research_call(domains):
+            return client.messages.create(
+                model=ANTHROPIC_MODEL,
+                max_tokens=8000,
+                temperature=0.2,
+                system=system_prompt,
+                messages=[{"role": "user", "content": user_prompt}],
+                tools=[{
+                    "type": "web_search_20250305",
+                    "name": "web_search",
+                    "max_uses": 3,
+                    "allowed_domains": domains,
+                }],
+            )
+
+        if _extra:
+            try:
+                response = _research_call(_base_domains + _extra)
+            except Exception as _e_dom:
+                # 추가 도메인의 크롤러 차단 등으로 거부되면 기본 목록으로 1회 재시도
+                st.session_state["last_research_domain_fallback"] = str(_e_dom)
+                response = _research_call(_base_domains)
+        else:
+            response = _research_call(_base_domains)
 
         # v2.4.2: 토큰 사용량 + 검색 횟수 세션 로깅
         try:
@@ -1789,6 +1806,9 @@ def call_reality_gate(project, core_data):
         except Exception:
             prof_block = ""
 
+        # v2.9.1: VN 포함 시드 — 베트남 제도 점검 기준 (렌즈 없으면 빈 문자열)
+        vn_block = P.build_vn_reality_gate_block(project)
+
         user_prompt = f"""[작품 기본 정보]
 제목: {project.get('title', '')}
 장르: {project.get('genre', '')}
@@ -1806,6 +1826,7 @@ def call_reality_gate(project, core_data):
 [Core Build 결과]
 {json.dumps(core_data, ensure_ascii=False)}
 {prof_block}
+{vn_block}
 
 [JSON 스키마]
 {{
@@ -4742,6 +4763,30 @@ if st.session_state.view == "home":
                         for q in pending:
                             st.markdown(f"- {q}")
 
+                    # v2.9.1: Market Lens (Idea Engine v2.3.6+) — 참고 정보, LOCKED 아님
+                    _lens = P.get_market_lens(seed_full=seed_data)
+                    if _lens:
+                        _jt = P.JAPAN_TRACK_LABELS.get(_lens.get("japan_track", ""), "")
+                        st.markdown(
+                            f"**🌏 시장 렌즈**: {P.market_codes_label(_lens)}"
+                            + (f" · 일본 트랙 {_jt}" if _jt else "")
+                            + (f" · 기준일 {_lens['lens_data_as_of']}" if _lens.get("lens_data_as_of") else "")
+                        )
+                        _ve = _lens.get("vn_evaluation") or {}
+                        if P.market_lens_has_vn(_lens) and _ve:
+                            with st.expander("🇻🇳 VN 렌즈 평가 · 작가 결정 대기 의제", expanded=False):
+                                st.caption("참고 정보입니다. LOCKED를 바꾸지 않으며, 엔진이 자동 반영하지 않습니다.")
+                                for _a in _ve.get("axes", []):
+                                    st.markdown(f"- **{_a['label']}** {'★' * _a['stars']}{'☆' * (5 - _a['stars'])} — {_a['verdict']}")
+                                if _ve.get("expected_rating"):
+                                    st.markdown(f"**예상 등급 (창작적 판단 · 확정 아님)**: {_ve['expected_rating']}")
+                                if _ve.get("primary_window"):
+                                    st.markdown(f"**1차 윈도**: {_ve['primary_window']}")
+                                for _x in _ve.get("localization_conditions", []):
+                                    st.markdown(f"- (현지화 조건) {_x}")
+                                for _x in _ve.get("verification_required", []):
+                                    st.markdown(f"- (확인 필요) {_x}")
+
                     # LOCKED 시드 핵심 항목 미리보기
                     locked_seed = seed_data.get("locked_seed", {})
                     if locked_seed:
@@ -5011,10 +5056,31 @@ if st.session_state.view == "home":
             _market_options = ["미지정", "한국", "북미/미국", "일본", "중국",
                                "동남아", "유럽", "중동", "글로벌", "직접 입력"]
             _market_default_idx = 0
-            for i, opt in enumerate(_market_options):
-                if _seed_default_market and (_seed_default_market == opt or opt in _seed_default_market or _seed_default_market in opt):
-                    _market_default_idx = i
-                    break
+            # v2.9.1: market_lens가 있으면 시장 판단은 코드로만 한다 (자유 서술 부분 문자열 매칭 금지).
+            #   단일 시장이면 해당 선택지, 복수 시장이면 원문 그대로 '직접 입력'.
+            _seed_lens = P.get_market_lens(seed_full=_seed_full) if _seed_full else {}
+            if _seed_lens:
+                _seed_default_market = _seed_lens.get("target_market_raw") or _seed_default_market
+                _single = P.MARKET_CODE_LABELS.get(_seed_lens["primary"], "") if not _seed_lens.get("secondary") else ""
+                if _single in _market_options:
+                    _market_default_idx = _market_options.index(_single)
+                else:
+                    _market_default_idx = _market_options.index("직접 입력")
+            else:
+                # 렌즈 없는 시드 — 정확 일치 또는 시드가 선택지의 일부일 때만 선택지로 매핑.
+                # 시드가 선택지보다 넓으면 (예: "베트남 + 한국 공동제작"이 "한국"으로 축소되던 결함)
+                # 원문을 '직접 입력'으로 보존한다.
+                _hits = [i for i, opt in enumerate(_market_options)
+                         if _seed_default_market and opt not in ("미지정", "직접 입력")
+                         and (_seed_default_market == opt or opt in _seed_default_market or _seed_default_market in opt)]
+                _exact = [i for i in _hits if _market_options[i] == _seed_default_market]
+                if _exact:
+                    _market_default_idx = _exact[0]
+                elif len(_hits) == 1 and _seed_default_market in _market_options[_hits[0]]:
+                    # 시드가 선택지의 일부일 때만 (예: "미국" → "북미/미국")
+                    _market_default_idx = _hits[0]
+                elif _seed_default_market:
+                    _market_default_idx = _market_options.index("직접 입력")
             market_type = st.selectbox(
                 "🌏 타겟 시장",
                 _market_options,
@@ -5028,6 +5094,8 @@ if st.session_state.view == "home":
                     value=(_seed_default_market if _seed_default_market not in _market_options else ""),
                     placeholder="예: 인도네시아+한국 공동제작"
                 )
+            if _seed_lens:
+                st.caption(f"시장 코드 `{P.market_codes_label(_seed_lens)}` — Idea Engine market_lens 기준")
 
             # v2.7.3: 인라인 부분 문자열 매칭 → P.normalize_format() 3단 매칭.
             #   기존 로직은 "미니시리즈"를 항상 "시리즈"로 오인했다.
@@ -5079,6 +5147,8 @@ if st.session_state.view == "home":
                 #   기존에는 프로젝트 생성 시점에만 쓰고 버렸다.
                 "seed_locked": _seed_locked if _seed_locked else {},
                 "seed_full": _seed_full if _seed_full else {},
+                # v2.9.1: 정규화된 시장 렌즈 (없으면 빈 dict → v2.9.0과 동일 동작)
+                "market_lens": _seed_lens if _seed_lens else {},
                 "title": title_input or "새 프로젝트",
                 "idea_text": idea_input,
                 "genre": genre_input,
@@ -5462,7 +5532,8 @@ elif st.session_state.view == "project" and st.session_state.cur:
             result = call_research(
                 project["idea_text"],
                 project["genre"],
-                project["target_market"]
+                project["target_market"],
+                extra_domains=P.market_research_domains(project),
             )
             if result:
                 project["research"] = result
