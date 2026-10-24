@@ -2,10 +2,38 @@
 👖 BLUE JEANS Creator Engine — Prompt Library
 
 ╔══════════════════════════════════════════════════════════╗
-║  VERSION: v2.9.1                                         ║
-║  BUILD DATE: 2026-10-23                                  ║
+║  VERSION: v2.9.2                                         ║
+║  BUILD DATE: 2026-10-24                                  ║
 ║  STATUS: Production                                      ║
 ╚══════════════════════════════════════════════════════════╝
+
+─────────────────────────────────────────────────────────
+v2.9.2 패치 (2026-10-24) — 씬리스트 공간 반복 금지 · 수정 요청 · 잠금 차단
+─────────────────────────────────────────────────────────
+[경위] Mr. MOON 운영 중 지적 (「THE CRIMSON ROBE」 씬리스트, 2026-10-24).
+  "공간반복은 2도 허용하면 안 된다. 수정을 요구하는 버튼은 없나?"
+  코드 대조로 확인한 결함:
+  ① SAME_LOCATION_RUN_MAX = 2 — 2연속은 규칙상 허용, 3연속부터 경고.
+  ② 장소명 완전 일치만 비교 — "양장점 → 양장점 제단 → 양장점"이 연속으로 잡히지 않음.
+  ③ 경고는 표시만, 잠금·인계 저장을 막지 않음. 재생성은 위반 사실을 모른 채 다시 뽑음.
+  ④ 막별 독립 생성이라 앞 막 마지막 씬 장소를 모름 — 막 경계 연속 발생.
+  실측: 기본안 65씬 중 53씬이 공간 연속 구간(12건, 3막 S#46~62 17연속).
+
+[1] 규칙 — SAME_LOCATION_RUN_MAX = 1, SCENE_LOCATION_RULES 신설.
+  시간대가 달라도 같은 공간이면 위반. 하위 공간은 상위 공간으로 묶음
+  (location_space_keys: 같은 INT/EXT에서 'L' 또는 'L ...'). INT↔EXT는 다른 공간.
+  시리즈는 회차 경계에서 끊음. 단일 공간 작품도 예외 없음.
+[2] 검사 — find_location_runs / describe_location_runs. validate_scene_list ①을 구간 보고로 교체.
+[3] 수정 요청 — build_scene_location_repair_block + scene_list_invariants /
+  compare_scene_list_invariants. main.py call_scene_list_location_repair:
+  위반 있는 막(회차)만, 최대 2회. 비트·원장 태그·인물이 사라진 시도는 버림.
+  우선순위 ②사이 끼우기 → ③Treatment의 다른 인물·장소 사건 → ①잘못 쪼갠 씬 합치기.
+  씬 수 80% 하한 지시. 수정 전 상태 variants_prev 보관 → 되돌리기 버튼.
+[4] 잠금 차단 — 편집본에 공간 반복이 있으면 🔒 잠금 비활성. 이전 규칙으로
+  잠긴 목록은 인계 저장 버튼 비활성 + 잠금 해제 안내.
+[5] 생성 — 영화 막 생성 시 직전 막 마지막 씬 · 다음 막 첫 씬 장소를 프롬프트에 주입.
+[하위 호환] 함수 시그니처 무수정. 신규 키 scene_list.variants_prev만 추가.
+  구버전 JSON은 그대로 열린다 (잠긴 목록에 위반이 있으면 인계 저장만 막힘).
 
 ─────────────────────────────────────────────────────────
 v2.9.1 패치 (2026-10-23) — Market Lens VN 인계 정합
@@ -1775,8 +1803,8 @@ BLUE JEANS 3축 (Mr.MOON 고유)
 # 수정 시 ENGINE_VERSION과 ENGINE_BUILD_DATE를 함께 갱신하세요.
 # ═══════════════════════════════════════════════════
 
-ENGINE_VERSION = "v2.9.1"
-ENGINE_BUILD_DATE = "2026-10-23"
+ENGINE_VERSION = "v2.9.2"
+ENGINE_BUILD_DATE = "2026-10-24"
 ENGINE_STATUS = "Production"
 
 def get_engine_info() -> str:
@@ -9037,7 +9065,7 @@ DIALOGUE_MODES = {
     "행동": "대사를 최소화하고 행동으로 진행한다. 물리·정보·관계 중 하나가 반드시 바뀐다.",
 }
 CONFESSION_MAX = 5               # 작품 전체 '고백' 씬 상한
-SAME_LOCATION_RUN_MAX = 2        # 같은 장소 연속 허용 수 (3연속부터 경고)
+SAME_LOCATION_RUN_MAX = 1        # v2.9.2: 같은 공간 연속 금지 (기존 2 — Mr. MOON: "2도 허용하면 안 된다")
 SCENE_BUDGET_DEVIATION = 0.2     # 시퀀스별 씬 예산 허용 편차 (±20% 또는 ±2씬 중 큰 값)
 
 SCENE_LIST_VARIANTS = {
@@ -9076,7 +9104,7 @@ Treatment의 비트를 씬 단위로 나눠 번호순 목록을 만든다. 대�
 - summary는 한 줄. 그 씬에서 누가 무엇을 해서 무엇이 바뀌는지 적는다.
   상태가 바뀌지 않는 씬(도착·대기·회상 나열·분위기 묘사)은 만들지 않는다.
 - 같은 장소는 작품 전체에서 같은 이름으로 적는다 (표기 흔들림 금지).
-- 같은 장소를 {SAME_LOCATION_RUN_MAX + 1}씬 이상 연속으로 쓰지 않는다.
+{SCENE_LOCATION_RULES}
 - time은 다음 5종만 쓴다: {' / '.join(SCENE_TIME_SLOTS)}.
 - int_ext는 INT / EXT / INT/EXT 중 하나.
 - characters에는 등장인물 목록의 이름만 쓴다. 엑스트라는 역할명(예: '경비원')으로.
@@ -9135,6 +9163,150 @@ def renumber_scenes(act_parts: list, per_episode: bool = False) -> list:
     return out
 
 
+SCENE_LOCATION_RULES = """[★ v2.9.2 공간 반복 금지 — 위반 시 잠금 불가 ★]
+- 바로 앞 씬과 같은 공간을 쓰지 않는다. 시간대가 달라도(낮 → 밤) 같은 공간이면 위반이다.
+- 하위 공간도 같은 공간으로 본다: 양장점 → 양장점 제단 → 양장점 탈의실은 모두 '양장점'이다.
+  단 INT와 EXT가 다르면 다른 공간이다 (양장점 INT → 양장점 앞 골목 EXT는 허용).
+- 장소 이름을 쪼개거나 바꿔서 피하지 않는다. 판정은 엔진이 파이썬으로 한다.
+- 한 공간에서 시간이 이어지는 행동은 한 씬으로 합친다. 씬을 나누는 기준은 장소·시간의 변화다.
+- 같은 공간으로 돌아와야 하면 그 사이에 다른 공간의 씬을 둔다. 사이에 둘 씬은 Treatment에 이미 있는
+  다른 인물·다른 장소의 사건이다 (동시 진행·교차 편집). 새 사건·새 인물을 만들지 않는다.
+- 한 공간에 갇힌 이야기(밀실·단일 공간 호러)라도 위 규칙은 같다. 같은 공간의 연속 씬은 하나로 합치고,
+  밖의 인물·과거·다른 장소의 사건으로 끊는다."""
+
+
+def _loc_text(s: dict) -> str:
+    return re.sub(r"\s+", " ", str((s or {}).get("location", "") or "").strip())
+
+
+def _ie(s: dict) -> str:
+    return str((s or {}).get("int_ext", "") or "").strip().upper()
+
+
+def location_space_keys(scenes: list) -> list:
+    """v2.9.2: 씬마다 공간 키를 돌려준다. 하위 공간은 상위 공간 키로 묶는다.
+    목록 안의 더 짧은 장소명 L이 있고 (같은 INT/EXT) 장소명이 L 또는 'L ...'이면 키는 L."""
+    locs = {}
+    for s in scenes or []:
+        if isinstance(s, dict) and _loc_text(s):
+            locs.setdefault(_ie(s), set()).add(_loc_text(s))
+    keys = []
+    for s in scenes or []:
+        if not isinstance(s, dict) or not _loc_text(s):
+            keys.append(None)
+            continue
+        loc, ie = _loc_text(s), _ie(s)
+        cands = [L for L in locs.get(ie, ()) if loc == L or loc.startswith(L + " ")]
+        keys.append((ie, min(cands, key=len) if cands else loc))
+    return keys
+
+
+def find_location_runs(scenes: list, fmt: str = "") -> list:
+    """v2.9.2: 같은 공간 연속 구간. [{"start": i, "end": j, "space": 키 장소명, "locations": [...]}].
+    길이가 SAME_LOCATION_RUN_MAX를 넘는 구간만. 시리즈는 회차 경계에서 끊는다."""
+    if not isinstance(scenes, list) or not scenes:
+        return []
+    keys = location_space_keys(scenes)
+    series = is_series_format(fmt)
+
+    def _ep(i):
+        return _to_int(scenes[i].get("ep")) if isinstance(scenes[i], dict) else 0
+    runs, i, n = [], 0, len(scenes)
+    while i < n:
+        j = i
+        while (j + 1 < n and keys[i] is not None and keys[j + 1] == keys[i]
+               and not (series and _ep(j + 1) != _ep(i))):
+            j += 1
+        if keys[i] is not None and j - i + 1 > SAME_LOCATION_RUN_MAX:
+            seen = []
+            for x in scenes[i:j + 1]:
+                if _loc_text(x) not in seen:
+                    seen.append(_loc_text(x))
+            runs.append({"start": i, "end": j, "space": keys[i][1], "locations": seen})
+        i = j + 1
+    return runs
+
+
+def describe_location_runs(scenes: list, runs: list, fmt: str = "") -> list:
+    out = []
+    for r in runs:
+        a, b = scenes[r["start"]], scenes[r["end"]]
+        sub = f" ({' / '.join(r['locations'])})" if len(r["locations"]) > 1 else ""
+        out.append(f"{_scene_label(a, fmt)}~{_scene_label(b, fmt)} — '{r['space']}'{sub} "
+                   f"{r['end'] - r['start'] + 1}씬 연속 (같은 공간 연속 금지)")
+    return out
+
+
+def scene_list_invariants(scenes: list) -> dict:
+    """v2.9.2: 수정 전후 대조용 — 비트·원장 태그·인물은 수정으로 사라지면 안 된다."""
+    beats, tags, chars, locs = set(), set(), set(), set()
+    for s in scenes or []:
+        if not isinstance(s, dict):
+            continue
+        b = _to_int(s.get("beat"))
+        if b:
+            beats.add(b)
+        for k in ("reveals", "plants", "payoffs", "motifs"):
+            tags.update(f"{k}:{x}" for x in _to_str_list(s.get(k)))
+        ch = s.get("characters", [])
+        chars.update(ch if isinstance(ch, list) else [str(ch)])
+        if _loc_text(s):
+            locs.add(_loc_text(s))
+    chars.discard("")
+    return {"beats": beats, "tags": tags, "characters": chars, "locations": locs}
+
+
+def compare_scene_list_invariants(before: list, after: list) -> list:
+    """사라진 비트·태그·인물 목록(문장). 빈 리스트면 통과."""
+    b, a = scene_list_invariants(before), scene_list_invariants(after)
+    errs = []
+    if b["beats"] - a["beats"]:
+        errs.append(f"사라진 비트: {sorted(b['beats'] - a['beats'])}")
+    if b["tags"] - a["tags"]:
+        errs.append(f"사라진 원장 태그: {', '.join(sorted(b['tags'] - a['tags']))}")
+    if b["characters"] - a["characters"]:
+        errs.append(f"사라진 등장인물: {', '.join(sorted(b['characters'] - a['characters']))}")
+    return errs
+
+
+def build_scene_location_repair_block(unit_label: str, scenes: list, violations: list,
+                                      prev_scene: dict = None, next_scene: dict = None,
+                                      failure_note: str = "") -> str:
+    """v2.9.2: 공간 반복 수정 요청 프롬프트 본문."""
+    def _brief(s):
+        return f"{_loc_text(s)} ({_ie(s)} · {s.get('time', '')})"
+    bound = []
+    if prev_scene:
+        bound.append(f"- 직전 단위 마지막 씬: {_brief(prev_scene)} → 이 단위의 첫 씬은 이 공간이 아니어야 한다.")
+    if next_scene:
+        bound.append(f"- 다음 단위 첫 씬: {_brief(next_scene)} → 이 단위의 마지막 씬은 이 공간이 아니어야 한다.")
+    return f"""[★ v2.9.2 공간 반복 수정 요청 — {unit_label} ★]
+아래는 이미 만든 {unit_label} 씬리스트다. 엔진 검사에서 같은 공간 연속이 적발되었다.
+
+[적발 구간]
+{chr(10).join('- ' + v for v in violations)}
+{chr(10).join(bound)}
+
+[현재 씬리스트 — no는 이 단위 안의 번호]
+{json.dumps(scenes, ensure_ascii=False)}
+
+[수정 규칙]
+- 적발 구간만 고친다. 적발되지 않은 씬은 모든 필드를 원문 그대로 둔다.
+- 고치는 방법은 셋이다. 우선순위는 ② → ③ → ① 이다.
+  ② 같은 비트 안에서 다른 공간의 씬과 순서를 바꿔 사이에 끼운다. 인과 순서와 공개 일정을 깨지 않을 때만.
+  ③ 이 단위 Treatment 비트에 이미 있는 다른 인물·다른 장소의 사건을 별도 씬으로 세워 사이에 둔다
+     (같은 시각 바깥의 인물, 다른 장소에서 벌어지는 추적·조사·준비 등).
+  ① 합치기 — 같은 공간·같은 시간대로 이어지는 씬, 즉 원래 한 씬이어야 할 것을 잘못 쪼갠 경우에만 쓴다.
+     summary에 합친 씬들의 사건을 모두 남기고, characters와 reveals·plants·payoffs·motifs는 합집합.
+     합친 씬들의 beat가 다르면 합치지 않는다.
+- 씬 수는 원래 {len(scenes)}씬에서 크게 줄이지 않는다 (최소 {max(1, round(len(scenes) * 0.8))}씬). 합치기로만 해결하지 마라.
+- 새 사건·새 인물·새 설정을 만들지 않는다. 장소 이름을 바꾸거나 하위 공간 이름을 붙여 피하지 않는다.
+- 모든 beat 번호, reveals·plants·payoffs·motifs의 id, 등장인물은 하나도 빠지면 안 된다. 엔진이 대조한다.
+- 출력은 이 단위의 전체 씬 목록이다 (고친 씬 + 그대로 둔 씬). no는 1부터 다시 매긴다.
+{('[직전 시도 실패 사유 — 반드시 해결]' + chr(10) + failure_note) if failure_note else ''}
+"""
+
+
 def validate_scene_list(scenes: list, storyline: list = None, main_characters: list = None,
                         variant: str = "기본안", fmt: str = "", ledger=None, corrections: list = None) -> list:
     """씬리스트 파이썬 검사. 경고 문자열 리스트 반환.
@@ -9144,17 +9316,8 @@ def validate_scene_list(scenes: list, storyline: list = None, main_characters: l
         return ["씬리스트가 비어 있습니다."]
     _lab = lambda s: _scene_label(s, fmt)
 
-    # ① 동일 장소 연속
-    run, prev = 1, None
-    for s in scenes:
-        loc = str(s.get("location", "")).strip()
-        if loc and loc == prev:
-            run += 1
-            if run == SAME_LOCATION_RUN_MAX + 1:
-                warns.append(f"{_lab(s)} — '{loc}' {run}씬 연속 (허용 {SAME_LOCATION_RUN_MAX}).")
-        else:
-            run = 1
-        prev = loc
+    # ① 동일 공간 연속 — v2.9.2: 2연속부터 위반, 하위 공간 포함, 구간 단위 보고 (잠금 차단 항목)
+    warns += describe_location_runs(scenes, find_location_runs(scenes, fmt), fmt)
 
     # ② 시간대 5종 밖
     bad_time = [f"{_lab(s)}({s.get('time')})" for s in scenes
