@@ -2,10 +2,54 @@
 👖 BLUE JEANS Creator Engine — Prompt Library
 
 ╔══════════════════════════════════════════════════════════╗
-║  VERSION: v2.9.2                                         ║
-║  BUILD DATE: 2026-10-24                                  ║
+║  VERSION: v2.10.0                                        ║
+║  BUILD DATE: 2026-10-25                                  ║
 ║  STATUS: Production                                      ║
 ╚══════════════════════════════════════════════════════════╝
+
+─────────────────────────────────────────────────────────
+v2.10.0 패치 (2026-10-25) — 씬리스트 중복 사전 차단 · 씬 수 보존 · 보충 생성
+─────────────────────────────────────────────────────────
+[경위] Writer Engine v4.2.0 업그레이드 요청서(2026-10-24) — 「THE CRIMSON ROBE」 잠금본 82씬.
+  Mr. MOON 진단: "Creator Engine이 중복 씬을 많이 만들어 내서, 그걸 수정하는 과정에서
+  씬이 줄어든다. Writer는 그걸 그대로 받게 된다." 예산 99씬 → 잠금 82씬(−17).
+  니 2회 사망(S#11 → S#45·46·47·51·53) · 퇴마침 2회(S#17·28) · 수선 시작 2회(S#15·22)
+  · 같은 회상 2회(S#48·70) · 인물 없는 골목 완충 씬(S#64·68·72·76) · 공간 횡단 요약.
+  코드 대조 원인: R1 막별 독립 생성(다른 막은 장소명·경계 씬만 앎) / R2 "권장 씬 수를 따른다"
+  / R3 공간 반복 금지의 부작용(끊는 씬 질 미검사) / R4 중복 검사 없음 / R5 지운 뒤 채우는 경로 없음.
+  추가 확인(운영 중 잠재 결함): 주요 인물 미등장 검사가 '응우옛 (Nguyệt)' 같은 괄호 표기 때문에
+  모든 작품에서 항상 오경고하고 있었다 → 별칭 풀이(split_character_aliases)로 수정.
+
+[C-3] 중복 검사 5종 — find_scene_list_duplicates (validate_scene_list에 덧붙임, 표시만)
+  ① 사건 중복: event_ref 동일 + function '사건'. 태그 없으면 요약 유사도(희귀 음절쌍 IDF ·
+     공유 낱말 3개 이상) + '첫 번째 … 시작' 개시 사건 규칙 + 같은 대사(따옴표) 비교.
+     '두 번째 → 네 번째 구멍', '두 갈래 → 세 갈래' 같은 진행은 제외. 인물이 다르면 '같은 행동 반복'.
+  ② 퇴장 인물 재등장: find_exited_characters — 인물이 주어인 사망 동사 / 인물의 몸·시신에 붙은 표지만
+     (보수 판정. '손을 잡는 순간 재처럼 부스러지는'처럼 잡힌 쪽의 죽음, 대사 속 '죽어야', '죽인다'는 제외).
+     원장 presence '부재(작품 전체)'도 퇴장으로 본다. 회상·환영·형체 표지 씬은 예외.
+  ③ 회상 중복: 회상 표지 씬끼리 같은 시점(46년 전·1934년) + 공통 희귀어 3개 이상.
+     회상이 앞 장면을 다시 보여주면 '회상 회수(참고)'로 따로 표시 (의도된 회수일 수 있음).
+  ④ 완충 씬: 같은 공간 두 씬 사이에 낀 씬에 주요·확장 인물이 없음. 같은 바깥 공간·회상을
+     끊기용으로 2회 이상 쓰면 '완충 공간 반복'으로 집계.
+  ⑤ 공간 횡단 요약: 왕복(나와 … 다시 들어간다) / 넘어간 뒤 행동 계속 / 다른 공간을 출발점으로.
+     헤딩 공간으로 들어오는 동작과 마지막 문턱 넘기('문을 부수고 들어간다.')는 허용.
+  + 비트 쏠림(C-2): 비트 하나가 시퀀스 예산의 50%를 넘고 5씬 이상.
+[C-2] event_ref — build_treatment_event_list(B{n}-E/D/C, event·decision·consequence_summary),
+  build_event_ref_block 생성 주입, 스키마 event_ref·function(사건/준비/여파/교차/회상)·shortfall_reason.
+  find_unused_events(누락) — 보충 생성 재료. scene_list_invariants에 event_ref 포함(수정 요청 대조).
+[C-5] build_system_scene_list: "권장 씬 수를 따른다" → "목표다. 채울 사건이 없으면 덜 만들고
+  shortfall_reason을 남긴다". 사건 1회·대사 1회·회상 1회·퇴장 인물·공간 횡단 금지 규칙 추가.
+  event_budget_warnings — 시퀀스 예산이 사건 1개당 3씬을 넘으면 씬리스트 화면에서 표시
+  (Structure 단계는 Treatment 이전이라 사건 수를 알 수 없어 씬리스트 화면으로 옮겼다).
+[C-6] SCENE_LOCATION_RULES·수정 요청 블록에 끊는 씬의 질 4개 조항. ③은 event_ref가 있는 사건만.
+[C-1] build_cross_unit_block — 같은 안의 다른 막 씬(S#·장소·인물·요약)과 퇴장 인물 주입.
+  8,000자 상한 초과 시 요약 60자 → 30자 → 사건 번호만으로 단계 축소. 시리즈는 직전 회차까지만.
+[C-4] build_scene_list_report · scene_list_shortfall — main.py 보충 생성과 Writer 인계 보고의 계산부.
+[C-7] build_writer_handoff_v28에 scene_list_report 키 추가 (잠긴 목록이 없으면 빈 dict).
+[C-8] REPAIR_MIN_RATIO = 0.8 — 수정 요청 하한을 main.py에서 코드로 검사.
+[하위 호환] 함수 시그니처 무수정 — validate_scene_list에 named_characters 디폴트 인자만 추가.
+  event_ref·function이 없는 구버전 씬리스트는 그대로 열리고 ①은 요약 유사도로 대신 판정한다.
+  잠금 차단은 v2.9.2 공간 반복 하나만 유지 (새 검사는 표시 + 잠금 확인 체크).
 
 ─────────────────────────────────────────────────────────
 v2.9.2 패치 (2026-10-24) — 씬리스트 공간 반복 금지 · 수정 요청 · 잠금 차단
@@ -1803,8 +1847,8 @@ BLUE JEANS 3축 (Mr.MOON 고유)
 # 수정 시 ENGINE_VERSION과 ENGINE_BUILD_DATE를 함께 갱신하세요.
 # ═══════════════════════════════════════════════════
 
-ENGINE_VERSION = "v2.9.2"
-ENGINE_BUILD_DATE = "2026-10-24"
+ENGINE_VERSION = "v2.10.0"
+ENGINE_BUILD_DATE = "2026-10-25"
 ENGINE_STATUS = "Production"
 
 def get_engine_info() -> str:
@@ -9109,7 +9153,15 @@ Treatment의 비트를 씬 단위로 나눠 번호순 목록을 만든다. 대�
 - int_ext는 INT / EXT / INT/EXT 중 하나.
 - characters에는 등장인물 목록의 이름만 쓴다. 엑스트라는 역할명(예: '경비원')으로.
 - 모든 씬에 seq(시퀀스 번호)와 beat(비트 번호)를 적는다. 시리즈면 ep(회차)도 적고, seq는 회차 번호와 같다.
-- 시퀀스별 씬 수는 제시된 권장 씬 수를 따른다.
+- [v2.10.0] 시퀀스별 권장 씬 수는 목표다. 목표를 채우려고 같은 사건·같은 대사·같은 회상을 되풀이하거나
+  사건 없는 분위기 씬을 만들지 않는다. 채울 사건이 없으면 덜 만들고,
+  그 시퀀스 마지막 씬에 shortfall_reason을 한 줄 남긴다 (예: "Beat 12 사건 3개 — 5씬이 한계").
+- [v2.10.0] 한 사건은 한 번 벌어진다. 이미 벌어진 사건(같은 행동·같은 첫 시도·같은 발견)을 다른 씬에서 다시 벌이지 않는다.
+  같은 대사를 두 씬에 쓰지 않는다. 같은 과거 장면을 두 번 회상하지 않는다.
+- [v2.10.0] 죽거나 퇴장한 인물은 그 뒤 씬에 회상·환영이 아니면 등장시키지 않는다 (characters에도 넣지 않는다).
+- [v2.10.0] summary 안에서 공간을 넘지 않는다. '들어간다·나와·이동하던 중·돌아오다'로 다른 공간의 행동까지 적지 않는다.
+  넘어간 공간이 바로 다음 씬의 공간과 같으면 넘어간 부분은 다음 씬의 앞부분으로 붙인다.
+  다음 씬과 공간이 다르면 넘어간 공간을 별도 씬으로 세운다.
 - [v2.9.0 원장 태그] 서사 원장이 주어졌으면 해당 씬에 id를 단다 — 없으면 빈 배열.
   reveals: 이 씬에서 관객에게 공개되는 R-id / plants·payoffs: 심거나 회수하는 P-id / motifs: 등장하는 M-id.
   공개 지점 전의 씬에는 R-id를 달지 않으며, 그 진상도 화면에 올리지 않는다.
@@ -9136,7 +9188,10 @@ SCENE_LIST_SCHEMA = """{
       "reveals": [],
       "plants": [],
       "payoffs": [],
-      "motifs": []
+      "motifs": [],
+      "event_ref": ["B1-E"],
+      "function": "사건",
+      "shortfall_reason": ""
     }
   ]
 }"""
@@ -9172,7 +9227,12 @@ SCENE_LOCATION_RULES = """[★ v2.9.2 공간 반복 금지 — 위반 시 잠금
 - 같은 공간으로 돌아와야 하면 그 사이에 다른 공간의 씬을 둔다. 사이에 둘 씬은 Treatment에 이미 있는
   다른 인물·다른 장소의 사건이다 (동시 진행·교차 편집). 새 사건·새 인물을 만들지 않는다.
 - 한 공간에 갇힌 이야기(밀실·단일 공간 호러)라도 위 규칙은 같다. 같은 공간의 연속 씬은 하나로 합치고,
-  밖의 인물·과거·다른 장소의 사건으로 끊는다."""
+  밖의 인물·과거·다른 장소의 사건으로 끊는다.
+[★ v2.10.0 끊는 씬의 질 ★]
+- 같은 공간을 끊는 씬에는 주요 인물의 행동이 있어야 한다. 행인·분위기·정적만 있는 씬으로 끊지 않는다.
+- 같은 바깥 공간(예: 양장점 앞 골목)을 끊는 용도로 두 번 이상 쓰지 않는다.
+- 회상으로 끊을 때 같은 과거 사건을 두 번 보여주지 않는다.
+- 끊는 씬도 event_ref를 단다 (function: 교차)."""
 
 
 def _loc_text(s: dict) -> str:
@@ -9246,7 +9306,7 @@ def scene_list_invariants(scenes: list) -> dict:
         b = _to_int(s.get("beat"))
         if b:
             beats.add(b)
-        for k in ("reveals", "plants", "payoffs", "motifs"):
+        for k in ("reveals", "plants", "payoffs", "motifs", "event_ref"):   # v2.10.0: event_ref
             tags.update(f"{k}:{x}" for x in _to_str_list(s.get(k)))
         ch = s.get("characters", [])
         chars.update(ch if isinstance(ch, list) else [str(ch)])
@@ -9296,21 +9356,566 @@ def build_scene_location_repair_block(unit_label: str, scenes: list, violations:
   ② 같은 비트 안에서 다른 공간의 씬과 순서를 바꿔 사이에 끼운다. 인과 순서와 공개 일정을 깨지 않을 때만.
   ③ 이 단위 Treatment 비트에 이미 있는 다른 인물·다른 장소의 사건을 별도 씬으로 세워 사이에 둔다
      (같은 시각 바깥의 인물, 다른 장소에서 벌어지는 추적·조사·준비 등).
+     [v2.10.0] 사건 목록에 event_ref가 있는 사건만 쓴다. 행인·분위기·정적만 있는 씬으로 끊지 않는다.
+     이미 다른 씬에 있는 사건·대사·회상을 다시 쓰지 않는다. 같은 바깥 공간을 끊기용으로 두 번 쓰지 않는다.
   ① 합치기 — 같은 공간·같은 시간대로 이어지는 씬, 즉 원래 한 씬이어야 할 것을 잘못 쪼갠 경우에만 쓴다.
      summary에 합친 씬들의 사건을 모두 남기고, characters와 reveals·plants·payoffs·motifs는 합집합.
      합친 씬들의 beat가 다르면 합치지 않는다.
-- 씬 수는 원래 {len(scenes)}씬에서 크게 줄이지 않는다 (최소 {max(1, round(len(scenes) * 0.8))}씬). 합치기로만 해결하지 마라.
+- 씬 수는 원래 {len(scenes)}씬에서 크게 줄이지 않는다 (최소 {max(1, round(len(scenes) * REPAIR_MIN_RATIO))}씬 — 엔진이 검사해 미달이면 버린다). 합치기로만 해결하지 마라.
 - 새 사건·새 인물·새 설정을 만들지 않는다. 장소 이름을 바꾸거나 하위 공간 이름을 붙여 피하지 않는다.
-- 모든 beat 번호, reveals·plants·payoffs·motifs의 id, 등장인물은 하나도 빠지면 안 된다. 엔진이 대조한다.
+- 모든 beat 번호, reveals·plants·payoffs·motifs의 id, event_ref, 등장인물은 하나도 빠지면 안 된다. 엔진이 대조한다.
 - 출력은 이 단위의 전체 씬 목록이다 (고친 씬 + 그대로 둔 씬). no는 1부터 다시 매긴다.
 {('[직전 시도 실패 사유 — 반드시 해결]' + chr(10) + failure_note) if failure_note else ''}
 """
 
 
+# ═══════════════════════════════════════════════════
+# v2.10.0 — 씬리스트 중복 사전 차단 · 씬 수 보존 · 보충 생성
+# ───────────────────────────────────────────────────
+# 발견 경위: Writer Engine v4.2.0 업그레이드 요청서 (2026-10-24, 「THE CRIMSON ROBE」 잠금본 82씬).
+#   Mr. MOON: "Creator Engine이 중복 씬을 많이 만들어 내서, 그걸 수정하는 과정에서 씬이 줄어든다."
+#   예산 99씬 → 잠금 82씬. 니 2회 사망(S#11 → S#53), 퇴마침 2회(S#17·28), 수선 시작 2회(S#15·22),
+#   같은 회상 2회(S#48·70), 인물 없는 골목 완충 씬(S#64·68·72·76).
+# 원인: R1 막별 독립 생성(앞 막 사건·사망 인물 모름) / R2 "권장 씬 수를 따른다"(사건보다 예산이 큼)
+#   / R3 공간 반복 금지의 부작용(끊는 씬 질 미검사) / R4 중복 검사 없음 / R5 지운 뒤 채우는 경로 없음.
+# 원칙: 새 검사는 표시만 한다. 잠금 차단은 v2.9.2 공간 반복 하나만 유지한다.
+# ═══════════════════════════════════════════════════
+
+SCENE_FUNCTIONS = ["사건", "준비", "여파", "교차", "회상"]   # v2.10.0 씬 기능 5종
+EVENT_REF_KINDS = (("E", "event_summary", "사건"), ("D", "decision_summary", "선택"),
+                   ("C", "consequence_summary", "결과"))
+BEAT_CONCENTRATION_MAX = 0.5     # 비트 하나가 시퀀스 예산의 50%를 넘으면 쏠림
+EVENTS_PER_SCENE_BUDGET_MAX = 3  # 시퀀스 예산이 Treatment 사건 1개당 3씬을 넘으면 '예산 과다'
+DUP_SIM_MIN = 0.22               # 요약 유사도 하한 (태그 없는 구버전 fallback)
+DUP_RARE_MIN = 4                 # 희귀 음절쌍(작품 전체 3씬 이하 등장) 공유 하한 (회상 회수 판정)
+DUP_RARE_WORDS_MIN = 3           # 희귀 음절쌍을 품은 서로 다른 낱말 수 하한 ('카운터' 한 낱말 = 1)
+CROSS_UNIT_INJECT_MAX = 8000     # C-1 다른 막 씬 주입 상한 (자)
+REPAIR_MIN_RATIO = 0.8           # C-8 수정 요청 씬 수 하한
+
+_FLASHBACK_RE = re.compile(r"회상|플래시백|\d+\s*년\s*전|\d{4}\s*년|과거|꿈속|꿈에|꿈을|환영|환각|기억 속")
+_GHOST_RE = re.compile(r"형체|원혼|혼령|유령|귀신|영혼|망령|환영|거울 속|거울에 비친")
+# v2.10.0 사망 표지 — 보수적으로 잡는다 (주인공을 퇴장으로 잘못 잡으면 C-1 주입이 그 인물을 지운다)
+#  강: 인물이 주어인 사망 동사 — '민이 … 쓰러져 죽고', '리 란이 소멸하며' (인물명 뒤 40자 이내, 다른 주어 없음)
+#  직: 인물의 몸·시신에 붙은 표지 — '니의 몸을 관통해 미라처럼', '중의 얼굴이 … 미라처럼', '우옌 탄의 시신'
+#  제외: '죽인다·죽여'(남을 죽임), '손을 잡는 순간 재처럼 부스러지는'(잡힌 쪽의 몸)
+_DEATH_STRONG_RE = re.compile(r"^(?:이|가|은|는|도)\s(?:(?![가-힣]+(?:이|가)\s).){0,40}?"
+                              r"(죽(?:었|는다|고\b|고\s|어\s|음|은\s)|숨(?:진|지고|지며|진다|을 거)|사망|즉사|소멸|목숨을 잃)")
+_DEATH_BODY_RE = re.compile(r"^의\s?(?:시신|시체|주검|유해)|^의\s?(?:몸|얼굴|육신|피부|손)[^,—]{0,25}?(?:미라|재처럼 부스러|쪼그라)")
+_DEATH_RE = re.compile(r"죽(?:었|는다|고|어|음|은)|숨(?:진|지|을 거)|시신|시체|주검|미라|재처럼 부스러|"
+                       r"소멸|사망|즉사|목숨을 잃")   # 참고용 (판정은 _exit_marker)
+
+
+def _exit_marker(seg: str):
+    """인물명 바로 뒤 구간 seg가 그 인물의 사망을 말하면 match, 아니면 None."""
+    return _DEATH_STRONG_RE.search(seg) or _DEATH_BODY_RE.search(seg)
+_PERIOD_RE = re.compile(r"\d{4}\s*년|\d+\s*년\s*전")
+_ORDINAL_RE = re.compile(r"(첫|한|두|세|네|다섯|여섯|일곱|여덟|아홉|열|\d+)\s*(번째|갈래|조각|겹|땀째)")
+_START_RE = re.compile(r"(첫\s*번째|처음으로|처음).{0,80}시작|시작.{0,40}(첫\s*번째|처음으로)")
+_QUOTE_RE = re.compile(r"['‘“\"]([^'’”\"]{2,80})['’”\"]")
+_MOVE_RE = re.compile(r"(?P<enter>들어간다|들어가(?:며|고|서|자|려))|(?P<arrive>들어온다|들어와|돌아오다|돌아와|돌아온다)|"
+                      r"(?P<exit>나와(?:서)?(?=\s)|나온다|나간다|나가(?:며|고|서|자))|(?P<transit>이동하던 중|이동하며|이동한다)")
+_QUOTE_STOP = set("한다 했다 한다고 있다 없다 된다 해야 하는 하고 이다 같다 아니야 거야 이거 그거 저거 "
+                  "내가 나도 너도 우리 정말 지금 이제 그냥 여기 거기 말해 알아 몰라 이렇게 그렇게".split())
+_HANGUL = "가-힣"
+
+
+def split_character_aliases(name: str) -> list:
+    """v2.10.0: '응우옛 (Nguyệt)' → ['응우옛'], '리 란 / 띠에우 린 (Lý…)' → ['리 란', '띠에우 린']."""
+    base = re.sub(r"\(.*?\)|（.*?）", "", str(name or ""))
+    return [a.strip() for a in re.split(r"\s*/\s*", base) if a.strip()]
+
+
+def _character_groups(scenes: list, extra_names: list = None) -> dict:
+    """별칭 → 대표명. 씬 characters와 바이블 이름을 함께 묶는다."""
+    groups = {}
+    pool = list(extra_names or [])
+    for s in scenes or []:
+        if isinstance(s, dict):
+            pool += _to_str_list(s.get("characters"))
+    for nm in pool:
+        al = split_character_aliases(nm)
+        if not al:
+            continue
+        rep = next((groups[a] for a in al if a in groups), al[0])
+        for a in al:
+            groups.setdefault(a, rep)
+    return groups
+
+
+def _scene_people(s: dict, groups: dict) -> set:
+    out = set()
+    for nm in _to_str_list((s or {}).get("characters")):
+        for a in split_character_aliases(nm):
+            out.add(groups.get(a, a))
+    return out
+
+
+def _name_spans(text: str, alias: str) -> list:
+    """한글 단어 경계를 지키는 이름 위치 (니 ≠ 어머니)."""
+    return [m.start() for m in re.finditer(rf"(?<![{_HANGUL}]){re.escape(alias)}(?![{_HANGUL}]{{2,}})", text)]
+
+
+def _strip_quotes(text: str) -> str:
+    return _QUOTE_RE.sub(" ", str(text or ""))
+
+
+def _is_flashback(s: dict) -> bool:
+    return bool(_FLASHBACK_RE.search(str((s or {}).get("summary", "")))) or \
+        str((s or {}).get("function", "")).strip() == "회상"
+
+
+def find_exited_characters(scenes: list, ledger=None, fmt: str = "", extra_names: list = None) -> list:
+    """v2.10.0 C-3 ②: 사망(퇴장)한 인물. [{"name", "aliases", "idx", "label", "basis"}].
+    요약에서 인물명 바로 뒤(다음 인물명·쉼표·— 전까지)에 사망 표지가 있으면 그 씬에서 퇴장한 것으로 본다.
+    따옴표 안 대사는 보지 않는다 ('얼마나 더 죽어야 하냐' 같은 말은 사망이 아니다).
+    서사 원장 presence의 '부재'(작품 전체)도 퇴장으로 넣는다."""
+    groups = _character_groups(scenes, extra_names)
+    aliases = sorted(groups, key=len, reverse=True)
+    out, done = [], set()
+    for i, s in enumerate(scenes or []):
+        if not isinstance(s, dict) or _is_flashback(s):
+            continue
+        text = _strip_quotes(s.get("summary", ""))
+        hits = sorted((p, a) for a in aliases for p in _name_spans(text, a))
+        for k, (p, a) in enumerate(hits):
+            rep = groups[a]
+            if rep in done:
+                continue
+            nxt = hits[k + 1][0] if k + 1 < len(hits) else len(text)
+            parts = re.split(r"[,—–]| - ", text[p + len(a):nxt], maxsplit=1)
+            seg = parts[0]
+            m = _exit_marker(seg)
+            # '남이 미라처럼 쪼그라든 우옌 탄의 시신' — 관형형으로 다음 인물을 꾸미면 그 인물의 죽음이다
+            if m and len(parts) == 1 and nxt < len(text) and \
+                    re.search(r"(든|진|은|던|한|된|인|운|난)\s*$", seg):
+                m = None
+            if m:
+                done.add(rep)
+                out.append({"name": rep, "aliases": [x for x in aliases if groups[x] == rep],
+                            "idx": i, "label": _scene_label(s, fmt), "basis": (a + seg)[:40].strip()})
+    if ledger and not ledger_is_empty(ledger):
+        for c in normalize_ledger(ledger)["presence"]:
+            if c["rule"] == "부재" and not c["eps"] and not c["beats"]:
+                al = split_character_aliases(c["character"])
+                rep = groups.get(al[0], al[0]) if al else ""
+                if rep and rep not in done:
+                    done.add(rep)
+                    out.append({"name": rep, "aliases": al, "idx": -1, "label": f"원장 {c['id']}",
+                                "basis": c["note"] or "부재"})
+    return out
+
+
+def _sl_grams(text: str, strip_names: list) -> set:
+    t = _strip_quotes(text)
+    for n in strip_names:
+        t = t.replace(n, " ")
+    g = set()
+    for w in re.findall(rf"[{_HANGUL}0-9]+", t):
+        for k in range(len(w) - 1):
+            g.add(w[k:k + 2])
+    return g
+
+
+def _sl_similarity_index(scenes: list, names: list):
+    import math
+    G = [_sl_grams((s or {}).get("summary", ""), names) for s in scenes]
+    n = max(1, len(G))
+    df = {}
+    for g in G:
+        for x in g:
+            df[x] = df.get(x, 0) + 1
+    idf = {k: math.log(n / v) for k, v in df.items()}
+    rare = math.log(n / 3) if n > 3 else 0.0
+    return G, idf, rare
+
+
+def _sl_pair_score(G, idf, rare, i, j):
+    inter = G[i] & G[j]
+    if not inter:
+        return 0.0, []
+    wa, wb = sum(idf[x] for x in G[i]), sum(idf[x] for x in G[j])
+    sc = sum(idf[x] for x in inter) / max(1e-9, min(wa, wb))
+    return sc, sorted(x for x in inter if idf[x] >= rare)
+
+
+def _rare_word_count(text: str, rare_grams: list, strip_names: list) -> int:
+    t = _strip_quotes(text)
+    for n in strip_names:
+        t = t.replace(n, " ")
+    rg = set(rare_grams)
+    return sum(1 for w in set(re.findall(rf"[{_HANGUL}0-9]+", t))
+               if any(w[k:k + 2] in rg for k in range(len(w) - 1)))
+
+
+def _progression_pair(si: str, sj: str) -> bool:
+    """'두 갈래 → 세 갈래', '두 번째 구멍 → 네 번째 구멍' — 같은 단위의 다른 수는 진행이지 중복이 아니다."""
+    da, db = {}, {}
+    for d, t in ((da, si), (db, sj)):
+        for num, unit in _ORDINAL_RE.findall(t):
+            d.setdefault(unit, set()).add(num)
+    return any(u in db and not (da[u] & db[u]) for u in da)
+
+
+def find_scene_list_duplicates(scenes: list, fmt: str = "", named_characters: list = None,
+                               storyline: list = None, ledger=None, variant: str = "기본안") -> list:
+    """v2.10.0 C-2·C-3: 중복·쏠림 검사. [{"kind", "code", "scenes": [label...], "msg"}].
+    kind: 사건 중복 / 대사 중복 / 같은 행동 반복 / 퇴장 인물 재등장 / 회상 중복 / 회상 회수(참고)
+          / 완충 씬 / 완충 공간 반복 / 공간 횡단 요약 / 비트 쏠림 / 사건 누락
+    태그(event_ref)가 있으면 사건 단위로, 없으면 요약 유사도로 대신 판정한다. 표시만 한다(잠금 차단 아님)."""
+    out = []
+    if not isinstance(scenes, list) or not scenes:
+        return out
+    sc_list = [s if isinstance(s, dict) else {} for s in scenes]
+    lab = [_scene_label(s, fmt) for s in sc_list]
+    groups = _character_groups(sc_list, named_characters)
+    names = sorted(groups, key=len, reverse=True)
+    people = [_scene_people(s, groups) for s in sc_list]
+    series = is_series_format(fmt)
+
+    def add(kind, code, idxs, msg):
+        out.append({"kind": kind, "code": code, "scenes": [lab[i] for i in idxs], "idx": list(idxs), "msg": msg})
+
+    # ── ① 사건 중복 — event_ref 우선 ──
+    tagged = any(_to_str_list(s.get("event_ref")) for s in sc_list)
+    used_pairs = set()
+    if tagged:
+        by_ref = {}
+        for i, s in enumerate(sc_list):
+            if str(s.get("function", "사건")).strip() in ("", "사건"):
+                for r in _to_str_list(s.get("event_ref")):
+                    by_ref.setdefault(r.upper(), []).append(i)
+        for r, idxs in sorted(by_ref.items()):
+            if len(idxs) > 1:
+                add("사건 중복", "①", idxs, f"{' ↔ '.join(lab[i] for i in idxs)} — 같은 사건 {r}을 '사건' 기능으로 {len(idxs)}번 씁니다.")
+                used_pairs.update((a, b) for a in idxs for b in idxs if a < b)
+    G, idf, rare = _sl_similarity_index(sc_list, names)
+    fb = [_is_flashback(s) for s in sc_list]
+    keys = location_space_keys(sc_list)
+    for i in range(len(sc_list)):
+        for j in range(i + 1, len(sc_list)):
+            if (i, j) in used_pairs:
+                continue
+            sc, rr = _sl_pair_score(G, idf, rare, i, j)
+            si, sj = str(sc_list[i].get("summary", "")), str(sc_list[j].get("summary", ""))
+            if fb[i] or fb[j]:
+                if fb[i] and fb[j]:
+                    pa, pb = set(_PERIOD_RE.findall(si)), set(_PERIOD_RE.findall(sj))
+                    norm = lambda xs: {re.sub(r"\s+", "", x) for x in xs}
+                    rr2 = [x for x in rr if not re.search(r"\d", x)]
+                    same_period = (norm(pa) & norm(pb)) if (pa and pb) else (not pa and not pb)
+                    if same_period and len(rr2) >= 3:
+                        add("회상 중복", "③", (i, j), f"{lab[i]} ↔ {lab[j]} — 같은 과거 사건을 두 번 보여줍니다 "
+                                                     f"(공통: {', '.join(sorted(norm(pa) & norm(pb)) or rr2[:4])}).")
+                elif sc >= 0.4 and len(rr) >= DUP_RARE_MIN:
+                    k_fb, k_or = (j, i) if fb[j] else (i, j)
+                    if k_or < k_fb:
+                        add("회상 회수(참고)", "③", (k_or, k_fb), f"{lab[k_fb]} 회상이 {lab[k_or]} 장면을 다시 보여줍니다 — 의도된 회수인지 작가 확인.")
+                continue
+            if _progression_pair(si, sj):
+                continue   # '두 번째 구멍' → '네 번째 구멍' 같은 진행은 중복이 아니다
+            buf_pair = (not people[i] and not people[j] and keys[i] == keys[j])
+            # '첫 번째 … 시작'이 가까이 두 번 — 표현이 달라도 같은 개시 사건 (S#15 첫 실 꿰기 ↔ S#22 첫 구멍 메우기)
+            if not tagged and abs(i - j) <= 15 and _START_RE.search(si) and _START_RE.search(sj):
+                add("사건 중복", "①", (i, j), f"{lab[i]} ↔ {lab[j]} — 같은 일이 '처음 시작'되는 씬이 두 번 있습니다.")
+                continue
+            if tagged or buf_pair:
+                continue
+            if sc >= DUP_SIM_MIN and len(rr) >= DUP_RARE_MIN and \
+                    min(_rare_word_count(si, rr, names), _rare_word_count(sj, rr, names)) >= DUP_RARE_WORDS_MIN:
+                if people[i] and people[j] and not (people[i] & people[j]):
+                    add("같은 행동 반복", "①", (i, j), f"{lab[i]} ↔ {lab[j]} — 인물은 다르지만 같은 행동·같은 이미지입니다 (확인).")
+                else:
+                    add("사건 중복", "①", (i, j), f"{lab[i]} ↔ {lab[j]} — 같은 사건으로 보입니다 (요약 유사도 {sc:.2f}).")
+    # 대사 중복 — 따옴표 대사의 핵심 낱말 2개 이상 공유
+    quotes = []
+    for i, s in enumerate(sc_list):
+        for q in _QUOTE_RE.findall(str(s.get("summary", ""))):
+            ws = {w for w in re.findall(rf"[{_HANGUL}]{{2,}}", q) if w not in names}
+            ws = {re.sub(r"(은|는|이|가|을|를|의|에|에게|도|만|이야|아니야|같다|이다)$", "", w) for w in ws}
+            ws = {w for w in ws if len(w) >= 2 and w not in _QUOTE_STOP}
+            if ws:
+                quotes.append((i, q, ws))
+    for a in range(len(quotes)):
+        for b in range(a + 1, len(quotes)):
+            (i, qa, wa), (j, qb, wb) = quotes[a], quotes[b]
+            if i == j or fb[i] or fb[j]:
+                continue
+            common = wa & wb
+            if len(common) >= 2 and len(common) >= 0.5 * min(len(wa), len(wb)):
+                add("대사 중복", "①", (i, j), f"{lab[i]} '{qa[:24]}' ↔ {lab[j]} '{qb[:24]}' — 같은 대사입니다.")
+
+    # ── ② 퇴장 인물 재등장 ──
+    for ex in find_exited_characters(sc_list, ledger, fmt, named_characters):
+        again = [k for k in range(ex["idx"] + 1, len(sc_list))
+                 if ex["name"] in people[k] and not fb[k]
+                 and not _GHOST_RE.search(str(sc_list[k].get("summary", "")))]
+        if again:
+            add("퇴장 인물 재등장", "②", [i for i in [ex["idx"]] if i >= 0] + again,
+                f"{ex['name']} — {ex['label']}에서 퇴장('{ex['basis']}')했는데 "
+                f"{', '.join(lab[k] for k in again)}에 다시 나옵니다 (회상 표지 없음).")
+
+    # ── ④ 완충 씬 ──
+    named = set()
+    for nm in (named_characters or []):
+        named.update(groups.get(a, a) for a in split_character_aliases(nm))
+    cnt = {}
+    for p in people:
+        for x in p:
+            cnt[x] = cnt.get(x, 0) + 1
+    named.update(x for x, v in cnt.items() if v >= 3)
+    buffers = {}
+    for k in range(1, len(sc_list) - 1):
+        if keys[k - 1] is None or keys[k - 1] != keys[k + 1] or keys[k] == keys[k - 1]:
+            continue
+        if series and not (_to_int(sc_list[k - 1].get("ep")) == _to_int(sc_list[k].get("ep")) == _to_int(sc_list[k + 1].get("ep"))):
+            continue
+        # 집계는 바깥 공간(EXT로 INT를 끊음)·회상 완충만 — 사건이 있는 INT 씬(클라이맥스 등)은 세지 않는다
+        if (_ie(sc_list[k]).startswith("EXT") and not keys[k - 1][0].startswith("EXT")) or fb[k]:
+            buffers.setdefault(keys[k], []).append(k)
+        if not (people[k] & named):
+            add("완충 씬", "④", (k,), f"{lab[k]} '{_loc_text(sc_list[k])}' — 같은 공간({keys[k - 1][1]}) 두 씬 사이에 끼운 씬인데 "
+                                     "주요 인물의 행동이 없습니다 (행인·분위기·정적).")
+    for key, ks in buffers.items():
+        if key and len(ks) >= 2:
+            add("완충 공간 반복", "④", ks, f"'{key[1]}'을 같은 공간 끊기용으로 {len(ks)}번 씁니다: {', '.join(lab[k] for k in ks)}.")
+
+    # ── ⑤ 공간 횡단 요약 ──
+    # 판정: (가) 밖으로 나왔다가/돌아왔다가 다시 들어간다 — 왕복 (EXT)
+    #       (나) 다른 공간으로 넘어간 뒤에도 행동이 이어진다 (들어가서 카운터에…, 이동하던 중 …)
+    #       (다) 헤딩이 아닌 공간을 출발점으로 적고 행동이 이어진다 (의례소를 나와 …)
+    #  허용: 헤딩 공간으로 들어오는 동작(INT '들어와'), 헤딩 공간으로 나오는 동작('골목으로 나와'),
+    #        마지막 동작으로 문턱을 넘는 것('문을 부수고 들어간다.')
+    for k, s in enumerate(sc_list):
+        text = _strip_quotes(s.get("summary", ""))
+        ms = list(_MOVE_RE.finditer(text))
+        if not ms:
+            continue
+        head = _loc_text(s).split(" ")[-1] if _loc_text(s) else ""
+        is_ext = _ie(s).startswith("EXT")
+        hit = None
+        kinds = [m.lastgroup for m in ms]
+        for n, m in enumerate(ms):
+            kd = m.lastgroup
+            before = text[max(0, m.start() - 12):m.start()]
+            _rest = re.split(r"[—–]| - ", text[m.end():], maxsplit=1)
+            after = re.sub(r"[\s.。!?…]+", "", _rest[0])
+            # '— 이후'는 보통 의미 문장(무엇이 바뀌는가). 물건을 어디에 두는 행동이 있을 때만 행동으로 본다
+            if len(_rest) > 1 and re.search(rf"[{_HANGUL}]+(?:에서|에\s*(?:남|놓|두|앉|서|올려|걸))", _rest[1]):
+                after += "(물리 행동 이어짐)"
+            toward_head = bool(head) and head in before
+            if kd == "arrive" and not is_ext:
+                continue                                    # INT로 들어온다 — 헤딩 공간
+            if kd == "exit" and is_ext and toward_head:
+                continue                                    # 골목으로 나온다 — 헤딩 공간
+            if is_ext and kd == "enter" and any(x in ("exit", "arrive") for x in kinds[:n]):
+                hit = m                                     # (가) 왕복
+                break
+            if kd == "transit" and len(after) >= 6:
+                hit = m                                     # (나)
+                break
+            _placed = "(물리 행동 이어짐)" in after or re.search(rf"[{_HANGUL}]+(?:에서|에\s|으로\s|로\s)", _rest[0])
+            if kd in ("enter", "exit") and len(after) >= 6 and _placed and \
+                    ((kd == "enter" and is_ext) or (kd == "exit" and not is_ext)):
+                hit = m                                     # (나) 넘어간 뒤 행동 계속
+                break
+            if kd == "exit" and is_ext and re.search(r"(을|를|에서)\s*$", before) and len(after) >= 6:
+                hit = m                                     # (다) 다른 공간을 출발점으로
+                break
+        if hit:
+            add("공간 횡단 요약", "⑤", (k,), f"{lab[k]} [{_ie(s)} {_loc_text(s)}] — 요약 안에서 다른 공간으로 넘어갑니다 "
+                                         f"('{hit.group(0)}'). 넘어간 부분은 다음 씬에 붙이거나 별도 씬으로 세웁니다.")
+
+    # ── C-2 비트 쏠림 · 사건 누락 ──
+    ratio = SCENE_LIST_VARIANTS.get(variant, {}).get("budget_ratio", 1.0)
+    budgets = {}
+    for q in storyline or []:
+        if isinstance(q, dict):
+            try:
+                budgets[int(q.get("seq"))] = round(int(q.get("scene_budget")) * ratio)
+            except (TypeError, ValueError):
+                pass
+    per_beat = {}
+    for i, s in enumerate(sc_list):
+        per_beat.setdefault((_to_int(s.get("seq")), _to_int(s.get("beat"))), []).append(i)
+    for (sq, bt), idxs in sorted(per_beat.items()):
+        bud = budgets.get(sq)
+        if bud and bt and len(idxs) > bud * BEAT_CONCENTRATION_MAX and len(idxs) >= 5:
+            add("비트 쏠림", "C-2", (idxs[0], idxs[-1]), f"Beat {bt} 하나에 {len(idxs)}씬 ({lab[idxs[0]]}~{lab[idxs[-1]]}) — "
+                                                        f"SEQ {sq} 예산 {bud}씬의 {int(BEAT_CONCENTRATION_MAX * 100)}%를 넘습니다.")
+    return out
+
+
+def describe_scene_list_duplicates(items: list) -> list:
+    return [f"[{x['kind']}] {x['msg']}" for x in items or []]
+
+
+def scene_list_dup_counts(items: list) -> dict:
+    """참고 항목(회상 회수)은 세지 않는다."""
+    c = {}
+    for x in items or []:
+        if "참고" in x["kind"]:
+            continue
+        c[x["kind"]] = c.get(x["kind"], 0) + 1
+    return c
+
+
+def build_treatment_event_list(treatment: dict, beat_numbers=None) -> list:
+    """v2.10.0 C-2: Treatment 비트 → 번호 매긴 사건 목록 [(ref, beat_no, 종류, 문장)].
+    ref = B{비트}-E(사건) / -D(선택) / -C(결과). 비어 있는 칸은 건너뛴다."""
+    want = {int(b) for b in beat_numbers} if beat_numbers else None
+    out = []
+    for k in ("act1", "act2", "act3"):
+        for b in (((treatment or {}).get(k) or {}).get("beats") or []):
+            if not isinstance(b, dict):
+                continue
+            bn = _to_int(b.get("beat_no"))
+            if not bn or (want is not None and bn not in want):
+                continue
+            for code, fld, kind in EVENT_REF_KINDS:
+                txt = str(b.get(fld, "") or "").strip()
+                if txt:
+                    out.append((f"B{bn}-{code}", bn, kind, txt))
+    return out
+
+
+def build_event_ref_block(events: list) -> str:
+    if not events:
+        return ""
+    lines = "\n".join(f"- {r} [{kind}] {txt}" for r, _, kind, txt in events)
+    return f"""
+[★ v2.10.0 사건 목록 — 씬마다 출처를 단다 ★]
+{lines}
+- 모든 씬에 event_ref(위 번호 배열)와 function({' / '.join(SCENE_FUNCTIONS)} 중 하나)을 적는다.
+  사건: 그 사건이 실제로 벌어지는 씬 / 준비: 그 사건을 위해 움직이는 씬 / 여파: 사건 직후 반응·대가
+  / 교차: 같은 시각 다른 장소의 사건으로 끊는 씬 / 회상: 과거 장면.
+- 같은 event_ref를 function '사건'으로 두 씬 이상에 쓰지 않는다. 한 사건은 한 번 벌어진다.
+- 위 목록의 모든 번호는 어느 씬에든 한 번은 나와야 한다.
+"""
+
+
+def find_unused_events(scenes: list, events: list) -> list:
+    """C-2 누락: 어떤 씬도 쓰지 않은 사건 (태그가 하나도 없으면 판정 불가 → 빈 리스트)."""
+    used = set()
+    for s in scenes or []:
+        if isinstance(s, dict):
+            used.update(x.upper() for x in _to_str_list(s.get("event_ref")))
+    if not used:
+        return []
+    return [e for e in events if e[0].upper() not in used]
+
+
+def event_budget_warnings(storyline: list, treatment: dict, variant: str = "기본안") -> list:
+    """C-5: 시퀀스 예산이 Treatment 사건 1개당 3씬을 넘으면 표시 (패딩 위험)."""
+    ratio = SCENE_LIST_VARIANTS.get(variant, {}).get("budget_ratio", 1.0)
+    out = []
+    for q in storyline or []:
+        if not isinstance(q, dict):
+            continue
+        try:
+            bud = round(int(q.get("scene_budget")) * ratio)
+        except (TypeError, ValueError):
+            continue
+        n_ev = len(build_treatment_event_list(treatment, _to_int_list(q.get("beats"))))
+        if n_ev and bud > n_ev * EVENTS_PER_SCENE_BUDGET_MAX:
+            out.append(f"SEQ {q.get('seq')} — 예산 {bud}씬 / Treatment 사건 {n_ev}개 (사건당 {bud / n_ev:.1f}씬). "
+                       "채울 사건이 부족해 반복·분위기 씬이 생길 수 있습니다.")
+    return out
+
+
+def scene_list_shortfall(scenes: list, storyline: list, variant: str = "기본안") -> list:
+    """C-4: 시퀀스별 부족분 [{"seq", "budget", "got", "need", "beats"}] (need > 0만)."""
+    ratio = SCENE_LIST_VARIANTS.get(variant, {}).get("budget_ratio", 1.0)
+    cnt = {}
+    for s in scenes or []:
+        if isinstance(s, dict):
+            cnt[_to_int(s.get("seq"))] = cnt.get(_to_int(s.get("seq")), 0) + 1
+    out = []
+    for q in storyline or []:
+        if not isinstance(q, dict):
+            continue
+        try:
+            sq, bud = int(q.get("seq")), round(int(q.get("scene_budget")) * ratio)
+        except (TypeError, ValueError):
+            continue
+        got = cnt.get(sq, 0)
+        if bud > got:
+            out.append({"seq": sq, "budget": bud, "got": got, "need": bud - got,
+                        "beats": _to_int_list(q.get("beats")), "label": q.get("label", "")})
+    return out
+
+
+def build_scene_list_report(scenes: list, storyline: list, variant: str = "기본안", fmt: str = "",
+                            named_characters: list = None, ledger=None) -> dict:
+    """C-7: Writer 인계용 씬리스트 보고. 키가 없으면 Writer는 지금처럼 동작한다."""
+    ratio = SCENE_LIST_VARIANTS.get(variant, {}).get("budget_ratio", 1.0)
+    cnt = {}
+    for s in scenes or []:
+        if isinstance(s, dict):
+            cnt[_to_int(s.get("seq"))] = cnt.get(_to_int(s.get("seq")), 0) + 1
+    per_seq = []
+    for q in storyline or []:
+        if not isinstance(q, dict):
+            continue
+        try:
+            sq, bud = int(q.get("seq")), round(int(q.get("scene_budget")) * ratio)
+        except (TypeError, ValueError):
+            continue
+        per_seq.append({"seq": sq, "budget": bud, "locked": cnt.get(sq, 0)})
+    dups = find_scene_list_duplicates(scenes, fmt, named_characters, storyline, ledger, variant)
+    return {
+        "budget_total": sum(x["budget"] for x in per_seq),
+        "locked_total": len(scenes or []),
+        "per_seq": per_seq,
+        "warnings": describe_scene_list_duplicates([d for d in dups if "참고" not in d["kind"]]),
+        "notes": describe_scene_list_duplicates([d for d in dups if "참고" in d["kind"]]),
+    }
+
+
+def build_cross_unit_block(other_units: list, exited: list = None, fmt: str = "",
+                           limit: int = CROSS_UNIT_INJECT_MAX) -> str:
+    """C-1: 같은 안의 이미 만든 다른 막(회차) 씬 주입.
+    other_units: [(단위 라벨, "앞" | "뒤", [씬...])]. 상한을 넘으면 요약을 줄이고, 그래도 넘으면 사건 번호만."""
+    if not other_units and not exited:
+        return ""
+
+    def _lines(cut):
+        L = []
+        for ulab, rel, scs in other_units:
+            if not scs:
+                continue
+            L.append(f"({ulab} — {'이미 일어난 일' if rel == '앞' else '이후에 일어날 일: 이 막에서 미리 일으키지 않는다'})")
+            for s in scs:
+                if not isinstance(s, dict):
+                    continue
+                ch = ", ".join(_to_str_list(s.get("characters")))
+                summ = str(s.get("summary", ""))
+                ev = ",".join(_to_str_list(s.get("event_ref")))
+                if cut == 0:
+                    body = summ
+                elif cut > 0:
+                    body = summ[:cut] + ("…" if len(summ) > cut else "")
+                else:
+                    body = f"[{ev}]" if ev else summ[:20]
+                L.append(f"{_scene_label(s, fmt)} · {_ie(s)} {_loc_text(s)} · {ch} · {body}")
+        return L
+    lines = []
+    for cut in (0, 60, 30, -1):
+        lines = _lines(cut)
+        if len("\n".join(lines)) <= limit:
+            break
+    ex_lines = [f"- [퇴장 인물] {e['name']}({e['label']} 퇴장) — 이 막에서는 회상이 아니면 등장하지 않는다." for e in exited or []]
+    return ("\n[★ v2.10.0 이미 만든 씬 — 같은 안의 다른 막 ★]\n" + "\n".join(lines) + "\n"
+            "- 위 씬에서 이미 일어난 사건을 다시 만들지 않는다. 같은 행동·같은 대사·같은 회상을 반복하지 않는다.\n"
+            + ("\n".join(ex_lines) + "\n" if ex_lines else ""))
+
+
 def validate_scene_list(scenes: list, storyline: list = None, main_characters: list = None,
-                        variant: str = "기본안", fmt: str = "", ledger=None, corrections: list = None) -> list:
+                        variant: str = "기본안", fmt: str = "", ledger=None, corrections: list = None,
+                        named_characters: list = None) -> list:
     """씬리스트 파이썬 검사. 경고 문자열 리스트 반환.
-    v2.9.0: ledger·corrections 디폴트 인자 — 서사 원장·사실성 정정 대조를 덧붙인다."""
+    v2.9.0: ledger·corrections 디폴트 인자 — 서사 원장·사실성 정정 대조를 덧붙인다.
+    v2.10.0: named_characters 디폴트 인자 — 중복 검사 5종(C-3)·비트 쏠림(C-2)을 덧붙인다.
+      주요 인물 미등장 검사는 '이름 (영문)'·'A / B' 별칭을 풀어서 본다 (기존: 괄호 때문에 항상 오경고)."""
     warns = []
     if not isinstance(scenes, list) or not scenes:
         return ["씬리스트가 비어 있습니다."]
@@ -9356,7 +9961,9 @@ def validate_scene_list(scenes: list, storyline: list = None, main_characters: l
             " ".join(s.get("characters", [])) if isinstance(s.get("characters"), list) else str(s.get("characters", ""))
             for s in scenes
         )
-        absent = [n for n in main_characters if n and n not in appeared]
+        # v2.10.0: '응우옛 (Nguyệt)' · '리 란 / 띠에우 린' — 별칭 중 하나라도 나오면 등장
+        absent = [n for n in main_characters
+                  if n and not any(a in appeared for a in (split_character_aliases(n) or [n]))]
         if absent:
             warns.append(f"씬리스트에 한 번도 등장하지 않는 주요 인물: {', '.join(absent)}")
 
@@ -9389,6 +9996,9 @@ def validate_scene_list(scenes: list, storyline: list = None, main_characters: l
             warns.append(f"씬이 하나도 없는 회차: {', '.join(f'EP{e}' for e in miss_ep)}")
     # v2.9.0: 서사 원장 · 사실성 정정 대조
     warns += validate_scenes_against_ledger(scenes, ledger, fmt, corrections)
+    # v2.10.0: 중복 검사 5종 + 비트 쏠림 (표시만)
+    warns += describe_scene_list_duplicates(
+        find_scene_list_duplicates(scenes, fmt, named_characters or main_characters, storyline, ledger, variant))
     return warns
 
 
@@ -9476,6 +10086,13 @@ def build_writer_handoff_v28(project: dict) -> dict:
         ] if is_series_format(project.get("format", "")) else [],
         # v2.9.1 — 시장 렌즈 (Idea Engine market_lens 정규화본). 없으면 빈 dict → Writer 현행 동작.
         "market_lens": get_market_lens(project),
+        # v2.10.0 C-7 — 씬리스트 보고 (예산·잠금 씬 수·중복 경고). 잠긴 목록이 없으면 빈 dict → Writer 현행 동작.
+        "scene_list_report": build_scene_list_report(
+            _scenes_with_ep(project, sl.get("locked") or []),
+            story.get("storyline") or [], sl.get("locked_variant") or "기본안", project.get("format", ""),
+            [c.get("name", "") for c in ((project.get("core") or {}).get("characters") or [])
+             + ((project.get("core") or {}).get("extended_characters") or []) if isinstance(c, dict)],
+            get_locked_ledger(project)) if sl.get("locked") else {},
     }
 
 

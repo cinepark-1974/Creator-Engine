@@ -653,7 +653,7 @@ def _get_project_stage(project: dict) -> str:
     return "초기"
 
 
-def save_project_to_json(project: dict, engine_version: str = "v2.9.2") -> str:
+def save_project_to_json(project: dict, engine_version: str = "v2.10.0") -> str:
     """프로젝트 전체를 JSON 문자열로 직렬화.
     
     Args:
@@ -711,7 +711,7 @@ def load_project_from_json(json_str: str) -> dict:
     
     # 엔진 버전 호환성 체크 (경고만, 실패 아님)
     saved_version = meta.get("engine_version", "unknown")
-    current_version = "v2.9.2"
+    current_version = "v2.10.0"
     if saved_version != current_version:
         warnings.append(
             f"엔진 버전 차이 — 저장 시: {saved_version} / 현재: {current_version}. "
@@ -3692,6 +3692,11 @@ def call_scene_list_act(project: dict, variant: str, act_number: int, ep: int = 
         done = ((project.get("scene_list") or {}).get("variants") or {}).get(variant, {})
         used_locs = sorted({str(s.get("location", "")) for k, part in done.items()
                             if k != unit_key for s in (part or []) if isinstance(s, dict)} - {""})
+        # v2.10.0 C-1: 같은 안의 이미 만든 다른 막(회차) 씬 + 퇴장 인물 — 사건·사망 중복 차단
+        cross_block = _scene_list_cross_unit_block(project, done, unit_key, fmt)
+        # v2.10.0 C-2: 이 단위 Treatment 사건 목록 — 씬마다 event_ref를 단다
+        _unit_beats = sorted({P._to_int(b.get("beat_no")) for b in beats if isinstance(b, dict)} - {0})
+        event_block = P.build_event_ref_block(P.build_treatment_event_list(treatment, _unit_beats))
         # v2.9.2: 앞뒤 단위의 경계 씬 — 영화는 막 경계에서도 공간 연속이 생긴다 (시리즈 회차 경계는 제외)
         _prev_sc, _next_sc = (None, None) if series_unit else _scene_list_neighbors(done, act_number)
         boundary_lines = []
@@ -3733,7 +3738,8 @@ def call_scene_list_act(project: dict, variant: str, act_number: int, ep: int = 
 
 [{unit_label} Treatment 비트]
 {chr(10).join(beat_lines) if beat_lines else '(Treatment 비트 없음 — 시퀀스 요약만으로 구성)'}
-
+{event_block}
+{cross_block}
 [이미 쓴 장소명 — 같은 장소는 이 표기를 그대로 쓸 것]
 {', '.join(used_locs) if used_locs else '(없음)'}
 {('[막 경계 — 공간 연속 금지]' + chr(10) + chr(10).join(boundary_lines)) if boundary_lines else ''}
@@ -3774,6 +3780,7 @@ def call_scene_list_act(project: dict, variant: str, act_number: int, ep: int = 
                         _s["seq"] = ep
                     for _k in ("reveals", "plants", "payoffs", "motifs"):
                         _s[_k] = P._to_str_list(_s.get(_k))
+                    _normalize_scene_v210(_s)   # v2.10.0: event_ref · function
                 return scenes
         raise ValueError("씬리스트 JSON을 읽지 못했습니다 (2회 시도).")
     except Exception as e:
@@ -3783,6 +3790,261 @@ def call_scene_list_act(project: dict, variant: str, act_number: int, ep: int = 
             with st.expander("🔧 Scene List Raw (디버그)"):
                 st.text_area("Raw", raw, height=300)
         return None
+
+
+def _normalize_scene_v210(s: dict) -> dict:
+    """v2.10.0: event_ref는 대문자 리스트, function은 5종 중 하나(밖이면 빈 값), shortfall_reason은 문자열."""
+    if not isinstance(s, dict):
+        return s
+    if "event_ref" in s:
+        s["event_ref"] = [x.upper() for x in P._to_str_list(s.get("event_ref"))]
+    if "function" in s:
+        f = str(s.get("function") or "").strip()
+        s["function"] = f if f in P.SCENE_FUNCTIONS else ""
+    if "shortfall_reason" in s:
+        s["shortfall_reason"] = str(s.get("shortfall_reason") or "").strip()
+        if not s["shortfall_reason"]:
+            s.pop("shortfall_reason")
+    return s
+
+
+def _scene_list_named_chars(project: dict) -> list:
+    """v2.10.0: Core 주요 인물 + 확장 인물 이름 (완충 씬·퇴장 인물 판정용)."""
+    core = project.get("core") or {}
+    return [c.get("name", "") for c in (core.get("characters") or []) + (core.get("extended_characters") or [])
+            if isinstance(c, dict) and c.get("name")]
+
+
+def _scene_list_unit_keys(fmt: str) -> list:
+    """v2.10.0: 생성 순서대로 단위 키·라벨 [(key, label)]. 영화 act1~3 / 시리즈 ep1~N."""
+    if P.is_series_format(fmt):
+        return [(f"ep{e}", f"EP{e}") for e in range(1, P.series_frame(fmt)["episodes"] + 1)]
+    return [(f"act{n}", f"{n}막") for n in (1, 2, 3)]
+
+
+def _scene_list_cross_unit_block(project: dict, done: dict, unit_key: str, fmt: str) -> str:
+    """v2.10.0 C-1: 같은 안의 다른 단위 씬 주입 블록.
+    영화: 앞 막(이미 일어난 일) + 뒤 막(미리 일으키지 않을 일). 시리즈: 직전 회차까지만.
+    퇴장 인물은 앞 단위에서만 뽑는다. 앞 단위 안에서 이미 다시 등장한 인물은 판정이 흔들린 것으로 보고 넣지 않는다
+    (그 경우는 C-3 검사가 작가에게 보여준다 — 엔진이 인물을 지우지 않는다)."""
+    keys = _scene_list_unit_keys(fmt)
+    order = [k for k, _ in keys]
+    if unit_key not in order:
+        return ""
+    me = order.index(unit_key)
+    series = P.is_series_format(fmt)
+    # 번호는 작가가 표에서 보는 전체 번호 그대로 (시리즈는 회차별 S#1부터)
+    parts = [[dict(s, _unit=k) for s in (done.get(k) or []) if isinstance(s, dict)] for k in order]
+    merged = P.renumber_scenes(parts, per_episode=series)
+    others, prev_scenes = [], []
+    for n, (k, lab) in enumerate(keys):
+        part = [s for s in merged if s.get("_unit") == k]
+        if n == me or not part:
+            continue
+        if n < me:
+            others.append((lab, "앞", part))
+            prev_scenes += part
+        elif not series:
+            others.append((lab, "뒤", part))
+    if not others:
+        return ""
+    named = _scene_list_named_chars(project)
+    groups = P._character_groups(prev_scenes, named)
+    exited = []
+    for e in P.find_exited_characters(prev_scenes, P.get_locked_ledger(project), fmt, named):
+        again = [x for x in prev_scenes[e["idx"] + 1:] if e["idx"] >= 0
+                 and e["name"] in P._scene_people(x, groups) and not P._is_flashback(x)]
+        if not again:
+            exited.append(e)
+    return P.build_cross_unit_block(others, exited, fmt)
+
+
+SCENE_FILL_SCHEMA = """{
+  "proposals": [
+    {"after_no": 5, "material": "누락 사건 | 서브플롯 | 다른 인물 동선",
+     "scene": {"seq": 1, "beat": 2, "int_ext": "INT", "location": "장소", "time": "낮",
+               "summary": "누가 무엇을 해서 무엇이 바뀌는가 — 한 줄", "characters": ["인물명"],
+               "dialogue_mode": "서브텍스트", "reveals": [], "plants": [], "payoffs": [], "motifs": [],
+               "event_ref": ["B2-C"], "function": "사건"}}
+  ],
+  "report": [{"seq": 6, "need": 7, "proposed": 2, "reason": "Beat 12에 남은 사건 2개 — Beat 12 보강 필요"}]
+}"""
+
+_FILL_REJECT_KINDS = ("사건 중복", "대사 중복", "같은 행동 반복", "회상 중복", "완충 씬", "퇴장 인물 재등장", "공간 횡단 요약")
+
+
+def _dup_signature(items: list, idx: int) -> set:
+    return {(d["kind"], d["msg"]) for d in items if idx in d.get("idx", []) and d["kind"] in _FILL_REJECT_KINDS}
+
+
+def call_scene_list_budget_fill(project: dict, draft: list, variant: str) -> dict:
+    """v2.10.0 C-4: 예산 보충 생성. 부족한 시퀀스만, 검증된 재료로만.
+    재료 순서: ① 아직 씬이 없는 Treatment 사건 → ② 서브플롯(b_story_beat) → ③ 같은 시각 다른 주요 인물의 동선
+      (villain_beat · antagonist_active_action). 새 사건·새 인물은 만들지 않는다.
+    파이썬이 삽입 위치에 넣어 보고 공간 반복·중복·퇴장 인물 검사를 통과한 것만 돌려준다. 자동으로 넣지 않는다.
+    반환: {"proposals": [...], "rejected": [...], "report": [...], "shortfall": [...]}"""
+    out = {"proposals": [], "rejected": [], "report": [], "shortfall": []}
+    fmt = _fmt_eff(project)
+    series = P.is_series_format(fmt)
+    story = project.get("structure_story") or {}
+    storyline = [s for s in (story.get("storyline") or []) if isinstance(s, dict)]
+    treatment = project.get("treatment") or {}
+    base = P.renumber_scenes([draft], per_episode=series)
+    short = P.scene_list_shortfall(base, storyline, variant)
+    out["shortfall"] = short
+    if not short:
+        return out
+    named = _scene_list_named_chars(project)
+    ledger = P.get_locked_ledger(project)
+    beats_all = {P._to_int(b.get("beat_no")): b for k in ("act1", "act2", "act3")
+                 for b in ((treatment.get(k) or {}).get("beats") or []) if isinstance(b, dict)}
+    events_all = P.build_treatment_event_list(treatment)
+    unused = {e[0] for e in P.find_unused_events(base, events_all)}
+    tagged = any(P._to_str_list(s.get("event_ref")) for s in base)
+    blocks = []
+    for q in short:
+        sq_scenes = [s for s in base if P._to_int(s.get("seq")) == q["seq"]]
+        ev = [e for e in events_all if e[1] in q["beats"]]
+        ev_lines = "\n".join(f"  - {r} [{kind}] {txt}" + ("  ← 아직 씬 없음" if tagged and r in unused else "")
+                             for r, _, kind, txt in ev)
+        sub_lines = []
+        for bn in q["beats"]:
+            b = beats_all.get(bn) or {}
+            for fld, lab in (("b_story_beat", "서브플롯"), ("villain_beat", "적대자 동선"),
+                             ("antagonist_active_action", "적대자 능동 행동")):
+                v = str(b.get(fld, "") or "").strip()
+                if v:
+                    sub_lines.append(f"  - Beat {bn} {lab}: {v}")
+        cur = "\n".join(f"  {P._scene_label(s, fmt)} · Beat {s.get('beat')} · {P._ie(s)} {P._loc_text(s)} · "
+                        f"{', '.join(P._to_str_list(s.get('characters')))} · {s.get('summary', '')}" for s in sq_scenes)
+        blocks.append(f"[SEQ {q['seq']} {q.get('label', '')}] Beat {q['beats']} · 예산 {q['budget']}씬 / 현재 {q['got']}씬 → "
+                      f"부족 {q['need']}씬\n Treatment 사건 (재료 ①):\n{ev_lines or '  (없음)'}\n"
+                      f" 서브플롯·다른 인물 동선 (재료 ②·③):\n{chr(10).join(sub_lines) or '  (없음)'}\n"
+                      f" 현재 씬:\n{cur or '  (없음)'}")
+    all_lines = P.build_cross_unit_block([("현재 편집본 전체", "앞", base)],
+                                         P.find_exited_characters(base, ledger, fmt, named), fmt)
+    chars = (project.get("core") or {}).get("characters", []) + (project.get("core") or {}).get("extended_characters", [])
+    char_lines = ", ".join(f"{c.get('name','')}({c.get('role','')})" for c in chars if isinstance(c, dict))
+    _lt, _it = _get_period_scan_context(project)
+    system_prompt = P.build_system_scene_list(project.get("genre", ""), fmt, variant,
+                                              structure_type=project.get("structure_type", ""),
+                                              locked_text=_lt, idea_text=_it)
+    user_prompt = f"""{_build_project_locked_block(project, with_ledger=False)}
+{P.build_ledger_block(ledger, fmt)}
+[등장인물]
+{char_lines}
+{all_lines}
+[★ v2.10.0 예산 보충 요청 ★]
+작가가 중복 씬을 지워 아래 시퀀스의 씬이 예산보다 모자란다. 빈자리를 Treatment에 이미 있는 재료로만 채운다.
+
+{chr(10).join(blocks)}
+
+[보충 규칙]
+- 재료는 이 순서로만 쓴다: ① 아직 씬이 없는 Treatment 사건 → ② 서브플롯 → ③ 같은 시각 다른 주요 인물의 동선.
+  material에 어느 재료인지 적는다. 새 사건·새 인물·새 설정을 만들지 않는다.
+- 이미 있는 씬의 사건·대사·회상을 다시 쓰지 않는다. 행인·분위기·정적만 있는 씬을 만들지 않는다.
+- 퇴장 인물은 회상이 아니면 넣지 않는다.
+- after_no는 새 씬을 끼울 자리의 바로 앞 씬 번호(현재 편집본 번호)다. 같은 시퀀스 안에 둔다.
+  앞뒤 씬과 같은 공간이 되지 않게 고른다 (같은 공간 연속 금지).
+- 재료가 모자라면 억지로 채우지 않는다. 쓸 수 있는 만큼만 제안하고 report에 시퀀스별로 부족 사유를 적는다.
+- 시퀀스마다 제안 수는 부족분을 넘지 않는다.
+
+[JSON 스키마]
+{SCENE_FILL_SCHEMA}"""
+    try:
+        client = get_client()
+    except Exception as e:
+        out["report"].append({"seq": 0, "need": 0, "proposed": 0, "reason": f"API 연결 실패: {e}"})
+        return out
+    data = None
+    for temp in (0.4, 0.2):
+        try:
+            resp = client.messages.create(model=ANTHROPIC_MODEL, max_tokens=16000, temperature=temp,
+                                          system=system_prompt, messages=[{"role": "user", "content": user_prompt}])
+            txt = "".join(b.text for b in resp.content if hasattr(b, "text")).strip()
+            st.session_state["last_scene_list_raw"] = txt
+            if resp.stop_reason == "max_tokens":
+                continue
+            data = safe_json_loads(txt)
+            if isinstance(data, dict) and isinstance(data.get("proposals"), list):
+                break
+        except Exception:
+            data = None
+    if not isinstance(data, dict):
+        out["report"].append({"seq": 0, "need": 0, "proposed": 0, "reason": "보충 JSON을 읽지 못했습니다 (2회 시도)."})
+        return out
+    out["report"] = [r for r in (data.get("report") or []) if isinstance(r, dict)]
+    need = {q["seq"]: q["need"] for q in short}
+    taken = {}
+    base_runs = len(P.find_location_runs(base, fmt))
+    for p in data.get("proposals") or []:
+        sc = (p or {}).get("scene") if isinstance(p, dict) else None
+        if not isinstance(sc, dict) or not str(sc.get("summary", "")).strip():
+            continue
+        sq = P._to_int(sc.get("seq"))
+        sc["seq"] = sq
+        sc["beat"] = P._to_int(sc.get("beat"))
+        sc["characters"] = P._to_str_list(sc.get("characters"))
+        for k in ("reveals", "plants", "payoffs", "motifs"):
+            sc[k] = P._to_str_list(sc.get(k))
+        sc.setdefault("dialogue_mode", P.DIALOGUE_MODE_DEFAULT)
+        sc.setdefault("event_ref", [])
+        sc.setdefault("function", "")
+        _normalize_scene_v210(sc)
+        if series:
+            sc["ep"] = sc.get("ep") or sq
+        mat = str(p.get("material", "")).strip()
+        why = []
+        if sq not in need:
+            why.append(f"부족하지 않은 SEQ {sq}")
+        elif taken.get(sq, 0) >= need[sq]:
+            why.append(f"SEQ {sq} 부족분 {need[sq]}씬 초과")
+        # 삽입 위치: after_no가 같은 시퀀스 밖이면 그 시퀀스 마지막 씬 뒤로
+        seq_idx = [i for i, s in enumerate(base) if P._to_int(s.get("seq")) == sq]
+        a = P._to_int(p.get("after_no")) - 1
+        if seq_idx and not (seq_idx[0] - 1 <= a <= seq_idx[-1]):
+            a = seq_idx[-1]
+        if not seq_idx:
+            prev_seq = [i for i, s in enumerate(base) if P._to_int(s.get("seq")) < sq]
+            a = prev_seq[-1] if prev_seq else -1
+        trial = base[:a + 1] + [dict(sc)] + base[a + 1:]
+        trial = P.renumber_scenes([trial], per_episode=series)
+        ni = a + 1
+        if len(P.find_location_runs(trial, fmt)) > base_runs:
+            why.append("앞뒤 씬과 같은 공간 (공간 반복)")
+        t_dups = P.find_scene_list_duplicates(trial, fmt, named, storyline, ledger, variant)
+        new_sig = _dup_signature(t_dups, ni)
+        if new_sig:
+            why += [m for _, m in sorted(new_sig)][:2]
+        item = {"seq": sq, "after_label": P._scene_label(base[a], fmt) if a >= 0 else "맨 앞",
+                "anchor": str(base[a].get("summary", "")) if a >= 0 else "",
+                "anchor_seq": P._to_int(base[a].get("seq")) if a >= 0 else 0,
+                "material": mat, "scene": sc}
+        if why:
+            item["why"] = " / ".join(why)
+            out["rejected"].append(item)
+        else:
+            taken[sq] = taken.get(sq, 0) + 1
+            out["proposals"].append(item)
+    return out
+
+
+def insert_fill_proposals(draft: list, chosen: list, series: bool = False) -> list:
+    """C-4 채택분을 편집본에 끼운다. 앵커(앞 씬 요약)를 찾아 그 뒤에, 못 찾으면 그 시퀀스 끝에."""
+    cur = [dict(s) for s in draft]
+    for p in chosen:
+        idx = next((i for i, s in enumerate(cur) if p.get("anchor") and str(s.get("summary", "")) == p["anchor"]), None)
+        if idx is None:
+            same = [i for i, s in enumerate(cur) if P._to_int(s.get("seq")) == p["seq"]]
+            idx = same[-1] if same else len(cur) - 1
+        # 같은 앵커 뒤에 여러 씬이면 앞서 넣은 씬 뒤로
+        j = idx + 1
+        while j < len(cur) and cur[j].get("_fill_after") == p.get("anchor") and p.get("anchor"):
+            j += 1
+        cur.insert(j, dict(p["scene"], _fill_after=p.get("anchor")))
+    for s in cur:
+        s.pop("_fill_after", None)
+    return P.renumber_scenes([cur], per_episode=series)
 
 
 def _scene_list_neighbors(done: dict, act_number: int):
@@ -3852,6 +4114,11 @@ def call_scene_list_location_repair(project: dict, variant: str, units: list) ->
                     beats.append(f"Beat {b.get('beat_no')} {b.get('beat_name','')}: {b.get('event_summary','')} / "
                                  f"{b.get('decision_summary','')} / {b.get('consequence_summary','')}")
         note, best, best_left = "", None, len(runs)
+        # v2.10.0: 사건 목록(event_ref) + 같은 안의 다른 막 씬·퇴장 인물
+        _ubeats = sorted({P._to_int(s.get("beat")) for s in part if isinstance(s, dict)} - {0})
+        _ev_block = P.build_event_ref_block(P.build_treatment_event_list(project.get("treatment") or {}, _ubeats))
+        _cross = _scene_list_cross_unit_block(project, vdata, ukey, fmt)
+        _floor = max(1, round(len(part) * P.REPAIR_MIN_RATIO))
 
         def _ctx_runs(sc):
             return P.find_location_runs(([prev_sc] if prev_sc else []) + sc + ([next_sc] if next_sc else []), fmt)
@@ -3859,6 +4126,7 @@ def call_scene_list_location_repair(project: dict, variant: str, units: list) ->
             user_prompt = (_build_project_locked_block(project, with_ledger=False)
                            + P.build_ledger_block(P.get_locked_ledger(project), fmt)
                            + f"\n[{ulab} Treatment 비트 — ③에 쓸 수 있는 사건은 여기 있는 것뿐]\n" + "\n".join(beats) + "\n"
+                           + _ev_block + _cross
                            + P.build_scene_location_repair_block(ulab, local, viol, prev_sc, next_sc, note)
                            + f"\n[JSON 스키마]\n{P.SCENE_LIST_SCHEMA_SERIES if series else P.SCENE_LIST_SCHEMA}\n")
             try:
@@ -3885,6 +4153,12 @@ def call_scene_list_location_repair(project: dict, variant: str, units: list) ->
                         s["ep"], s["seq"] = uep, uep
                     for k in ("reveals", "plants", "payoffs", "motifs"):
                         s[k] = P._to_str_list(s.get(k))
+                    _normalize_scene_v210(s)
+            # v2.10.0 C-8: 씬 수 80% 하한 — 프롬프트 문구가 아니라 코드로 검사한다
+            if len(new) < _floor:
+                note = (f"씬 수가 {len(part)} → {len(new)}으로 줄었다 (하한 {_floor}씬). "
+                        "합치기로만 해결하지 마라. ② 순서 바꾸기와 ③ 다른 인물·장소 사건으로 끊어라.")
+                continue
             lost = P.compare_scene_list_invariants(part, new)
             if lost:
                 note = "수정 중 다음이 사라졌다 — 모두 되살려라: " + " / ".join(lost)
@@ -8192,6 +8466,7 @@ elif st.session_state.view == "scene_list" and st.session_state.cur:
         st.stop()
 
     _main_chars = [c.get("name", "") for c in (core.get("characters") or []) if isinstance(c, dict)]
+    _named_chars = _scene_list_named_chars(project)   # v2.10.0: 주요 + 확장 인물 (중복 검사용)
     _storyline = story.get("storyline") or []
 
     def _scenes_to_rows(scenes):
@@ -8209,6 +8484,9 @@ elif st.session_state.view == "scene_list" and st.session_state.cur:
             # v2.9.0: 원장 태그 (쉼표 구분)
             for _k in ("reveals", "plants", "payoffs", "motifs"):
                 r[_k] = ", ".join(P._to_str_list(s.get(_k)))
+            # v2.10.0: 출처 사건 · 씬 기능 (편집해도 사라지지 않게 표에 싣는다)
+            r["event_ref"] = ", ".join(P._to_str_list(s.get("event_ref")))
+            r["function"] = s.get("function", "") or ""
             rows.append(r)
         return rows
 
@@ -8230,6 +8508,12 @@ elif st.session_state.view == "scene_list" and st.session_state.cur:
             s["characters"] = [x.strip() for x in str(s.get("characters") or "").split(",") if x.strip()]
             for _k in ("reveals", "plants", "payoffs", "motifs"):
                 s[_k] = P._to_str_list(s.get(_k))
+            # v2.10.0: 빈 event_ref·function은 키를 두지 않는다 (구버전 목록과 같은 모양)
+            if not P._to_str_list(s.get("event_ref")):
+                s.pop("event_ref", None)
+            if not str(s.get("function") or "").strip():
+                s.pop("function", None)
+            _normalize_scene_v210(s)
             out.append(s)
         return P.renumber_scenes([out], per_episode=_series)   # v2.9.0: 시리즈는 회차별 S#1부터
 
@@ -8238,7 +8522,7 @@ elif st.session_state.view == "scene_list" and st.session_state.cur:
         st.success(f"🔒 잠금 완료 — {sl.get('locked_variant','')} · {len(sl['locked'])}씬 · {sl.get('locked_at','')}")
         st.dataframe(_scenes_to_rows(sl["locked"]), width="stretch", hide_index=True)
         _w = P.validate_scene_list(P._scenes_with_ep(project, sl["locked"]), _storyline, _main_chars, sl.get("locked_variant") or "기본안", fmt,
-                                   ledger=_ledger, corrections=_corr)
+                                   ledger=_ledger, corrections=_corr, named_characters=_named_chars)
         if _w:
             st.warning("잠긴 씬리스트 검사 (참고)\n\n" + "\n".join(f"- {w}" for w in _w))
         # v2.9.2: v2.9.1 이전에 잠근 씬리스트 — 공간 반복이 있으면 인계 저장 차단
@@ -8289,32 +8573,57 @@ elif st.session_state.view == "scene_list" and st.session_state.cur:
         st.caption(f"시리즈는 회차 단위로 생성합니다 ({len(_units)}회차). 씬 번호는 회차마다 S#1부터 매깁니다.")
     if _ledger:
         st.caption("🔒 잠긴 서사 원장이 생성·검사에 적용됩니다 (공개 일정·출석 제약·금지 사실·복선·모티프).")
+    # v2.10.0 C-5: 시퀀스 예산이 Treatment 사건보다 너무 크면 미리 표시 (패딩 위험)
+    _ev_bw = P.event_budget_warnings(_storyline, project.get("treatment") or {}, "기본안")
+    if _ev_bw:
+        st.warning("예산 대비 사건 부족 (C-5 · 참고) — 엔진은 사건이 없으면 덜 만들고 사유를 남깁니다.\n\n"
+                   + "\n".join(f"- {w}" for w in _ev_bw))
+    st.caption("v2.10.0: " + ("회차" if _series else "막") + "은 순서대로 생성합니다. 뒤 단위는 앞 단위의 씬·퇴장 인물을 알고 생성됩니다.")
+    _order = [u[0] for u in _units]
     _tabs = st.tabs(list(P.SCENE_LIST_VARIANTS.keys()))
     for _tab, _vname in zip(_tabs, P.SCENE_LIST_VARIANTS.keys()):
         with _tab:
             st.caption(P.SCENE_LIST_VARIANTS[_vname]["desc"])
             _vdata = sl["variants"].setdefault(_vname, {})
+            _stale = sl.setdefault("stale", {}).setdefault(_vname, [])   # v2.10.0: 앞 단위가 바뀐 뒤 단위
             for _row_start in range(0, len(_units), 4):
                 _row_units = _units[_row_start:_row_start + 4]
                 _cols = st.columns(4 if _series else 3)
                 for _col, (_ukey, _ulab, _uact, _uep) in zip(_cols, _row_units):
                     with _col:
                         _done = bool(_vdata.get(_ukey))
+                        _pos = _order.index(_ukey)
+                        _prev_ok = _pos == 0 or bool(_vdata.get(_order[_pos - 1]))   # v2.10.0 C-1: 순서 고정
                         _lbl = f"{'🔄 ' if _done else ''}{_ulab} {'재생성' if _done else '생성'}"
-                        if st.button(_lbl, key=f"sl_{_vname}_{_ukey}", width="stretch"):
+                        if st.button(_lbl, key=f"sl_{_vname}_{_ukey}", width="stretch", disabled=not _prev_ok):
                             with st.spinner(f"{_vname} {_ulab} 씬 나누는 중... (약 1–2분)"):
                                 _res = call_scene_list_act(project, _vname, _uact, ep=_uep)
                             if _res:
                                 _vdata[_ukey] = _res
+                                # 뒤 단위 중 이미 만든 것은 재확인 표시 / 자신은 해제
+                                for _later in _order[_pos + 1:]:
+                                    if _vdata.get(_later) and _later not in _stale:
+                                        _stale.append(_later)
+                                if _ukey in _stale:
+                                    _stale.remove(_ukey)
                                 project["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
                                 st.rerun()
-                        st.caption(f"✓ {len(_vdata[_ukey])}씬" if _done else "미생성")
+                        if _done and _ukey in _stale:
+                            st.caption(f"⚠️ {len(_vdata[_ukey])}씬 · 앞 {'회차' if _series else '막'}이 바뀜 — 재확인 필요")
+                        elif _done:
+                            st.caption(f"✓ {len(_vdata[_ukey])}씬")
+                        else:
+                            st.caption("미생성" if _prev_ok else f"앞 {'회차' if _series else '막'} 먼저 생성")
+                        _sr = [s.get("shortfall_reason") for s in (_vdata.get(_ukey) or [])
+                               if isinstance(s, dict) and s.get("shortfall_reason")]
+                        if _sr:
+                            st.caption("덜 만든 사유: " + " / ".join(_sr))
             _all_done = all(_vdata.get(u[0]) for u in _units)
             _merged = P.renumber_scenes([_vdata.get(u[0]) for u in _units], per_episode=_series)
             if _merged:
                 st.dataframe(_scenes_to_rows(_merged), width="stretch", hide_index=True, height=320)
                 _warns = P.validate_scene_list(_merged, _storyline, _main_chars, _vname, fmt,
-                                               ledger=_ledger, corrections=_corr) if _all_done else []
+                                               ledger=_ledger, corrections=_corr, named_characters=_named_chars) if _all_done else []
                 if _all_done:
                     st.caption(f"총 {len(_merged)}씬")
                     if _warns:
@@ -8383,12 +8692,13 @@ elif st.session_state.view == "scene_list" and st.session_state.cur:
                 "dialogue_mode": st.column_config.SelectboxColumn("dialogue_mode", options=list(P.DIALOGUE_MODES.keys())),
                 "int_ext": st.column_config.SelectboxColumn("int_ext", options=["INT", "EXT", "INT/EXT"]),
                 "summary": st.column_config.TextColumn("summary", width="large"),
+                "function": st.column_config.SelectboxColumn("function", options=[""] + P.SCENE_FUNCTIONS),   # v2.10.0
             },
         )
         _rows = _edited.to_dict("records") if hasattr(_edited, "to_dict") else list(_edited)
         _draft_now = _rows_to_scenes(_rows)
         _dw = P.validate_scene_list(P._scenes_with_ep(project, _draft_now), _storyline, _main_chars, sl.get("draft_variant", "기본안"), fmt,
-                                    ledger=_ledger, corrections=_corr)
+                                    ledger=_ledger, corrections=_corr, named_characters=_named_chars)
         if _dw:
             st.warning("편집본 검사\n\n" + "\n".join(f"- {w}" for w in _dw))
         else:
@@ -8401,6 +8711,66 @@ elif st.session_state.view == "scene_list" and st.session_state.cur:
         with st.expander("대사 방식 6종 정의", expanded=False):
             for k, d in P.DIALOGUE_MODES.items():
                 st.markdown(f"- **{k}** — {d}")
+
+        # ── v2.10.0 C-4: 예산 보충 ──
+        _dvar = sl.get("draft_variant", "기본안") or "기본안"
+        _short = P.scene_list_shortfall(_draft_now, _storyline, _dvar)
+        _fill_key = f"sl_fill_{st.session_state.cur}"
+        if _short:
+            st.info("예산 부족 시퀀스: " + " · ".join(f"SEQ {q['seq']} +{q['need']}" for q in _short)
+                    + f" (합계 {sum(q['need'] for q in _short)}씬). 지운 자리는 Treatment의 다른 사건으로 채울 수 있습니다.")
+            if st.button("🧩 예산 보충 (부족한 시퀀스만 · 제안 후 행 단위 채택)", width="stretch", key=f"sl_fill_btn_{st.session_state.cur}"):
+                with st.spinner("부족한 시퀀스의 빈자리를 Treatment 재료로 채우는 중... (약 1–2분)"):
+                    st.session_state[_fill_key] = call_scene_list_budget_fill(project, _draft_now, _dvar)
+                st.rerun()
+        _fill = st.session_state.get(_fill_key)
+        if _fill:
+            st.markdown("##### 🧩 예산 보충 제안")
+            for r in _fill.get("report") or []:
+                st.caption(f"SEQ {r.get('seq')} — 부족 {r.get('need', '?')}씬 중 {r.get('proposed', '?')}씬 제안"
+                           + (f" · {r.get('reason')}" if r.get("reason") else ""))
+            _props = _fill.get("proposals") or []
+            if not _props:
+                st.warning("검사를 통과한 제안이 없습니다. 재료가 모자란 시퀀스는 Treatment 비트 보강이 필요합니다.")
+            _chosen = []
+            for _i, _p in enumerate(_props):
+                _s = _p["scene"]
+                _txt = (f"SEQ {_p['seq']} · {_p['after_label']} 뒤 · [{_p.get('material') or '재료 미표기'}] "
+                        f"{_s.get('int_ext','')} {_s.get('location','')} · {_s.get('time','')} · "
+                        f"{', '.join(_s.get('characters') or [])} · {_s.get('summary','')}"
+                        + (f" · {','.join(_s.get('event_ref') or [])}" if _s.get("event_ref") else ""))
+                if st.checkbox(_txt, key=f"{_fill_key}_{_i}"):
+                    _chosen.append(_p)
+            if _fill.get("rejected"):
+                with st.expander(f"검사에서 걸러진 제안 {len(_fill['rejected'])}건", expanded=False):
+                    for _p in _fill["rejected"]:
+                        st.markdown(f"- SEQ {_p['seq']} · {_p['scene'].get('location','')} · {_p['scene'].get('summary','')}"
+                                    f"\n  - 걸러진 이유: {_p.get('why','')}")
+            fc1, fc2 = st.columns(2)
+            with fc1:
+                if st.button(f"➕ 선택한 {len(_chosen)}씬 넣기", disabled=not _chosen, width="stretch", key=f"{_fill_key}_add"):
+                    sl["draft"] = insert_fill_proposals(_draft_now, _chosen, _series)
+                    sl["draft_rev"] = int(sl.get("draft_rev", 0)) + 1
+                    st.session_state.pop(_fill_key, None)
+                    st.rerun()
+            with fc2:
+                if st.button("✖ 제안 닫기", width="stretch", key=f"{_fill_key}_close"):
+                    st.session_state.pop(_fill_key, None)
+                    st.rerun()
+
+        # ── v2.10.0 C-7: 예산 미달·중복 경고가 남아 있으면 알고 잠근다 (차단은 공간 반복만) ──
+        _dup_items = P.find_scene_list_duplicates(P._scenes_with_ep(project, _draft_now), fmt, _named_chars,
+                                                  _storyline, _ledger, _dvar)
+        _dup_n = sum(P.scene_list_dup_counts(_dup_items).values())
+        _short_n = sum(q["need"] for q in _short)
+        _need_ack = bool(_dup_n or _short_n)
+        _ack = True
+        if _need_ack:
+            _ack = st.checkbox(
+                " · ".join(x for x in [f"예산 미달 {_short_n}씬" if _short_n else "",
+                                              f"중복 의심 {_dup_n}건" if _dup_n else ""] if x)
+                + "을 알고 잠근다 (Writer 인계 JSON에 보고가 함께 넘어갑니다)",
+                key=f"sl_lock_ack_{st.session_state.cur}_{sl.get('draft_rev', 0)}")
         c1, c2 = st.columns(2)
         with c1:
             if st.button("💾 편집 내용 보존", width="stretch"):
@@ -8408,7 +8778,7 @@ elif st.session_state.view == "scene_list" and st.session_state.cur:
                 sl["draft_rev"] = int(sl.get("draft_rev", 0)) + 1
                 st.rerun()
         with c2:
-            if st.button("🔒 잠금", type="primary", width="stretch", disabled=bool(_draft_lruns)):
+            if st.button("🔒 잠금", type="primary", width="stretch", disabled=bool(_draft_lruns) or not _ack):
                 sl["locked"] = _draft_now
                 sl["locked_variant"] = sl.get("draft_variant", "")
                 sl["locked_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
