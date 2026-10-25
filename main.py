@@ -653,7 +653,7 @@ def _get_project_stage(project: dict) -> str:
     return "초기"
 
 
-def save_project_to_json(project: dict, engine_version: str = "v2.10.0") -> str:
+def save_project_to_json(project: dict, engine_version: str = "v2.10.1") -> str:
     """프로젝트 전체를 JSON 문자열로 직렬화.
     
     Args:
@@ -711,7 +711,7 @@ def load_project_from_json(json_str: str) -> dict:
     
     # 엔진 버전 호환성 체크 (경고만, 실패 아님)
     saved_version = meta.get("engine_version", "unknown")
-    current_version = "v2.10.0"
+    current_version = "v2.10.1"
     if saved_version != current_version:
         warnings.append(
             f"엔진 버전 차이 — 저장 시: {saved_version} / 현재: {current_version}. "
@@ -3781,7 +3781,12 @@ def call_scene_list_act(project: dict, variant: str, act_number: int, ep: int = 
                     for _k in ("reveals", "plants", "payoffs", "motifs"):
                         _s[_k] = P._to_str_list(_s.get(_k))
                     _normalize_scene_v210(_s)   # v2.10.0: event_ref · function
-                return scenes
+                # v2.10.1: 생성 직후 자동 정리 (코인 0) — 합치기·옮기기 + 앞 막 대사 반복 제거
+                _prior = _scene_list_prior_scenes(done, unit_key, fmt)
+                scenes, _alog = P.auto_fix_location_runs([x for x in scenes if isinstance(x, dict)], fmt)
+                scenes, _qlog = P.dedupe_summary_quotes(scenes, _prior, fmt)
+                st.session_state[f"sl_autolog_{variant}_{unit_key}"] = _alog + _qlog
+                return P.renumber_scenes([scenes], per_episode=False)
         raise ValueError("씬리스트 JSON을 읽지 못했습니다 (2회 시도).")
     except Exception as e:
         st.error(f"씬리스트 {variant} {('EP' + str(ep)) if ep else (str(act_number) + '막')} 생성 실패: {e}")
@@ -3856,7 +3861,19 @@ def _scene_list_cross_unit_block(project: dict, done: dict, unit_key: str, fmt: 
                  and e["name"] in P._scene_people(x, groups) and not P._is_flashback(x)]
         if not again:
             exited.append(e)
-    return P.build_cross_unit_block(others, exited, fmt)
+    known = P.known_info_lines(prev_scenes, fmt)   # v2.10.1: 관객이 이미 아는 정보
+    return P.build_cross_unit_block(others, exited, fmt, known_info=known)
+
+
+def _scene_list_prior_scenes(done: dict, unit_key: str, fmt: str) -> list:
+    """v2.10.1: 같은 안에서 이 단위보다 앞 단위의 씬 (대사 반복 제거 기준)."""
+    order = [k for k, _ in _scene_list_unit_keys(fmt)]
+    if unit_key not in order:
+        return []
+    out = []
+    for k in order[:order.index(unit_key)]:
+        out += [s for s in (done.get(k) or []) if isinstance(s, dict)]
+    return P.renumber_scenes([out], per_episode=P.is_series_format(fmt)) if out else []
 
 
 SCENE_FILL_SCHEMA = """{
@@ -4054,133 +4071,170 @@ def _scene_list_neighbors(done: dict, act_number: int):
     return (prev if isinstance(prev, dict) else None), (nxt if isinstance(nxt, dict) else None)
 
 
-def call_scene_list_location_repair(project: dict, variant: str, units: list) -> dict:
-    """v2.9.2: 공간 반복 수정 요청. 위반이 있는 단위(막/회차)만 순서대로 다시 짠다.
+def _scene_unit_of(s: dict, fmt: str) -> str:
+    """v2.10.1: 씬이 속한 생성 단위 키 — 영화는 비트의 막, 시리즈는 회차."""
+    if P.is_series_format(fmt):
+        return f"ep{P._to_int(s.get('ep') or s.get('seq')) or 1}"
+    return f"act{P.FILM_SLOT_ACT.get(P._to_int(s.get('beat')), 1)}"
 
-    - 위반 판정·수정 전후 대조는 파이썬이 한다 (비트·원장 태그·인물이 사라지면 그 시도는 버린다).
-    - 단위마다 최대 2회 시도. 끝내 통과하지 못하면 원본을 유지하고 보고한다.
-    - 수정 전 상태는 scene_list["variants_prev"][variant]에 보관한다 (되돌리기).
-    반환: {"fixed": [...], "failed": [...], "remaining": [...], "new_locations": [...]}
-    """
+
+def scene_list_fix_flat(project: dict, scenes: list, variant: str, use_api: bool = True,
+                        prior_scenes: list = None) -> tuple:
+    """v2.10.1: 씬 목록 하나(안 전체 또는 편집본)를 정리한다. 반환 (새 목록, 보고).
+    1) 자동 정리 — 합치기·옮기기 (API 없음, 코인 0)
+    2) 대사 반복 제거 — 앞에서 한 말이 요약에 다시 나오면 지운다 (API 없음)
+    3) use_api일 때만, 그래도 남은 공간 반복을 '구간'(위반 씬 + 앞뒤 1씬)만 AI에 보낸다. 1회 호출에 모든 구간.
+       구간별로 대조(비트·태그·인물·씬 수)해 통과한 구간만 반영한다. 최대 2회.
+    보고: {"auto": [...], "quotes": [...], "fixed": [...], "remaining": [...], "failed": [...],
+           "new_locations": [...], "api_calls": n, "runs_before": n, "runs_after": n}"""
+    fmt = _fmt_eff(project)
+    series = P.is_series_format(fmt)
+    rep = {"auto": [], "quotes": [], "fixed": [], "remaining": [], "failed": [], "new_locations": [],
+           "api_calls": 0}
+    cur = P.renumber_scenes([[dict(s) for s in (scenes or []) if isinstance(s, dict)]], per_episode=series)
+    rep["runs_before"] = len(P.find_location_runs(cur, fmt))
+    orig_locs = {P._loc_text(s) for s in cur}
+    cur, rep["auto"] = P.auto_fix_location_runs(cur, fmt)
+    cur, rep["quotes"] = P.dedupe_summary_quotes(cur, prior_scenes, fmt)
+    cur = P.renumber_scenes([cur], per_episode=series)
+    wins = P.find_location_windows(cur, fmt)
+    if wins and use_api:
+        try:
+            client = get_client()
+        except Exception as e:
+            client = None
+            rep["failed"].append(f"API 연결 실패: {e}")
+        if client:
+            _lt, _it = _get_period_scan_context(project)
+            system_prompt = P.build_system_scene_list(project.get("genre", ""), fmt, variant,
+                                                      structure_type=project.get("structure_type", ""),
+                                                      locked_text=_lt, idea_text=_it)
+            note = ""
+            for temp in (0.3, 0.15):
+                wins = P.find_location_windows(cur, fmt)
+                if not wins:
+                    break
+                _beats = sorted({P._to_int(s.get("beat")) for a, b in wins for s in cur[a:b + 1]} - {0})
+                ev_block = P.build_event_ref_block(P.build_treatment_event_list(project.get("treatment") or {}, _beats))
+                src = []
+                tr = project.get("treatment") or {}
+                for k in ("act1", "act2", "act3"):
+                    for bt in ((tr.get(k) or {}).get("beats") or []):
+                        if isinstance(bt, dict) and P._to_int(bt.get("beat_no")) in _beats:
+                            for fld, lab in (("b_story_beat", "서브플롯"), ("villain_beat", "적대자 동선"),
+                                             ("antagonist_active_action", "적대자 능동 행동")):
+                                v = str(bt.get(fld, "") or "").strip()
+                                if v:
+                                    src.append(f"- Beat {bt.get('beat_no')} {lab}: {v}")
+                user_prompt = (_build_project_locked_block(project, with_ledger=False)
+                               + P.build_ledger_block(P.get_locked_ledger(project), fmt)
+                               + ev_block
+                               + ("\n[동시 진행 재료 — 사이에 둘 다른 장소 사건은 여기와 사건 목록에서만 고른다]\n"
+                                  + "\n".join(src) + "\n" if src else "")
+                               + P.build_location_window_repair_block("씬리스트", cur, wins, note)
+                               + f"\n[씬 JSON 스키마]\n{P.SCENE_LIST_SCHEMA_SERIES if series else P.SCENE_LIST_SCHEMA}\n")
+                try:
+                    rep["api_calls"] += 1
+                    resp = client.messages.create(model=ANTHROPIC_MODEL, max_tokens=8000, temperature=temp,
+                                                  system=system_prompt, messages=[{"role": "user", "content": user_prompt}])
+                    txt = "".join(b.text for b in resp.content if hasattr(b, "text")).strip()
+                    st.session_state["last_scene_list_raw"] = txt
+                    data = safe_json_loads(txt)
+                except Exception as e:
+                    note = f"JSON을 읽지 못했다 ({e}). 출력 형식 그대로 구간만 출력하라."
+                    continue
+                got = {P._to_int(w.get("window")): w.get("scenes") for w in (data or {}).get("windows") or []
+                       if isinstance(w, dict)}
+                notes, applied = [], 0
+                # 뒤 구간부터 바꿔 끼워야 앞 구간 위치가 흔들리지 않는다
+                for wi in range(len(wins), 0, -1):
+                    a, b = wins[wi - 1]
+                    old = cur[a:b + 1]
+                    new = got.get(wi)
+                    if not isinstance(new, list) or not new:
+                        notes.append(f"구간 {wi}: 출력 없음")
+                        continue
+                    new = [dict(x) for x in new if isinstance(x, dict)]
+                    for x in new:
+                        if series:
+                            x["ep"] = x.get("ep") or old[0].get("ep")
+                            x["seq"] = x.get("seq") or old[0].get("seq")
+                        for k in ("reveals", "plants", "payoffs", "motifs"):
+                            x[k] = P._to_str_list(x.get(k))
+                        x["characters"] = P._to_str_list(x.get("characters"))
+                        _normalize_scene_v210(x)
+                        if old and "_unit" in old[0]:
+                            x["_unit"] = _scene_unit_of(x, fmt)
+                    if len(new) < len(old):
+                        notes.append(f"구간 {wi}: 씬 수가 {len(old)} → {len(new)}으로 줄었다. 줄이지 마라.")
+                        continue
+                    lost = P.compare_scene_list_invariants(old, new)
+                    if lost:
+                        notes.append(f"구간 {wi}: 사라짐 — " + " / ".join(lost))
+                        continue
+                    trial = cur[:a] + new + cur[b + 1:]
+                    if len(P.find_location_runs(trial, fmt)) >= len(P.find_location_runs(cur, fmt)):
+                        notes.append(f"구간 {wi}: 같은 공간 연속이 그대로 남았다 (하위 공간도 같은 공간이다)")
+                        continue
+                    cur = trial
+                    applied += 1
+                cur, more = P.auto_fix_location_runs(cur, fmt)   # 끼운 뒤 생긴 정리 거리 (무료)
+                rep["auto"] += more
+                cur = P.renumber_scenes([cur], per_episode=series)
+                if applied:
+                    rep["fixed"].append(f"AI 구간 수정 {applied}곳 반영 ({rep['api_calls']}회째 호출)")
+                if not P.find_location_runs(cur, fmt):
+                    break
+                note = " / ".join(notes) or "같은 공간 연속이 남았다."
+            if P.find_location_runs(cur, fmt) and note:
+                rep["failed"].append(note)
+    rep["runs_after"] = len(P.find_location_runs(cur, fmt))
+    if rep["runs_after"]:
+        rep["remaining"] += P.describe_location_runs(cur, P.find_location_runs(cur, fmt), fmt)
+    rep["new_locations"] = sorted({P._loc_text(s) for s in cur} - orig_locs - {""})
+    return cur, rep
+
+
+def _show_scene_fix_report(rep: dict):
+    """v2.10.1: 자동 정리·구간 수정 결과 표시."""
+    if not rep:
+        return
+    head = (f"공간 반복 {rep.get('runs_before', '?')}건 → {rep.get('runs_after', '?')}건 · "
+            f"AI 호출 {rep.get('api_calls', 0)}회" + (" (코인 0)" if not rep.get("api_calls") else ""))
+    lines = [f"- ✅ {x}" for x in rep.get("fixed", [])] + [f"- ⚠️ 남음: {x}" for x in rep.get("remaining", [])] \
+        + [f"- ❌ {x}" for x in rep.get("failed", [])]
+    if rep.get("new_locations"):
+        lines.append(f"- 새로 등장한 장소 (확인 필요): {', '.join(rep['new_locations'])}")
+    (st.success if not rep.get("runs_after") else st.info)("정리 결과 — " + head + ("\n\n" + "\n".join(lines) if lines else ""))
+    work = list(rep.get("auto", [])) + list(rep.get("quotes", []))
+    if work:
+        with st.expander(f"엔진이 한 일 {len(work)}건 (합치기·옮기기·대사 반복 제거)", expanded=False):
+            for w in work:
+                st.markdown(f"- {w}")
+
+
+def call_scene_list_location_repair(project: dict, variant: str, units: list, use_api: bool = True) -> dict:
+    """v2.9.2 → v2.10.1: 공간 반복 수정. 안 전체를 한 줄로 펴서 scene_list_fix_flat으로 정리한 뒤 막(회차)별로 되돌린다.
+    v2.10.1: 막 전체를 다시 쓰지 않는다. 자동 정리(코인 0) 후 남은 '구간'만 AI에 보낸다.
+      use_api=False(디폴트 인자 추가)면 자동 정리만 한다.
+    수정 전 상태는 scene_list["variants_prev"][variant]에 보관한다 (되돌리기)."""
     import copy
     sl = project.setdefault("scene_list", {})
     vdata = sl.setdefault("variants", {}).setdefault(variant, {})
     fmt = _fmt_eff(project)
     series = P.is_series_format(fmt)
-    report = {"fixed": [], "failed": [], "remaining": [], "new_locations": []}
     sl.setdefault("variants_prev", {})[variant] = copy.deepcopy(vdata)
-    orig_locs = {P._loc_text(s) for part in vdata.values() for s in (part or []) if isinstance(s, dict)}
-
-    try:
-        client = get_client()
-    except Exception as e:
-        report["failed"].append(f"API 연결 실패: {e}")
-        return report
-
-    for ukey, ulab, uact, uep in units:
-        part = vdata.get(ukey) or []
-        if not part:
-            continue
-        prev_sc, next_sc = (None, None) if series else _scene_list_neighbors(vdata, uact)
-        ctx = ([prev_sc] if prev_sc else []) + part + ([next_sc] if next_sc else [])
-        off = 1 if prev_sc else 0
-        runs = [r for r in P.find_location_runs(ctx, fmt)
-                if r["end"] >= off and r["start"] <= off + len(part) - 1]
-        if not runs:
-            continue
-        local = P.renumber_scenes([part], per_episode=False)
-
-        def _viol_lines(rs, n_part):
-            out = []
-            for r in rs:
-                a, b = max(r["start"], off) - off, min(r["end"], off + n_part - 1) - off
-                edge = (" · 직전 막 마지막 씬과 이어짐" if r["start"] < off else "") + \
-                       (" · 다음 막 첫 씬과 이어짐" if r["end"] > off + n_part - 1 else "")
-                out.append(f"S#{a + 1}~S#{b + 1} '{r['space']}' ({' / '.join(r['locations'])}){edge}")
-            return out
-        viol = _viol_lines(runs, len(part))
-
-        _lt, _it = _get_period_scan_context(project)
-        system_prompt = P.build_system_scene_list(
-            project.get("genre", ""), fmt, variant, structure_type=project.get("structure_type", ""),
-            locked_text=_lt, idea_text=_it,
-        )
-        beats = []
-        for k in ("act1", "act2", "act3"):
-            for b in (((project.get("treatment") or {}).get(k) or {}).get("beats") or []):
-                if isinstance(b, dict) and (series or k == f"act{uact}"):
-                    if series and P._to_int(b.get("beat_no")) not in set(P.series_frame(fmt)["ep_beats"].get(uep, [])):
-                        continue
-                    beats.append(f"Beat {b.get('beat_no')} {b.get('beat_name','')}: {b.get('event_summary','')} / "
-                                 f"{b.get('decision_summary','')} / {b.get('consequence_summary','')}")
-        note, best, best_left = "", None, len(runs)
-        # v2.10.0: 사건 목록(event_ref) + 같은 안의 다른 막 씬·퇴장 인물
-        _ubeats = sorted({P._to_int(s.get("beat")) for s in part if isinstance(s, dict)} - {0})
-        _ev_block = P.build_event_ref_block(P.build_treatment_event_list(project.get("treatment") or {}, _ubeats))
-        _cross = _scene_list_cross_unit_block(project, vdata, ukey, fmt)
-        _floor = max(1, round(len(part) * P.REPAIR_MIN_RATIO))
-
-        def _ctx_runs(sc):
-            return P.find_location_runs(([prev_sc] if prev_sc else []) + sc + ([next_sc] if next_sc else []), fmt)
-        for temp in (0.3, 0.15):
-            user_prompt = (_build_project_locked_block(project, with_ledger=False)
-                           + P.build_ledger_block(P.get_locked_ledger(project), fmt)
-                           + f"\n[{ulab} Treatment 비트 — ③에 쓸 수 있는 사건은 여기 있는 것뿐]\n" + "\n".join(beats) + "\n"
-                           + _ev_block + _cross
-                           + P.build_scene_location_repair_block(ulab, local, viol, prev_sc, next_sc, note)
-                           + f"\n[JSON 스키마]\n{P.SCENE_LIST_SCHEMA_SERIES if series else P.SCENE_LIST_SCHEMA}\n")
-            try:
-                resp = client.messages.create(
-                    model=ANTHROPIC_MODEL, max_tokens=16000, temperature=temp,
-                    system=system_prompt, messages=[{"role": "user", "content": user_prompt}],
-                )
-                txt = "".join(b.text for b in resp.content if hasattr(b, "text")).strip()
-                st.session_state["last_scene_list_raw"] = txt
-                if resp.stop_reason == "max_tokens":
-                    note = "출력이 잘렸다. 적발되지 않은 씬의 summary를 줄이지 말고, 수정 범위를 적발 구간으로 한정하라."
-                    continue
-                data = safe_json_loads(txt)
-                new = (data or {}).get("scenes") if isinstance(data, dict) else None
-            except Exception as e:
-                note = f"JSON을 읽지 못했다 ({e}). 스키마 그대로 출력하라."
-                continue
-            if not isinstance(new, list) or not new:
-                note = "scenes가 비어 있다."
-                continue
-            for s in new:
-                if isinstance(s, dict):
-                    if series:
-                        s["ep"], s["seq"] = uep, uep
-                    for k in ("reveals", "plants", "payoffs", "motifs"):
-                        s[k] = P._to_str_list(s.get(k))
-                    _normalize_scene_v210(s)
-            # v2.10.0 C-8: 씬 수 80% 하한 — 프롬프트 문구가 아니라 코드로 검사한다
-            if len(new) < _floor:
-                note = (f"씬 수가 {len(part)} → {len(new)}으로 줄었다 (하한 {_floor}씬). "
-                        "합치기로만 해결하지 마라. ② 순서 바꾸기와 ③ 다른 인물·장소 사건으로 끊어라.")
-                continue
-            lost = P.compare_scene_list_invariants(part, new)
-            if lost:
-                note = "수정 중 다음이 사라졌다 — 모두 되살려라: " + " / ".join(lost)
-                continue
-            left = _ctx_runs(new)
-            if len(left) < best_left or (best is None and not left):
-                best, best_left = new, len(left)   # 대조 통과 + 위반 감소 → 후보
-            if not left:
-                break
-            note = "아직 같은 공간 연속이 남았다: " + " / ".join(_viol_lines(left, len(new)))
-        if best is not None:
-            vdata[ukey] = best
-            if best_left == 0:
-                report["fixed"].append(f"{ulab}: {len(part)}씬 → {len(best)}씬")
-            else:
-                report["remaining"].append(f"{ulab}: {len(part)}씬 → {len(best)}씬 · 위반 {len(runs)}건 → {best_left}건")
-        else:
-            report["failed"].append(f"{ulab}: 원본 유지 — {note or '수정 결과 없음'}")
-    new_locs = {P._loc_text(s) for part in vdata.values() for s in (part or []) if isinstance(s, dict)} - orig_locs
-    report["new_locations"] = sorted(x for x in new_locs if x)
+    order = [u[0] for u in units]
+    flat = [dict(s, _unit=k) for k in order for s in (vdata.get(k) or []) if isinstance(s, dict)]
+    new, rep = scene_list_fix_flat(project, flat, variant, use_api=use_api)
+    for k in order:
+        part = [dict(s) for s in new if s.get("_unit", _scene_unit_of(s, fmt)) == k]
+        for s in part:
+            s.pop("_unit", None)
+        if part or vdata.get(k):
+            vdata[k] = P.renumber_scenes([part], per_episode=series) if part else vdata.get(k)
     project["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
-    return report
+    return rep
 
 
 def generate_docx(project):
@@ -8487,6 +8541,7 @@ elif st.session_state.view == "scene_list" and st.session_state.cur:
             # v2.10.0: 출처 사건 · 씬 기능 (편집해도 사라지지 않게 표에 싣는다)
             r["event_ref"] = ", ".join(P._to_str_list(s.get("event_ref")))
             r["function"] = s.get("function", "") or ""
+            r["info"] = s.get("info", "") or ""   # v2.10.1: 관객이 처음 아는 정보
             rows.append(r)
         return rows
 
@@ -8513,6 +8568,8 @@ elif st.session_state.view == "scene_list" and st.session_state.cur:
                 s.pop("event_ref", None)
             if not str(s.get("function") or "").strip():
                 s.pop("function", None)
+            if not str(s.get("info") or "").strip():
+                s.pop("info", None)
             _normalize_scene_v210(s)
             out.append(s)
         return P.renumber_scenes([out], per_episode=_series)   # v2.9.0: 시리즈는 회차별 S#1부터
@@ -8614,6 +8671,11 @@ elif st.session_state.view == "scene_list" and st.session_state.cur:
                             st.caption(f"✓ {len(_vdata[_ukey])}씬")
                         else:
                             st.caption("미생성" if _prev_ok else f"앞 {'회차' if _series else '막'} 먼저 생성")
+                        _alog = st.session_state.get(f"sl_autolog_{_vname}_{_ukey}") or []
+                        if _done and _alog:
+                            with st.expander(f"자동 정리 {len(_alog)}건 (코인 0)", expanded=False):
+                                for _w in _alog:
+                                    st.caption(_w)
                         _sr = [s.get("shortfall_reason") for s in (_vdata.get(_ukey) or [])
                                if isinstance(s, dict) and s.get("shortfall_reason")]
                         if _sr:
@@ -8630,24 +8692,31 @@ elif st.session_state.view == "scene_list" and st.session_state.cur:
                         st.warning("검사\n\n" + "\n".join(f"- {w}" for w in _warns))
                     else:
                         st.success("검사 통과")
-                    # v2.9.2: 공간 반복 — 잠금 차단 항목. 수정 요청 버튼.
+                    # v2.9.2 → v2.10.1: 공간 반복 — 잠금 차단 항목.
+                    #   ① 자동 정리(코인 0) → ② 남은 구간만 AI 수정. 막 전체를 다시 쓰지 않는다.
                     _lruns = P.find_location_runs(_merged, fmt)
+                    _qdup = P.dedupe_summary_quotes(_merged, None, fmt)[1]
                     if _lruns:
                         st.error(f"⛔ 공간 반복 {len(_lruns)}건 — 같은 공간 연속은 허용하지 않습니다. "
                                  "이 상태로는 잠글 수 없습니다.")
-                        if st.button(f"🛠️ {_vname} 공간 반복 수정 요청 ({len(_lruns)}건)",
-                                     key=f"sl_fix_{_vname}", type="primary", width="stretch"):
-                            with st.spinner("위반이 있는 막만 다시 짜는 중... (막당 약 1–2분)"):
-                                _rep = call_scene_list_location_repair(project, _vname, _units)
-                            st.session_state[f"sl_fix_report_{_vname}"] = _rep
-                            st.rerun()
+                    if _lruns or _qdup:
+                        _fc1, _fc2 = st.columns(2)
+                        with _fc1:
+                            if st.button(f"🔧 자동 정리 (코인 0) — 합치기·옮기기·대사 반복 제거",
+                                         key=f"sl_auto_{_vname}", width="stretch"):
+                                st.session_state[f"sl_fix_report_{_vname}"] = \
+                                    call_scene_list_location_repair(project, _vname, _units, use_api=False)
+                                st.rerun()
+                        with _fc2:
+                            if _lruns and st.button(f"🛠️ 자동 정리 + 남은 구간만 AI 수정 ({len(_lruns)}건)",
+                                                    key=f"sl_fix_{_vname}", type="primary", width="stretch"):
+                                with st.spinner("자동 정리 후, 남은 구간만 고치는 중..."):
+                                    _rep = call_scene_list_location_repair(project, _vname, _units)
+                                st.session_state[f"sl_fix_report_{_vname}"] = _rep
+                                st.rerun()
                 _rep = st.session_state.get(f"sl_fix_report_{_vname}")
                 if _rep:
-                    _lines = ([f"- ✅ {x}" for x in _rep["fixed"]] + [f"- ⚠️ {x}" for x in _rep["remaining"]]
-                              + [f"- ❌ {x}" for x in _rep["failed"]])
-                    if _rep.get("new_locations"):
-                        _lines.append(f"- 새로 등장한 장소 (확인 필요): {', '.join(_rep['new_locations'])}")
-                    st.info("공간 반복 수정 결과\n\n" + ("\n".join(_lines) or "- 고칠 위반이 없었습니다."))
+                    _show_scene_fix_report(_rep)
                 if (sl.get("variants_prev") or {}).get(_vname):
                     if st.button(f"↩️ {_vname} 수정 전으로 되돌리기", key=f"sl_undo_{_vname}"):
                         sl["variants"][_vname] = sl["variants_prev"].pop(_vname)
@@ -8706,8 +8775,36 @@ elif st.session_state.view == "scene_list" and st.session_state.cur:
         # v2.9.2: 공간 반복이 남아 있으면 잠금 차단
         _draft_lruns = P.find_location_runs(P._scenes_with_ep(project, _draft_now), fmt)
         if _draft_lruns:
-            st.error(f"⛔ 공간 반복 {len(_draft_lruns)}건 — 고친 뒤에 잠글 수 있습니다. "
-                     "표에서 직접 고치거나, 위 ① 탭의 '공간 반복 수정 요청'으로 안을 고친 뒤 편집을 다시 시작하세요.")
+            st.error(f"⛔ 공간 반복 {len(_draft_lruns)}건 — 고친 뒤에 잠글 수 있습니다.")
+        # v2.10.1: 편집본에서 바로 자동 정리 · 남은 구간만 수정 (편집 중인 표 내용 그대로)
+        _dq = P.dedupe_summary_quotes(_draft_now, None, fmt)[1]
+        if _draft_lruns or _dq:
+            _dc1, _dc2 = st.columns(2)
+            with _dc1:
+                if st.button("🔧 편집본 자동 정리 (코인 0)", width="stretch", key=f"sl_dauto_{st.session_state.cur}"):
+                    sl["draft_prev"] = _draft_now
+                    sl["draft"], _r = scene_list_fix_flat(project, P._scenes_with_ep(project, _draft_now),
+                                                          sl.get("draft_variant", "기본안") or "기본안", use_api=False)
+                    sl["draft_rev"] = int(sl.get("draft_rev", 0)) + 1
+                    st.session_state[f"sl_dfix_{st.session_state.cur}"] = _r
+                    st.rerun()
+            with _dc2:
+                if _draft_lruns and st.button(f"🛠️ 자동 정리 + 남은 구간만 AI 수정 ({len(_draft_lruns)}건)",
+                                              type="primary", width="stretch", key=f"sl_dfix_btn_{st.session_state.cur}"):
+                    with st.spinner("자동 정리 후, 남은 구간만 고치는 중..."):
+                        sl["draft_prev"] = _draft_now
+                        sl["draft"], _r = scene_list_fix_flat(project, P._scenes_with_ep(project, _draft_now),
+                                                              sl.get("draft_variant", "기본안") or "기본안", use_api=True)
+                    sl["draft_rev"] = int(sl.get("draft_rev", 0)) + 1
+                    st.session_state[f"sl_dfix_{st.session_state.cur}"] = _r
+                    st.rerun()
+        _show_scene_fix_report(st.session_state.get(f"sl_dfix_{st.session_state.cur}"))
+        if sl.get("draft_prev"):
+            if st.button("↩️ 편집본 정리 전으로 되돌리기", key=f"sl_dundo_{st.session_state.cur}"):
+                sl["draft"] = sl.pop("draft_prev")
+                sl["draft_rev"] = int(sl.get("draft_rev", 0)) + 1
+                st.session_state.pop(f"sl_dfix_{st.session_state.cur}", None)
+                st.rerun()
         with st.expander("대사 방식 6종 정의", expanded=False):
             for k, d in P.DIALOGUE_MODES.items():
                 st.markdown(f"- **{k}** — {d}")

@@ -2,10 +2,49 @@
 👖 BLUE JEANS Creator Engine — Prompt Library
 
 ╔══════════════════════════════════════════════════════════╗
-║  VERSION: v2.10.0                                        ║
+║  VERSION: v2.10.1                                        ║
 ║  BUILD DATE: 2026-10-25                                  ║
 ║  STATUS: Production                                      ║
 ╚══════════════════════════════════════════════════════════╝
+
+─────────────────────────────────────────────────────────
+v2.10.1 패치 (2026-10-25) — 생성 단계 자동 정리(코인 0) · 구간 수정 · 대사 반복 제거 · 정보 추적
+─────────────────────────────────────────────────────────
+[경위] Mr. MOON 운영 중 지적 (「THE CRIMSON ROBE」 변주안 93씬).
+  "공간 반복 수정요청만 하다가 코인 다 쓰는데. 2개 남겨놓고 벌써 여러번 횟수를 반복하고 있어."
+  "그걸 자동으로 하라고 엔진을 설계하는 거야." / "대사 반복도 너무 많고."
+  코드·데이터 대조:
+  ① 같은 공간·같은 시간에 이어지는 행동을 여러 씬으로 쪼갠 뒤 연속 금지에 걸린다 — 수정 요청으로는 못 푼다.
+     기본안 3막 클라이맥스 양장점·밤 10씬 연속. 화면 사례 S#5 양장점 뒤편 제단·낮 + S#6 양장점·낮(같은 두 사람).
+  ② 수정 요청 1회 = 막 전체 재출력 (변주안 2막 45씬). 위반 2씬을 고치려고 45씬을 다시 쓴다.
+  ③ AI는 '양장점 뒤편 제단'을 다른 방으로 보고 '고쳤다'고 돌려준다 (엔진은 하위 공간 = 같은 공간).
+  ④ 씬리스트 요약이 대사를 미리 쓴다 — 잠금본 82씬 중 26씬 29줄, Writer가 20줄을 그대로 옮김.
+     '리 가문의 피가 닿으면 흑마력이 자멸한다'가 S#18·27·66 요약에 똑같이 들어감.
+  ⑤ 관객이 이미 아는 정보를 추적하지 않아 같은 설명이 씬마다 반복 (리 가문 피의 규칙 S#16·19·42).
+  ⑥ v2.10.0 event_ref 중복 판정이 과잉 — 한 사건이 장소를 옮겨 이어지는 교차 진행까지 '사건 중복'.
+  ⑦ 회상 판정이 '리 란이 1934년 몰살을 밝히며' 같은 현재 장면의 연도까지 회상으로 봄.
+
+[1] auto_fix_location_runs — API 없이 정리 (코인 0)
+  합치기: 이어진 두 씬이 같은 공간 키 · 같은 비트 · 같은 시간대 · 인물 1명 이상 겹침 · 회상 여부 같음 → 한 씬.
+    사건·인물·태그·event_ref·info는 모두 합집합. 장소명은 상위 공간, 하위 공간은 요약 앞에 (괄호)로 남김.
+  옮기기: 남은 연속 사이에 4씬 이내 같은 비트의 다른 공간 씬을 끼움 — 건너뛰는 씬과 인물이 하나도 겹치지 않을 때만
+    (동시 진행 · 인과 순서 불변), 공개·복선 태그가 없을 때만, 옮긴 뒤 다시 합친 결과의 연속 구간이 줄 때만.
+  화면 사례: 골목 → 제단+양장점(합침) → 미용실(옮김) → 양장점 노파 2씬(합침) — 위반 0, 코인 0.
+[2] 구간 수정 — find_location_windows · build_location_window_repair_block
+  남은 위반만 앞뒤 1씬과 함께 '구간'으로 보내고, 구간만 출력받는다 (max_tokens 16000 → 8000).
+  구간마다 대조(씬 수 감소 금지 · 비트·태그·event_ref·인물 보존 · 연속 감소)해 통과한 구간만 반영. 최대 2회.
+  "엔진은 '양장점 뒤편 제단'을 '양장점'으로 묶어 본다"를 구간마다 명시.
+[3] dedupe_summary_quotes — 앞에서 한 말(이전 막 포함)이 요약에 다시 나오면 지우고
+  〔S#61과 같은 말 — 다시 말하지 않는다〕를 남긴다 (Writer가 읽는 지시). 생성 직후·정리 시 자동.
+  생성 규칙: summary에 대사 따옴표 금지 — 결정적 대사만 막당 2개 이하·작품 전체 1회.
+[4] info 필드 — 씬마다 관객이 처음 아는 정보. 다음 막 생성에 '관객이 이미 아는 정보' 주입,
+  find_info_repeats로 같은 정보 재공개를 '정보 반복'으로 표시.
+[5] 생성 규칙 '공간 설계' — 같은 장소·같은 시간 행동은 처음부터 한 씬, 끊을 다른 장소 사건이 없으면 쪼개지 않음.
+[6] event_ref 중복 판정 — 같은 ref라도 내용 유사(0.15 이상)·같은 공간일 때만 '사건 중복',
+  나머지는 '사건 분할(참고)' (경고 집계·잠금 확인에서 제외).
+[7] _is_flashback — 연도·'N년 전'은 요약 맨 앞에 있을 때만 회상 표지.
+[하위 호환] 함수 시그니처 무수정 — call_scene_list_location_repair에 use_api, build_cross_unit_block에
+  known_info 디폴트 인자만 추가. 신규 키 scene_list.draft_prev, 씬 info. 구버전 JSON 그대로 열림.
 
 ─────────────────────────────────────────────────────────
 v2.10.0 패치 (2026-10-25) — 씬리스트 중복 사전 차단 · 씬 수 보존 · 보충 생성
@@ -1847,7 +1886,7 @@ BLUE JEANS 3축 (Mr.MOON 고유)
 # 수정 시 ENGINE_VERSION과 ENGINE_BUILD_DATE를 함께 갱신하세요.
 # ═══════════════════════════════════════════════════
 
-ENGINE_VERSION = "v2.10.0"
+ENGINE_VERSION = "v2.10.1"
 ENGINE_BUILD_DATE = "2026-10-25"
 ENGINE_STATUS = "Production"
 
@@ -9159,6 +9198,17 @@ Treatment의 비트를 씬 단위로 나눠 번호순 목록을 만든다. 대�
 - [v2.10.0] 한 사건은 한 번 벌어진다. 이미 벌어진 사건(같은 행동·같은 첫 시도·같은 발견)을 다른 씬에서 다시 벌이지 않는다.
   같은 대사를 두 씬에 쓰지 않는다. 같은 과거 장면을 두 번 회상하지 않는다.
 - [v2.10.0] 죽거나 퇴장한 인물은 그 뒤 씬에 회상·환영이 아니면 등장시키지 않는다 (characters에도 넣지 않는다).
+- [v2.10.1 대사] summary에 대사를 따옴표로 쓰지 않는다. 대사는 Writer가 쓴다. 무엇을 말하는지만 간접으로 적는다
+  (✗ 민이 '리 가문의 피가 닿으면 흑마력이 자멸한다'고 말한다 → ✓ 민이 고서에서 리 가문 피의 규칙을 처음 찾아낸다).
+  작품의 결정적 대사(LOCKED·클라이맥스 한 줄)만 예외로 따옴표를 쓴다 — 한 막에 2개 이하, 같은 말은 작품 전체에서 한 번.
+- [v2.10.1 정보] info에는 이 씬에서 관객이 '처음' 알게 되는 정보를 한 줄로 적는다 (없으면 빈 칸).
+  이미 알려준 정보(아래 '관객이 이미 아는 정보' 포함)를 다시 설명하는 씬·대사를 만들지 않는다.
+  같은 규칙·같은 사실을 인물만 바꿔 다시 말하게 하지 않는다.
+- [v2.10.1 사건] 한 사건이 여러 씬에 걸치면, 사건이 실제로 벌어지는 씬 하나만 function '사건'이다.
+  그 앞은 '준비', 뒤는 '여파', 다른 장소에서 동시에 벌어지는 것은 '교차'로 적는다.
+- [v2.10.1 공간 설계] 씬을 나누기 전에, 같은 장소·같은 시간에 이어지는 행동은 처음부터 한 씬으로 묶는다.
+  같은 장소로 돌아와야 하면 그 사이에 둘 다른 장소의 사건(동시 진행 인물·적대자 동선·서브플롯)을 Treatment에서 먼저 고른다.
+  고를 사건이 없으면 씬을 쪼개지 말고 한 씬으로 둔다 (씬 수가 줄면 shortfall_reason에 적는다).
 - [v2.10.0] summary 안에서 공간을 넘지 않는다. '들어간다·나와·이동하던 중·돌아오다'로 다른 공간의 행동까지 적지 않는다.
   넘어간 공간이 바로 다음 씬의 공간과 같으면 넘어간 부분은 다음 씬의 앞부분으로 붙인다.
   다음 씬과 공간이 다르면 넘어간 공간을 별도 씬으로 세운다.
@@ -9191,6 +9241,7 @@ SCENE_LIST_SCHEMA = """{
       "motifs": [],
       "event_ref": ["B1-E"],
       "function": "사건",
+      "info": "이 씬에서 관객이 처음 아는 정보 한 줄 (없으면 빈 칸)",
       "shortfall_reason": ""
     }
   ]
@@ -9392,7 +9443,9 @@ DUP_RARE_WORDS_MIN = 3           # 희귀 음절쌍을 품은 서로 다른 낱�
 CROSS_UNIT_INJECT_MAX = 8000     # C-1 다른 막 씬 주입 상한 (자)
 REPAIR_MIN_RATIO = 0.8           # C-8 수정 요청 씬 수 하한
 
-_FLASHBACK_RE = re.compile(r"회상|플래시백|\d+\s*년\s*전|\d{4}\s*년|과거|꿈속|꿈에|꿈을|환영|환각|기억 속")
+_FLASHBACK_RE = re.compile(r"회상|플래시백|과거 장면|꿈속|꿈에서|꿈을 꾼|환영|환각|기억 속")
+# v2.10.1: 연도·'N년 전'은 요약 맨 앞에 올 때만 회상 표지 ('리 란이 1934년 몰살을 밝히며'는 현재 장면)
+_FLASHBACK_HEAD_RE = re.compile(r"^\s*[\(\[]?\s*(?:\d{4}\s*년|\d+\s*년\s*(?:전|뒤|후))")
 _GHOST_RE = re.compile(r"형체|원혼|혼령|유령|귀신|영혼|망령|환영|거울 속|거울에 비친")
 # v2.10.0 사망 표지 — 보수적으로 잡는다 (주인공을 퇴장으로 잘못 잡으면 C-1 주입이 그 인물을 지운다)
 #  강: 인물이 주어인 사망 동사 — '민이 … 쓰러져 죽고', '리 란이 소멸하며' (인물명 뒤 40자 이내, 다른 주어 없음)
@@ -9460,7 +9513,8 @@ def _strip_quotes(text: str) -> str:
 
 
 def _is_flashback(s: dict) -> bool:
-    return bool(_FLASHBACK_RE.search(str((s or {}).get("summary", "")))) or \
+    summ = str((s or {}).get("summary", ""))
+    return bool(_FLASHBACK_RE.search(summ) or _FLASHBACK_HEAD_RE.search(summ)) or \
         str((s or {}).get("function", "")).strip() == "회상"
 
 
@@ -9584,11 +9638,28 @@ def find_scene_list_duplicates(scenes: list, fmt: str = "", named_characters: li
             if str(s.get("function", "사건")).strip() in ("", "사건"):
                 for r in _to_str_list(s.get("event_ref")):
                     by_ref.setdefault(r.upper(), []).append(i)
-        for r, idxs in sorted(by_ref.items()):
-            if len(idxs) > 1:
-                add("사건 중복", "①", idxs, f"{' ↔ '.join(lab[i] for i in idxs)} — 같은 사건 {r}을 '사건' 기능으로 {len(idxs)}번 씁니다.")
-                used_pairs.update((a, b) for a in idxs for b in idxs if a < b)
     G, idf, rare = _sl_similarity_index(sc_list, names)
+    if tagged:
+        # v2.10.1: 같은 ref라도 장소를 옮겨 이어지는 한 사건(교차 진행)은 중복이 아니다.
+        #   내용이 겹치거나(요약 유사도) 같은 공간에서 되풀이될 때만 '사건 중복'. 나머지는 참고로 한 줄.
+        _k0 = location_space_keys(sc_list)
+        for r, idxs in sorted(by_ref.items()):
+            if len(idxs) < 2:
+                continue
+            dup = set()
+            for x in range(len(idxs)):
+                for y in range(x + 1, len(idxs)):
+                    a, b = idxs[x], idxs[y]
+                    sc_ab, _ = _sl_pair_score(G, idf, rare, a, b)
+                    if sc_ab >= 0.15 or (_k0[a] is not None and _k0[a] == _k0[b]):
+                        dup.update((a, b))
+                    used_pairs.add((a, b))
+            if dup:
+                d = sorted(dup)
+                add("사건 중복", "①", d, f"{' ↔ '.join(lab[i] for i in d)} — 같은 사건 {r}을 '사건' 기능으로 되풀이합니다 (내용·공간이 겹침).")
+            else:
+                add("사건 분할(참고)", "①", idxs, f"{' · '.join(lab[i] for i in idxs)} — 사건 {r}이 여러 장소로 이어집니다. "
+                                                 "처음 벌어지는 씬만 '사건', 나머지는 '여파·교차'로 표시하면 됩니다.")
     fb = [_is_flashback(s) for s in sc_list]
     keys = location_space_keys(sc_list)
     for i in range(len(sc_list)):
@@ -9742,6 +9813,9 @@ def find_scene_list_duplicates(scenes: list, fmt: str = "", named_characters: li
         if bud and bt and len(idxs) > bud * BEAT_CONCENTRATION_MAX and len(idxs) >= 5:
             add("비트 쏠림", "C-2", (idxs[0], idxs[-1]), f"Beat {bt} 하나에 {len(idxs)}씬 ({lab[idxs[0]]}~{lab[idxs[-1]]}) — "
                                                         f"SEQ {sq} 예산 {bud}씬의 {int(BEAT_CONCENTRATION_MAX * 100)}%를 넘습니다.")
+    # v2.10.1: 정보 반복 — 관객이 이미 아는 정보를 다시 공개 (info 필드가 있을 때)
+    for i, j, t in find_info_repeats(sc_list, fmt):
+        add("정보 반복", "①", (i, j), f"{lab[i]} ↔ {lab[j]} — 관객이 이미 아는 정보를 다시 설명합니다: '{t[:40]}'")
     return out
 
 
@@ -9872,7 +9946,7 @@ def build_scene_list_report(scenes: list, storyline: list, variant: str = "기�
 
 
 def build_cross_unit_block(other_units: list, exited: list = None, fmt: str = "",
-                           limit: int = CROSS_UNIT_INJECT_MAX) -> str:
+                           limit: int = CROSS_UNIT_INJECT_MAX, known_info: list = None) -> str:
     """C-1: 같은 안의 이미 만든 다른 막(회차) 씬 주입.
     other_units: [(단위 라벨, "앞" | "뒤", [씬...])]. 상한을 넘으면 요약을 줄이고, 그래도 넘으면 사건 번호만."""
     if not other_units and not exited:
@@ -9904,9 +9978,525 @@ def build_cross_unit_block(other_units: list, exited: list = None, fmt: str = ""
         if len("\n".join(lines)) <= limit:
             break
     ex_lines = [f"- [퇴장 인물] {e['name']}({e['label']} 퇴장) — 이 막에서는 회상이 아니면 등장하지 않는다." for e in exited or []]
+    ki = list(known_info or [])
+    ki_txt = ""
+    if ki:
+        ki_txt = ("[★ v2.10.1 관객이 이미 아는 정보 — 다시 설명하지 않는다 ★]\n"
+                  + "\n".join(f"- {x}" for x in ki)[:3000] + "\n")
     return ("\n[★ v2.10.0 이미 만든 씬 — 같은 안의 다른 막 ★]\n" + "\n".join(lines) + "\n"
             "- 위 씬에서 이미 일어난 사건을 다시 만들지 않는다. 같은 행동·같은 대사·같은 회상을 반복하지 않는다.\n"
-            + ("\n".join(ex_lines) + "\n" if ex_lines else ""))
+            + ("\n".join(ex_lines) + "\n" if ex_lines else "") + ki_txt)
+
+
+# ═══════════════════════════════════════════════════
+# v2.10.1 — 무료 자동 정리 · 구간 수정 · 대사/정보 반복 차단
+# ───────────────────────────────────────────────────
+# 발견 경위: Mr. MOON 운영 중 지적 (2026-10-25, 「THE CRIMSON ROBE」 변주안 93씬).
+#   "공간 반복수정요청만 하다가 코인 다 쓰는데. 수정 이전에 설계를 잘 하면 되는 거 아니야?"
+#   "2개 남겨놓고 벌써 여러번 반복하고 있어." "그걸 자동으로 하라고 엔진을 설계하는 거야."
+# 확인: ① 수정 요청은 막 전체(45씬·약 14,000자)를 매번 다시 출력 — 위반 2건에도 전체 비용.
+#   ② 남은 위반(S#5~7 양장점 뒤편 제단→양장점)은 같은 낮·같은 인물의 한 장면을 둘로 쪼갠 것 —
+#      파이썬으로 합치면 되는 일을 AI에게 반복 요청. ③ 기본안 3막 클라이맥스는 같은 방·같은 밤 10씬 연속.
+#   ④ 대사: 씬리스트 요약에 따옴표 대사 29개, 같은 말 반복('리 가문의 피가 닿으면…' S#18·27·66).
+#   ⑤ 같은 정보(리 가문 피의 규칙)를 여러 씬에서 다시 설명 — 관객이 이미 아는 정보를 엔진이 모른다.
+# 원칙: 먼저 파이썬(무료) → 남은 것만 AI(구간 단위). 작가가 손으로 고치는 것은 마지막 수단.
+# ═══════════════════════════════════════════════════
+
+SCENE_TIME_ORDER = ["새벽", "낮", "오후", "저녁", "밤"]   # 이어지는 시간 판정용 (밤 → 새벽도 이어짐)
+AUTO_MOVE_MAX_DIST = 4          # 옮기기: 최대 몇 씬 거리까지 옮기는가
+WINDOW_PAD = 1                  # 구간 수정: 위반 구간 앞뒤로 몇 씬을 함께 보내는가
+_REPEAT_LINE_MARK = "(앞 씬에서 이미 한 말 — 다른 말로 쓸 것)"
+
+
+def _time_continuous(a: str, b: str) -> bool:
+    a, b = str(a or "").strip(), str(b or "").strip()
+    if a == b:
+        return True
+    if a in SCENE_TIME_ORDER and b in SCENE_TIME_ORDER:
+        ia, ib = SCENE_TIME_ORDER.index(a), SCENE_TIME_ORDER.index(b)
+        return ib - ia == 1 or (a == "밤" and b == "새벽")
+    return False
+
+
+def _mergeable(a: dict, b: dict, key_a, key_b) -> bool:
+    """같은 공간 · 같은 비트 · 이어지는 시간 · 둘 다 회상 아님 → 원래 한 씬을 잘못 쪼갠 것."""
+    if not key_a or key_a != key_b:
+        return False
+    if _to_int(a.get("beat")) != _to_int(b.get("beat")) or a.get("_unit") != b.get("_unit"):
+        return False
+    if _is_flashback(a) != _is_flashback(b):
+        return False
+    return _time_continuous(a.get("time"), b.get("time"))
+
+
+def merge_two_scenes(a: dict, b: dict, key_loc: str = "") -> dict:
+    """두 씬을 한 씬으로. 요약은 이어 붙이고 인물·태그·사건은 합집합. 장소는 상위 공간 이름."""
+    m = dict(a)
+    m["location"] = key_loc or a.get("location", "")
+    m["summary"] = f"{str(a.get('summary', '')).rstrip(' .')}. 이어서 {str(b.get('summary', '')).strip()}"
+    for k in ("characters", "reveals", "plants", "payoffs", "motifs", "event_ref"):
+        out = []
+        for x in _to_str_list(a.get(k)) + _to_str_list(b.get(k)):
+            if x not in out:
+                out.append(x)
+        if out or k in a or k in b:
+            m[k] = out
+    if "고백" in (a.get("dialogue_mode"), b.get("dialogue_mode")):
+        m["dialogue_mode"] = "고백"
+    if "사건" in (a.get("function"), b.get("function")):
+        m["function"] = "사건"
+    infos = [str(x.get("info", "")).strip() for x in (a, b) if str(x.get("info", "")).strip()]
+    if infos:
+        m["info"] = " / ".join(dict.fromkeys(infos))
+    reasons = [str(x.get("shortfall_reason", "")).strip() for x in (a, b) if str(x.get("shortfall_reason", "")).strip()]
+    if reasons:
+        m["shortfall_reason"] = reasons[-1]
+    m.pop("no", None)
+    return m
+
+
+def _merge_pass(scenes: list, fmt: str, log: list) -> list:
+    out = [dict(s) for s in scenes]
+    changed = True
+    while changed:
+        changed = False
+        keys = location_space_keys(out)
+        for i in range(len(out) - 1):
+            if _mergeable(out[i], out[i + 1], keys[i], keys[i + 1]):
+                if is_series_format(fmt) and _to_int(out[i].get("ep")) != _to_int(out[i + 1].get("ep")):
+                    continue
+                log.append(f"합치기: '{_loc_text(out[i])}'({out[i].get('time')}) + '{_loc_text(out[i + 1])}'({out[i + 1].get('time')}) "
+                           f"— Beat {out[i].get('beat')} 같은 공간·이어지는 시간 → 한 씬")
+                out[i] = merge_two_scenes(out[i], out[i + 1], keys[i][1])
+                del out[i + 1]
+                changed = True
+                break
+    return out
+
+
+def _movable(s: dict) -> bool:
+    """공개·복선 태그가 있는 씬은 순서를 바꾸지 않는다 (공개 일정 보호)."""
+    return not any(_to_str_list(s.get(k)) for k in ("reveals", "plants", "payoffs"))
+
+
+def auto_fix_location_runs(scenes: list, fmt: str = "", named_characters: list = None) -> tuple:
+    """v2.10.1: 공간 반복을 API 없이 정리한다. (정리된 씬 리스트, 기록) 반환.
+    ① 합치기 — 같은 공간·같은 비트·이어지는 시간(같은 낮 / 저녁→밤)은 원래 한 씬이다.
+    ② 옮기기 — 다른 공간의 씬을 위반 사이로 옮긴다. 조건: 같은 생성 단위(막/회차) 안, 4씬 이내,
+       옮기는 씬의 인물이 건너뛰는 씬들의 인물과 겹치지 않음(동시 진행 라인), 공개·복선 태그 없음,
+       옮긴 뒤 합치기까지 해서 위반 수가 실제로 줄어들 때만.
+    씬에 '_unit' 키가 있으면 단위 경계를 넘지 않는다. 남은 위반은 구간 수정(AI)으로 넘긴다."""
+    log = []
+    cur = _merge_pass([s for s in scenes or [] if isinstance(s, dict)], fmt, log)
+    groups = _character_groups(cur, named_characters)
+    for _ in range(40):
+        runs = find_location_runs(cur, fmt)
+        if not runs:
+            break
+        best = None
+        for r in runs:
+            for gap in range(r["start"], r["end"]):            # gap: i와 i+1 사이
+                i = gap
+                for j in range(max(0, i - AUTO_MOVE_MAX_DIST + 1), min(len(cur), i + 1 + AUTO_MOVE_MAX_DIST)):
+                    if r["start"] <= j <= r["end"]:
+                        continue
+                    sj = cur[j]
+                    if sj.get("_unit") != cur[i].get("_unit") or not _movable(sj):
+                        continue
+                    if is_series_format(fmt) and _to_int(sj.get("ep")) != _to_int(cur[i].get("ep")):
+                        continue
+                    lo, hi = (j + 1, i + 1) if j < i else (i + 1, j)
+                    jumped = cur[lo:hi]
+                    pj = _scene_people(sj, groups)
+                    if any(pj & _scene_people(x, groups) for x in jumped):
+                        continue
+                    trial = cur[:j] + cur[j + 1:]
+                    ins = i if j < i else i + 1
+                    trial = trial[:ins] + [sj] + trial[ins:]
+                    tlog = []
+                    trial = _merge_pass(trial, fmt, tlog)
+                    score = (len(find_location_runs(trial, fmt)), -len(trial))
+                    if score[0] < len(runs) and (best is None or score < best[0]):
+                        best = (score, trial, f"옮기기: '{_loc_text(sj)}'({', '.join(_to_str_list(sj.get('characters'))) or '인물 없음'}) "
+                                              f"씬을 '{_loc_text(cur[i])}' 두 씬 사이로 — 동시 진행 라인", tlog)
+        if not best:
+            break
+        _, cur, msg, tlog = best
+        log.append(msg)
+        log += tlog
+    return cur, log
+
+
+def location_run_windows(scenes: list, fmt: str = "", pad: int = WINDOW_PAD) -> list:
+    """v2.10.1: 남은 위반 구간 → 수정 창 [(lo, hi)] (hi 포함). 겹치는 창은 하나로."""
+    wins = []
+    for r in find_location_runs(scenes, fmt):
+        lo, hi = max(0, r["start"] - pad), min(len(scenes) - 1, r["end"] + pad)
+        if wins and lo <= wins[-1][1] + 1:
+            wins[-1] = (wins[-1][0], max(wins[-1][1], hi))
+        else:
+            wins.append((lo, hi))
+    return wins
+
+
+def build_scene_window_repair_block(window_scenes: list, prev_scene: dict, next_scene: dict,
+                                    violation: str, context_lines: str, failure_note: str = "") -> str:
+    """v2.10.1: 구간 수정 요청 — 이 구간의 씬만 다시 쓴다 (막 전체를 다시 쓰지 않는다)."""
+    def _b(s):
+        return f"{_ie(s)} {_loc_text(s)} · {s.get('time', '')} · {', '.join(_to_str_list(s.get('characters')))}"
+    edge = []
+    if prev_scene:
+        edge.append(f"- 이 구간 바로 앞 씬(고치지 않음): {_b(prev_scene)} → 구간 첫 씬은 이 공간이 아니어야 한다.")
+    if next_scene:
+        edge.append(f"- 이 구간 바로 뒤 씬(고치지 않음): {_b(next_scene)} → 구간 마지막 씬은 이 공간이 아니어야 한다.")
+    floor = max(1, len(window_scenes) - 1)
+    return f"""[★ v2.10.1 구간 수정 — 아래 {len(window_scenes)}씬만 다시 쓴다 ★]
+[적발] {violation}
+{chr(10).join(edge)}
+
+[작품 전체 흐름 — 참고만, 고치지 않음]
+{context_lines}
+
+[고칠 구간 — no는 구간 안 번호]
+{json.dumps(window_scenes, ensure_ascii=False)}
+
+[수정 규칙]
+- 출력은 이 구간을 대신할 씬 목록뿐이다. 구간 밖 씬은 출력하지 않는다.
+- 같은 공간이 이어지지 않게 한다. 방법은 셋:
+  ② 구간 안에서 순서를 바꾼다 (인과·공개 순서를 깨지 않을 때만)
+  ③ Treatment 사건 목록에 있는 다른 인물·다른 장소의 사건을 별도 씬으로 세워 사이에 둔다
+     (행인·분위기·정적만 있는 씬 금지 / 이미 다른 씬에 있는 사건·대사·회상 반복 금지)
+  ① 같은 공간·이어지는 시간은 한 씬으로 합친다
+- 씬 수는 최소 {floor}씬. 비트 번호, reveals·plants·payoffs·motifs·event_ref, 등장인물은 하나도 빠지면 안 된다.
+- '양장점 뒤편 제단'처럼 하위 공간은 상위 공간과 같은 공간이다. 이름을 바꿔 피하지 않는다.
+{('[직전 시도 실패 사유 — 반드시 해결]' + chr(10) + failure_note) if failure_note else ''}
+[출력] {{"scenes": [ ... 이 구간 씬 ... ]}}
+"""
+
+
+def dedupe_quoted_lines(scenes: list) -> tuple:
+    """v2.10.1: 요약 속 같은 대사가 뒤 씬에 다시 나오면 뒤 쪽 인용을 지시문으로 바꾼다.
+    Writer가 요약의 따옴표를 대사로 옮겨 쓰기 때문에, 같은 말이 원고에서 두 번 나오는 것을 여기서 끊는다.
+    (정리된 씬 리스트, 기록) 반환."""
+    out, log, seen = [], [], []
+    for s in scenes or []:
+        if not isinstance(s, dict):
+            out.append(s)
+            continue
+        s = dict(s)
+        summ = str(s.get("summary", ""))
+        for q in _QUOTE_RE.findall(summ):
+            ws = _quote_words(q)
+            hit = next((pq for pq, pw in seen if ws and len(ws & pw) >= 2 and len(ws & pw) >= 0.5 * min(len(ws), len(pw))), None)
+            if hit:
+                summ = re.sub(r"['‘“\"]" + re.escape(q) + r"['’”\"]", _REPEAT_LINE_MARK, summ, count=1)
+                log.append(f"대사 반복 제거: '{q[:28]}' (앞 씬의 '{hit[:28]}'와 같은 말)")
+            elif ws:
+                seen.append((q, ws))
+        s["summary"] = summ
+        out.append(s)
+    return out, log
+
+
+def _quote_words(q: str) -> set:
+    ws = {re.sub(r"(은|는|이|가|을|를|의|에|에게|도|만|이야|아니야|같다|이다)$", "", w)
+          for w in re.findall(rf"[{_HANGUL}]{{2,}}", q)}
+    return {w for w in ws if len(w) >= 2 and w not in _QUOTE_STOP}
+
+
+def known_info_lines(scenes: list, fmt: str = "") -> list:
+    """v2.10.1: 관객이 이미 아는 정보 — 씬의 info 필드에서. ['S#16 리 가문의 피가 로브를 파멸시킨다', ...]"""
+    out = []
+    for s in scenes or []:
+        if isinstance(s, dict) and str(s.get("info", "")).strip():
+            out.append(f"{_scene_label(s, fmt)} {str(s.get('info')).strip()}")
+    return out
+
+
+def auto_clean_scene_list(scenes: list, fmt: str = "", named_characters: list = None) -> tuple:
+    """v2.10.1: 생성 직후 자동 정리 (무료). 공간 반복 합치기·옮기기 → 대사 반복 제거. (씬, 기록)."""
+    cur, log = auto_fix_location_runs(scenes, fmt, named_characters)
+    cur, log2 = dedupe_quoted_lines(cur)
+    return cur, log + log2
+
+
+# ═══════════════════════════════════════════════════
+# v2.10.1 — 생성 단계 자동 정리 (코인 0) · 구간 수정 · 대사 반복 제거 · 정보 추적
+# ───────────────────────────────────────────────────
+# 발견 경위: Mr. MOON 운영 중 지적 (2026-10-25, 「THE CRIMSON ROBE」 변주안 93씬).
+#   "공간 반복 수정요청만 하다가 코인 다 쓰는데. 2개 남겨놓고 벌써 여러번 횟수를 반복하고 있어."
+#   "그걸 자동으로 하라고 엔진을 설계하는 거야."
+# 코드 확인:
+#   ① 같은 공간·같은 시간에 이어지는 행동(원래 한 씬)을 여러 씬으로 쪼개 놓고 연속 금지에 걸린다.
+#      기본안 3막 클라이맥스: 양장점·밤 10씬 연속(Beat 13~14). 연속 금지가 있는 한 수정 요청으로는 풀리지 않는다.
+#      S#5 양장점 뒤편 제단·낮 + S#6 양장점·낮(같은 두 사람의 이어지는 대화) — 원래 한 씬.
+#   ② 수정 요청은 막 전체(최대 45씬)를 다시 쓴다. 위반 2씬을 고치려고 45씬을 출력한다.
+#   ③ AI는 '양장점 뒤편 제단'을 다른 방으로 여겨, 하위 공간 규칙을 지키지 못한 채 '고쳤다'고 돌려준다.
+#   ④ 대사: 씬리스트 요약이 대사를 미리 쓴다(82씬 중 26씬, 29줄) → Writer가 20줄을 그대로 옮겼다.
+#      '리 가문의 피가 닿으면 흑마력이 자멸한다'가 S#18·27·66 요약에 똑같이 들어갔다.
+#   ⑤ 관객이 이미 아는 정보를 추적하지 않아 같은 설명이 씬마다 반복된다.
+# 해법: 위반을 '고치는' 대신 생성 직후 파이썬이 규칙대로 정리한다(합치기·옮기기 — API 호출 없음).
+#   남은 위반만 앞뒤 1씬과 함께 '구간'으로 AI에 보낸다. 대사·정보 반복은 파이썬이 지운다.
+# ═══════════════════════════════════════════════════
+
+AUTO_MOVE_REACH = 4              # 옮기기 후보를 찾는 거리 (씬)
+INFO_DUP_MIN = 0.5               # 정보 반복 판정 — 음절쌍 겹침 비율
+
+
+def _sl_label_short(s: dict) -> str:
+    return f"'{_loc_text(s)} · {str(s.get('summary', ''))[:18]}…'"
+
+
+def _uniq(seq) -> list:
+    out = []
+    for x in seq:
+        if x and x not in out:
+            out.append(x)
+    return out
+
+
+def merge_two_scenes(a: dict, b: dict) -> dict:
+    """같은 공간·같은 시간에 이어지는 두 씬을 한 씬으로. 사건·인물·태그는 모두 남긴다."""
+    m = dict(a)
+    la, lb = _loc_text(a), _loc_text(b)
+    # 상위 공간 이름으로 ('양장점 뒤편 제단' + '양장점' → '양장점')
+    m["location"] = lb if (la.startswith(lb + " ") or not la) else la
+    sa = str(a.get("summary", "")).rstrip(" .")
+    sb = str(b.get("summary", "")).strip()
+    sub = f"({lb}) " if lb != m["location"] and lb else ""
+    sub_a = f"({la}) " if la != m["location"] and la else ""
+    m["summary"] = f"{sub_a}{sa} → {sub}{sb}" if sb and sb not in sa else (sub_a + sa)
+    m["characters"] = _uniq(_to_str_list(a.get("characters")) + _to_str_list(b.get("characters")))
+    for k in ("reveals", "plants", "payoffs", "motifs", "event_ref"):
+        v = _uniq(_to_str_list(a.get(k)) + _to_str_list(b.get(k)))
+        if v or k in a or k in b:
+            m[k] = v
+    fa, fb = str(a.get("function", "") or ""), str(b.get("function", "") or "")
+    if fa or fb:
+        m["function"] = "사건" if "사건" in (fa, fb) else (fa or fb)
+    if "고백" in (a.get("dialogue_mode"), b.get("dialogue_mode")):
+        m["dialogue_mode"] = "고백"
+    info = _uniq([str(a.get("info", "") or "").strip(), str(b.get("info", "") or "").strip()])
+    if info:
+        m["info"] = " / ".join(info)
+    sr = _uniq([str(a.get("shortfall_reason", "") or ""), str(b.get("shortfall_reason", "") or "")])
+    if sr:
+        m["shortfall_reason"] = " / ".join(sr)
+    return m
+
+
+def auto_fix_location_runs(scenes: list, fmt: str = "", max_moves: int = 30):
+    """v2.10.1: 공간 반복을 API 없이 정리한다. 반환 (정리된 씬 리스트, 작업 기록 리스트).
+    1단계 합치기 — 이어진 두 씬이 같은 공간 · 같은 비트 · 같은 시간대 · 인물 1명 이상 겹침 · 회상 여부 같음이면
+             원래 한 씬이다 (규칙: '한 공간에서 시간이 이어지는 행동은 한 씬'). 사건·인물·태그는 모두 남긴다.
+    2단계 옮기기 — 남은 연속 구간 사이에, 가까운(4씬 이내) 같은 비트의 다른 공간 씬을 끼운다.
+             단 그 씬이 건너뛰는 씬들과 인물이 하나도 겹치지 않을 때만(동시 진행 · 인과 순서 불변),
+             공개·복선 태그(reveals·plants·payoffs)가 없을 때만, 연속 구간 수가 실제로 줄 때만.
+    번호(no)는 바꾸지 않는다 — 호출하는 쪽이 renumber 한다."""
+    cur = [dict(s) for s in (scenes or []) if isinstance(s, dict)]
+    log = []
+    if len(cur) < 2:
+        return cur, log
+    series = is_series_format(fmt)
+
+    def _same_ep(x, y):
+        return not series or _to_int(x.get("ep")) == _to_int(y.get("ep"))
+
+    def _people(s):
+        return {a for n in _to_str_list(s.get("characters")) for a in split_character_aliases(n)}
+
+    def _merge_pass(lst):
+        lst = list(lst)
+        mlog = []
+        changed = True
+        while changed:
+            changed = False
+            keys = location_space_keys(lst)
+            for i in range(len(lst) - 1):
+                a, b = lst[i], lst[i + 1]
+                if keys[i] is None or keys[i] != keys[i + 1] or not _same_ep(a, b):
+                    continue
+                if _to_int(a.get("beat")) != _to_int(b.get("beat")):
+                    continue
+                if str(a.get("time", "")).strip() != str(b.get("time", "")).strip():
+                    continue
+                if _is_flashback(a) != _is_flashback(b):
+                    continue
+                pa, pb = _people(a), _people(b)
+                if pa and pb and not (pa & pb):
+                    continue
+                mlog.append(f"합침 — {_sl_label_short(a)} + {_sl_label_short(b)} "
+                            f"(같은 공간 '{keys[i][1]}' · 같은 {a.get('time', '')} · Beat {a.get('beat')})")
+                lst[i:i + 2] = [merge_two_scenes(a, b)]
+                changed = True
+                break
+        return lst, mlog
+
+    # ── 1단계 합치기 ──
+    cur, mlog = _merge_pass(cur)
+    log += mlog
+
+    # ── 2단계 옮기기 (옮긴 뒤 새로 붙은 같은 공간·같은 시간 씬은 다시 합친다) ──
+    for _ in range(max_moves):
+        runs = find_location_runs(cur, fmt)
+        if not runs:
+            break
+        base = len(runs)
+        keys = location_space_keys(cur)
+        done = False
+        for r in runs:
+            for p in range(r["start"], r["end"]):
+                bp = {_to_int(cur[p].get("beat")), _to_int(cur[p + 1].get("beat"))}
+                cands = sorted((j for j in range(max(0, p - AUTO_MOVE_REACH), min(len(cur), p + 2 + AUTO_MOVE_REACH))
+                                if not (r["start"] <= j <= r["end"])),
+                               key=lambda j: abs(j - p))
+                for j in cands:
+                    sj = cur[j]
+                    if keys[j] is None or keys[j] == keys[p] or _to_int(sj.get("beat")) not in bp:
+                        continue
+                    if not _same_ep(sj, cur[p]):
+                        continue
+                    if any(_to_str_list(sj.get(k)) for k in ("reveals", "plants", "payoffs")):
+                        continue
+                    # 건너뛰는 씬: j가 앞에 있으면 j+1..p, 뒤에 있으면 p+1..j-1
+                    jumped = cur[j + 1:p + 1] if j < p else cur[p + 1:j]
+                    if any(_people(sj) & _people(x) for x in jumped):
+                        continue
+                    trial = cur[:j] + cur[j + 1:]
+                    ins = p if j < p else p + 1          # j를 뺀 뒤의 삽입 위치
+                    trial = trial[:ins] + [sj] + trial[ins:]
+                    trial2, mlog2 = _merge_pass(trial)
+                    if len(find_location_runs(trial2, fmt)) < base:
+                        log.append(f"옮김 — {_sl_label_short(sj)}을(를) {_sl_label_short(cur[p])}와 "
+                                   f"{_sl_label_short(cur[p + 1])} 사이로 (동시 진행 · 인물 겹침 없음)")
+                        log += mlog2
+                        cur = trial2
+                        done = True
+                        break
+                if done:
+                    break
+            if done:
+                break
+        if not done:
+            break
+    return cur, log
+
+
+def find_location_windows(scenes: list, fmt: str = "", pad: int = 1) -> list:
+    """v2.10.1: 남은 공간 반복을 '구간'으로 — [(시작, 끝)] (앞뒤 pad씬 포함, 겹치면 합침)."""
+    wins = []
+    n = len(scenes or [])
+    for r in find_location_runs(scenes, fmt):
+        a, b = max(0, r["start"] - pad), min(n - 1, r["end"] + pad)
+        if wins and a <= wins[-1][1] + 1:
+            wins[-1] = (wins[-1][0], max(wins[-1][1], b))
+        else:
+            wins.append((a, b))
+    return wins
+
+
+def build_location_window_repair_block(unit_label: str, scenes: list, windows: list, failure_note: str = "") -> str:
+    """v2.10.1: 구간 수정 요청 — 전체는 읽기용 한 줄씩, 고칠 구간만 JSON. 출력도 구간만."""
+    keys = location_space_keys(scenes)
+    read = "\n".join(f"S#{i + 1} · Beat {s.get('beat')} · {_ie(s)} {_loc_text(s)} · {s.get('time', '')} · "
+                     f"{', '.join(_to_str_list(s.get('characters')))} · {str(s.get('summary', ''))[:70]}"
+                     for i, s in enumerate(scenes))
+    blocks = []
+    for w, (a, b) in enumerate(windows, 1):
+        same = _uniq([f"'{_loc_text(x)}'" for x, k in zip(scenes[a:b + 1], keys[a:b + 1])])
+        blocks.append(f"[구간 {w}] S#{a + 1}~S#{b + 1} — 엔진은 {', '.join(same)}을(를) 공간 키로 묶어 봅니다.\n"
+                      + json.dumps(scenes[a:b + 1], ensure_ascii=False))
+    return f"""[★ v2.10.1 공간 반복 구간 수정 — {unit_label} ★]
+엔진이 합치기·옮기기를 이미 해 보았고, 아래 구간은 그것으로 풀리지 않은 곳이다. 이 구간만 고친다.
+
+[{unit_label} 전체 — 읽기용. 고치지 않는다]
+{read}
+
+[고칠 구간]
+{chr(10).join(blocks)}
+
+[판정 기준 — 엔진이 파이썬으로 본다]
+- 하위 공간은 상위 공간과 같은 공간이다. '양장점 뒤편 제단'·'양장점 탈의실'은 모두 '양장점'이다.
+  INT와 EXT가 다르면 다른 공간이다. 장소 이름을 바꾸거나 쪼개서 피하지 않는다.
+- 구간의 첫 씬 앞, 마지막 씬 뒤는 위 '전체' 목록 그대로 이어진다. 그 씬들과도 같은 공간이 붙으면 안 된다.
+
+[고치는 법 — 우선순위]
+① 같은 비트에서 Treatment에 이미 있는 다른 인물·다른 장소의 사건(동시 진행)을 별도 씬으로 세워 사이에 둔다.
+   사건 목록의 event_ref를 단다 (function: 교차). 행인·분위기·정적만 있는 씬은 금지.
+② 구간 안 씬의 순서를 바꾼다 — 인과 순서와 공개 일정을 깨지 않을 때만.
+- 새 사건·새 인물·새 설정을 만들지 않는다. 이미 다른 씬에 있는 사건·대사·회상을 다시 쓰지 않는다.
+- 구간의 beat 번호, reveals·plants·payoffs·motifs·event_ref, 등장인물은 하나도 빠지면 안 된다.
+- 구간의 씬 수를 줄이지 않는다.
+
+[출력 — 구간만]
+{{"windows": [{{"window": 1, "scenes": [구간 1의 새 씬 목록]}}]}}
+{('[직전 시도 실패 사유 — 반드시 해결]' + chr(10) + failure_note) if failure_note else ''}
+"""
+
+
+def _quote_words(q: str, names=()) -> set:
+    ws = {w for w in re.findall(rf"[{_HANGUL}]{{2,}}", q) if w not in names}
+    ws = {re.sub(r"(은|는|이|가|을|를|의|에|에게|도|만|이야|아니야|같다|이다)$", "", w) for w in ws}
+    return {w for w in ws if len(w) >= 2 and w not in _QUOTE_STOP}
+
+
+def _same_quote(wa: set, wb: set) -> bool:
+    common = wa & wb
+    return len(common) >= 2 and len(common) >= 0.5 * min(len(wa), len(wb))
+
+
+def dedupe_summary_quotes(scenes: list, prior_scenes: list = None, fmt: str = ""):
+    """v2.10.1: 요약에 미리 쓴 대사가 앞 씬(이전 막 포함)의 대사와 같으면 지운다.
+    지운 자리에는 Writer가 읽을 지시를 남긴다: 〔S#18과 같은 말 — 다시 말하지 않는다〕. 반환 (씬, 기록)."""
+    seen = []
+    for s in prior_scenes or []:
+        if isinstance(s, dict) and not _is_flashback(s):
+            for q in _QUOTE_RE.findall(str(s.get("summary", ""))):
+                seen.append((_quote_words(q), _scene_label(s, fmt), q))
+    out, log = [], []
+    for s in scenes or []:
+        if not isinstance(s, dict):
+            out.append(s)
+            continue
+        s = dict(s)
+        summ = str(s.get("summary", ""))
+        if not _is_flashback(s):
+            for m in list(_QUOTE_RE.finditer(summ)):
+                q = m.group(1)
+                wq = _quote_words(q)
+                hit = next((x for x in seen if wq and _same_quote(wq, x[0])), None)
+                if hit:
+                    summ = summ.replace(m.group(0), f"〔{hit[1]}과 같은 말 — 다시 말하지 않는다〕", 1)
+                    log.append(f"대사 반복 제거 — {_scene_label(s, fmt)} '{q[:24]}' ({hit[1]} '{hit[2][:20]}'와 같음)")
+                elif wq:
+                    seen.append((wq, _scene_label(s, fmt), q))
+        s["summary"] = summ
+        out.append(s)
+    return out, log
+
+
+def _info_grams(t: str) -> set:
+    t = re.sub(rf"[^{_HANGUL}0-9]", "", str(t or ""))
+    return {t[k:k + 2] for k in range(len(t) - 1)}
+
+
+def known_info_lines(scenes: list, fmt: str = "") -> list:
+    """v2.10.1: 관객이 이미 아는 정보 — 씬의 info 필드 (없으면 빈 리스트)."""
+    return [f"{_scene_label(s, fmt)} {str(s.get('info')).strip()}" for s in scenes or []
+            if isinstance(s, dict) and str(s.get("info", "") or "").strip()]
+
+
+def find_info_repeats(scenes: list, fmt: str = "") -> list:
+    """v2.10.1: 같은 정보를 두 번 공개하는 씬 — [(앞 i, 뒤 j, 정보)]."""
+    items = [(i, _info_grams(s.get("info")), str(s.get("info", "")).strip())
+             for i, s in enumerate(scenes or []) if isinstance(s, dict) and str(s.get("info", "") or "").strip()]
+    out = []
+    for x in range(len(items)):
+        for y in range(x + 1, len(items)):
+            (i, ga, ta), (j, gb, tb) = items[x], items[y]
+            if ga and gb and len(ga & gb) / max(1, min(len(ga), len(gb))) >= INFO_DUP_MIN:
+                out.append((i, j, ta))
+    return out
 
 
 def validate_scene_list(scenes: list, storyline: list = None, main_characters: list = None,
